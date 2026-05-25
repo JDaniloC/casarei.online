@@ -237,6 +237,7 @@ const Dashboard = () => {
             isVaquinha: g.is_vaquinha || false,
             raisedAmount: Number(g.raised_amount) || 0,
             stock: g.stock !== null && g.stock !== undefined ? Number(g.stock) : null,
+            totalQuotas: g.total_quotas !== null && g.total_quotas !== undefined ? Number(g.total_quotas) : null,
           }));
           updateConfig({ gifts: formattedGifts });
         }
@@ -444,6 +445,7 @@ const Dashboard = () => {
           is_open_price: g.isOpenPrice || false,
           is_vaquinha: g.isVaquinha || false,
           stock: g.stock !== undefined ? g.stock : null,
+          total_quotas: g.totalQuotas !== undefined ? g.totalQuotas : null,
         }));
 
         const giftsToInsert = config.gifts.filter(g => g.id.length <= 20).map(g => ({
@@ -456,6 +458,7 @@ const Dashboard = () => {
           is_open_price: g.isOpenPrice || false,
           is_vaquinha: g.isVaquinha || false,
           stock: g.stock !== undefined ? g.stock : null,
+          total_quotas: g.totalQuotas !== undefined ? g.totalQuotas : null,
         }));
 
         if (giftsToUpdate.length > 0) {
@@ -486,6 +489,7 @@ const Dashboard = () => {
             isVaquinha: g.is_vaquinha || false,
             raisedAmount: Number(g.raised_amount) || 0,
             stock: g.stock !== null && g.stock !== undefined ? Number(g.stock) : null,
+            totalQuotas: g.total_quotas !== null && g.total_quotas !== undefined ? Number(g.total_quotas) : null,
           }));
           updateConfig({ gifts: formattedGifts });
         }
@@ -1595,7 +1599,38 @@ const Dashboard = () => {
                       }}
                       placeholder="Ilimitado"
                       className="bg-background"
+                      disabled={!!newGift.totalQuotas}
                     />
+                    {!!newGift.totalQuotas && (
+                      <p className="text-xs text-muted-foreground">Estoque gerenciado pelas cotas</p>
+                    )}
+                  </div>
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <Label>Número de Cotas</Label>
+                      <span className="text-xs text-muted-foreground">(Opcional — divide o valor em partes iguais)</span>
+                    </div>
+                    <Input
+                      type="number"
+                      min="2"
+                      value={newGift.totalQuotas !== null && newGift.totalQuotas !== undefined ? newGift.totalQuotas : ""}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        const quotas = val === "" ? null : parseInt(val) || 0;
+                        setNewGift({ 
+                          ...newGift, 
+                          totalQuotas: quotas,
+                          stock: quotas ? quotas : newGift.stock,
+                        });
+                      }}
+                      placeholder="Sem cotas"
+                      className="bg-background"
+                    />
+                    {newGift.totalQuotas && newGift.price > 0 && (
+                      <p className="text-xs text-gold font-medium">
+                        Cada cota: R$ {(newGift.price / newGift.totalQuotas).toFixed(2).replace(".", ",")}
+                      </p>
+                    )}
                   </div>
                   <Button onClick={handleSaveNewGift} className="w-full bg-gold hover:bg-gold-light text-background">
                     <Save className="w-4 h-4 mr-2" />
@@ -1639,14 +1674,30 @@ const Dashboard = () => {
                 <div className="p-4">
                     <div className="flex justify-between items-start mb-1">
                       <span className="text-xs text-gold uppercase tracking-wider">{gift.category}</span>
-                      {gift.stock !== null && gift.stock !== undefined && (
+                      {gift.totalQuotas ? (
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${(gift.stock || 0) > 0 ? "bg-blue-100 text-blue-700" : "bg-red-100 text-red-700"}`}>
+                          {(gift.stock || 0) > 0 ? `${gift.stock} DE ${gift.totalQuotas} COTAS` : "TODAS AS COTAS VENDIDAS"}
+                        </span>
+                      ) : gift.stock !== null && gift.stock !== undefined && (
                         <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${gift.stock > 0 ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}>
                           {gift.stock > 0 ? `RESTAM ${gift.stock}` : "ESGOTADO"}
                         </span>
                       )}
                     </div>
                     <h3 className="font-medium text-foreground mt-1">{gift.name}</h3>
-                  {gift.isVaquinha ? (
+                  {gift.totalQuotas && gift.price > 0 ? (
+                    <div className="mt-2">
+                      <p className="text-sm font-medium text-muted-foreground mb-1">
+                        {gift.totalQuotas} cotas de R$ {(gift.price / gift.totalQuotas).toFixed(2).replace(".", ",")}
+                      </p>
+                      <div className="w-full bg-secondary h-2 rounded-full overflow-hidden">
+                        <div 
+                          className="bg-blue-500 h-full rounded-full transition-all duration-500"
+                          style={{ width: `${Math.min(100, ((gift.totalQuotas - (gift.stock || 0)) / gift.totalQuotas) * 100)}%` }}
+                        />
+                      </div>
+                    </div>
+                  ) : gift.isVaquinha ? (
                     <div className="mt-2">
                       <p className="text-sm font-medium text-muted-foreground mb-1">
                         Arrecadado: R$ {(gift.raisedAmount || 0).toFixed(2).replace(".", ",")} de R$ {gift.price.toFixed(2).replace(".", ",")}
@@ -1766,7 +1817,38 @@ const Dashboard = () => {
                       }}
                       placeholder="Ilimitado"
                       className="bg-background"
+                      disabled={!!editingGift.totalQuotas}
                     />
+                    {!!editingGift.totalQuotas && (
+                      <p className="text-xs text-muted-foreground">Estoque gerenciado pelas cotas</p>
+                    )}
+                  </div>
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <Label>Número de Cotas</Label>
+                      <span className="text-xs text-muted-foreground">(Opcional — divide o valor em partes iguais)</span>
+                    </div>
+                    <Input
+                      type="number"
+                      min="2"
+                      value={editingGift.totalQuotas !== null && editingGift.totalQuotas !== undefined ? editingGift.totalQuotas : ""}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        const quotas = val === "" ? null : parseInt(val) || 0;
+                        setEditingGift({ 
+                          ...editingGift, 
+                          totalQuotas: quotas,
+                          stock: quotas ? quotas : editingGift.stock,
+                        });
+                      }}
+                      placeholder="Sem cotas"
+                      className="bg-background"
+                    />
+                    {editingGift.totalQuotas && editingGift.price > 0 && (
+                      <p className="text-xs text-gold font-medium">
+                        Cada cota: R$ {(editingGift.price / editingGift.totalQuotas).toFixed(2).replace(".", ",")}
+                      </p>
+                    )}
                   </div>
                   <Button onClick={handleUpdateGift} className="w-full bg-gold hover:bg-gold-light text-background">
                     <Save className="w-4 h-4 mr-2" />

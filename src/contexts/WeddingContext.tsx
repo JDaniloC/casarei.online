@@ -11,6 +11,7 @@ export interface Gift {
   isVaquinha?: boolean;
   raisedAmount?: number;
   stock?: number | null;
+  totalQuotas?: number | null;
 }
 
 export interface WeddingConfig {

@@ -69,7 +69,11 @@ const GiftRegistrySection = () => {
     }
 
     let priceToUse = gift.price;
-    if (gift.isOpenPrice) {
+    
+    // Cotas: price per quota is total / totalQuotas
+    if (gift.totalQuotas && gift.price > 0) {
+      priceToUse = gift.price / gift.totalQuotas;
+    } else if (gift.isOpenPrice) {
       const customAmount = customAmounts[gift.id] || 0;
       if (customAmount <= 0) {
         toast.error("Por favor, insira um valor válido para presentear.");
@@ -80,7 +84,7 @@ const GiftRegistrySection = () => {
     
     addItem(gift, priceToUse);
     setAddedItems((prev) => new Set(prev).add(gift.id));
-    toast.success(`${gift.name} adicionado ao carrinho!`);
+    toast.success(gift.totalQuotas ? `Cota de ${gift.name} adicionada ao carrinho!` : `${gift.name} adicionado ao carrinho!`);
     
     // Reset the "added" state after 2 seconds
     setTimeout(() => {
@@ -217,7 +221,27 @@ const GiftRegistrySection = () => {
                 <h3 className="font-serif text-lg text-foreground mt-1">
                   {gift.name}
                 </h3>
-                {gift.isVaquinha && (
+                {gift.totalQuotas && gift.price > 0 && (
+                  <div className="mt-3 mb-2">
+                    <div className="flex justify-between text-xs mb-1">
+                      <span className="font-medium text-blue-600">
+                        {gift.totalQuotas - (gift.stock || 0)} de {gift.totalQuotas} cotas adquiridas
+                      </span>
+                      <span className="text-muted-foreground">
+                        R$ {(gift.price / gift.totalQuotas).toFixed(2).replace(".", ",")} / cota
+                      </span>
+                    </div>
+                    <div className="w-full bg-secondary h-2.5 rounded-full overflow-hidden border border-border">
+                      <div 
+                        className="bg-blue-500 h-full rounded-full transition-all duration-1000 relative overflow-hidden"
+                        style={{ width: `${Math.min(100, ((gift.totalQuotas - (gift.stock || 0)) / gift.totalQuotas) * 100)}%` }}
+                      >
+                        <div className="absolute inset-0 bg-white/20 animate-pulse" />
+                      </div>
+                    </div>
+                  </div>
+                )}
+                {gift.isVaquinha && !gift.totalQuotas && (
                   <div className="mt-3 mb-2">
                     <div className="flex justify-between text-xs mb-1">
                       <span className="font-medium text-gold">Arrecadado: R$ {(gift.raisedAmount || 0).toFixed(2).replace(".", ",")}</span>
@@ -233,7 +257,12 @@ const GiftRegistrySection = () => {
                     </div>
                   </div>
                 )}
-                {gift.isOpenPrice ? (
+                {gift.totalQuotas && gift.price > 0 ? (
+                  <p className="text-2xl font-serif text-gold mt-3">
+                    R$ {(gift.price / gift.totalQuotas).toFixed(2).replace(".", ",")}
+                    <span className="text-sm text-muted-foreground ml-1">por cota</span>
+                  </p>
+                ) : gift.isOpenPrice ? (
                   <div className="space-y-2 mt-3">
                     <span className="text-xs font-medium text-muted-foreground">
                       {gift.isVaquinha ? "Com quanto deseja apoiar essa meta?" : "Quanto deseja contribuir?"}
@@ -263,7 +292,7 @@ const GiftRegistrySection = () => {
                     disabled
                     className="w-full mt-4 bg-muted text-muted-foreground cursor-not-allowed"
                   >
-                    Esgotado
+                    {gift.totalQuotas ? "Todas as cotas adquiridas!" : "Esgotado"}
                   </Button>
                 ) : (
                   <Button
@@ -271,7 +300,7 @@ const GiftRegistrySection = () => {
                     className={`w-full mt-4 transition-all ${
                       isAdded
                         ? "bg-green-500 hover:bg-green-600"
-                        : "bg-gold hover:bg-gold-dark"
+                        : gift.totalQuotas ? "bg-blue-600 hover:bg-blue-700" : "bg-gold hover:bg-gold-dark"
                     } text-white`}
                   >
                     {isAdded ? (
@@ -282,7 +311,7 @@ const GiftRegistrySection = () => {
                     ) : (
                       <>
                         <Plus className="w-4 h-4 mr-2" />
-                        Adicionar ao Carrinho
+                        {gift.totalQuotas ? "Adquirir Cota" : "Adicionar ao Carrinho"}
                       </>
                     )}
                   </Button>
