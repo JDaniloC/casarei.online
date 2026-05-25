@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { 
@@ -7,7 +7,7 @@ import {
   Plus, Trash2, Edit2, Save, ChevronRight, LogOut,
   CreditCard, Link2, Copy, Check, ExternalLink, Info,
   Loader2, CheckCircle2, XCircle, AlertCircle, MapPin,
-  History, QrCode, FileText, Wand2
+  History, QrCode, FileText, Wand2, Upload
 } from "lucide-react";
 import DashboardHistory from "@/components/wedding/DashboardHistory";
 import { useWedding, Gift as GiftType } from "@/contexts/WeddingContext";
@@ -144,6 +144,7 @@ const Dashboard = () => {
   const [manualPixKey, setManualPixKey] = useState<string>("");
   const [manualPixQrImageUrl, setManualPixQrImageUrl] = useState<string>("");
   const [uploadingQr, setUploadingQr] = useState(false);
+  const [whatsappNumber, setWhatsappNumber] = useState("");
 
   // Load existing wedding data - only once on mount
   useEffect(() => {
@@ -163,7 +164,8 @@ const Dashboard = () => {
           mercado_pago_public_key,
           payment_credit_card, payment_pix, payment_boleto, max_installments,
           manual_pix_type, manual_pix_key, manual_pix_qr_image_url,
-          story_photo_1, story_photo_2, story_photo_3
+          story_photo_1, story_photo_2, story_photo_3,
+          whatsapp_number
         `)
         .eq("user_id", user.id)
         .single();
@@ -181,6 +183,7 @@ const Dashboard = () => {
         setStoryPhoto1((wedding as Record<string, unknown>).story_photo_1 as string || "");
         setStoryPhoto2((wedding as Record<string, unknown>).story_photo_2 as string || "");
         setStoryPhoto3((wedding as Record<string, unknown>).story_photo_3 as string || "");
+        setWhatsappNumber((wedding as Record<string, unknown>).whatsapp_number as string || "");
         
         // Update context with saved data
         updateConfig({
@@ -217,6 +220,7 @@ const Dashboard = () => {
             (wedding as Record<string, unknown>).story_photo_2 as string,
             (wedding as Record<string, unknown>).story_photo_3 as string,
           ].filter(Boolean) as string[],
+          whatsappNumber: (wedding as Record<string, unknown>).whatsapp_number as string || "",
         });
 
         // Load gifts
@@ -396,6 +400,7 @@ const Dashboard = () => {
         story_photo_1: storyPhoto1 || null,
         story_photo_2: storyPhoto2 || null,
         story_photo_3: storyPhoto3 || null,
+        whatsapp_number: whatsappNumber || null,
       };
 
       let weddingId: string;
@@ -551,6 +556,71 @@ const Dashboard = () => {
   };
 
   const [isScraping, setIsScraping] = useState(false);
+  const [isImporting, setIsImporting] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setIsImporting(true);
+    toast({
+      title: "Lendo arquivo...",
+      description: "Iniciando importação de presentes.",
+    });
+
+    try {
+      const text = await file.text();
+      // Simple CSV parser
+      const lines = text.split("\n").filter(line => line.trim().length > 0);
+      let importedCount = 0;
+
+      // Ignore header if exists, or just try parsing all
+      // Assuming format: Nome, Categoria, Preco, Link, Imagem
+      for (const line of lines) {
+        // Handle basic comma separation (does not handle quoted commas properly, keeping it simple for MVP)
+        const columns = line.split(",").map(col => col.trim());
+        if (columns.length >= 3) {
+          const name = columns[0];
+          if (name.toLowerCase() === "nome" || name.toLowerCase() === "name") continue; // Skip header
+
+          const category = columns[1] || "Geral";
+          const price = parseFloat(columns[2]) || 0;
+          const externalLink = columns[3] || "";
+          const image = columns[4] || "";
+
+          if (name && price >= 0) {
+            await addGift({
+              name,
+              category,
+              price,
+              externalLink,
+              image,
+              isOpenPrice: price === 0,
+              isVaquinha: false,
+            });
+            importedCount++;
+          }
+        }
+      }
+
+      toast({
+        title: "Importação Concluída!",
+        description: `${importedCount} presentes importados com sucesso.`,
+      });
+    } catch (error) {
+      toast({
+        title: "Erro na importação",
+        description: "Verifique o formato do arquivo CSV.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsImporting(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+    }
+  };
 
   const handleScrapeGift = async (isEditing: boolean = false) => {
     const url = isEditing ? editingGift?.externalLink : newGift.externalLink;
@@ -1554,14 +1624,32 @@ const Dashboard = () => {
               <Gift className="w-5 h-5 text-gold" />
               <h2 className="font-serif text-xl text-foreground">Lista de Presentes</h2>
             </div>
-            <Dialog open={isAddingGift} onOpenChange={setIsAddingGift}>
-              <DialogTrigger asChild>
-                <Button className="bg-gold hover:bg-gold-light text-background">
-                  <Plus className="w-4 h-4 mr-2" />
-                  Adicionar Presente
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="bg-card">
+            <div className="flex gap-2">
+              <input 
+                type="file" 
+                accept=".csv" 
+                className="hidden" 
+                ref={fileInputRef} 
+                onChange={handleFileUpload} 
+              />
+              <Button 
+                variant="outline" 
+                className="bg-background text-foreground hover:bg-muted"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isImporting}
+              >
+                {isImporting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Upload className="w-4 h-4 mr-2" />}
+                Importar CSV
+              </Button>
+
+              <Dialog open={isAddingGift} onOpenChange={setIsAddingGift}>
+                <DialogTrigger asChild>
+                  <Button className="bg-gold hover:bg-gold-light text-background">
+                    <Plus className="w-4 h-4 mr-2" />
+                    Adicionar Presente
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="bg-card">
                 <DialogHeader>
                   <DialogTitle className="font-serif">Adicionar Novo Presente</DialogTitle>
                 </DialogHeader>
