@@ -125,7 +125,7 @@ const Register = () => {
           >
             <div className="flex items-center gap-2 mb-8">
               <Heart className="w-8 h-8 text-gold fill-gold" />
-              <span className="font-serif text-2xl text-foreground">Casalzinnn</span>
+              <span className="font-serif text-2xl text-foreground">Casarei.online</span>
             </div>
             
             <h1 className="font-serif text-3xl text-foreground mb-2">
