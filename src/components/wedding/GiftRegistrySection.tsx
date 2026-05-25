@@ -1,7 +1,7 @@
 import { motion } from "framer-motion";
 import { useInView } from "framer-motion";
 import { useRef, useState, useMemo } from "react";
-import { Search, Filter, Gift, Plus, Check, ShoppingBag } from "lucide-react";
+import { Search, Filter, Gift, Plus, Check, ShoppingBag, ExternalLink } from "lucide-react";
 import { useWedding, Gift as GiftType } from "@/contexts/WeddingContext";
 import { useCart } from "@/contexts/CartContext";
 import { Input } from "@/components/ui/input";
@@ -221,6 +221,17 @@ const GiftRegistrySection = () => {
                 <h3 className="font-serif text-lg text-foreground mt-1">
                   {gift.name}
                 </h3>
+                {gift.externalLink && (
+                  <a
+                    href={gift.externalLink}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-gold transition-colors mt-1"
+                  >
+                    <ExternalLink className="w-3 h-3" />
+                    Ver na loja
+                  </a>
+                )}
                 {gift.totalQuotas && gift.price > 0 && (
                   <div className="mt-3 mb-2">
                     <div className="flex justify-between text-xs mb-1">
