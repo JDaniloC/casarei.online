@@ -82,7 +82,7 @@ const LandingPage = () => {
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center gap-2">
               <Heart className="w-6 h-6 text-gold fill-gold" />
-              <span className="font-serif text-xl font-semibold text-foreground">Casalzinnn</span>
+              <span className="font-serif text-xl font-semibold text-foreground">Casarei.online</span>
             </div>
             <div className="flex items-center gap-4">
               <Link to="/login">
@@ -364,10 +364,10 @@ const LandingPage = () => {
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2">
             <Heart className="w-5 h-5 text-gold fill-gold" />
-            <span className="font-serif text-foreground">Casalzinnn</span>
+            <span className="font-serif text-foreground">Casarei.online</span>
           </div>
           <p className="text-sm text-muted-foreground">
-            © 2025 Casalzinnn. Feito com amor.
+            © 2025 Casarei.online. Feito com amor.
           </p>
         </div>
       </footer>
