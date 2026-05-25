@@ -23,6 +23,9 @@ interface PublicLandingProps {
   paymentPix?: boolean;
   paymentBoleto?: boolean;
   maxInstallments?: number;
+  manualPixType?: string;
+  manualPixKey?: string;
+  manualPixQrImageUrl?: string;
 }
 
 const PublicLandingContent = ({ 
@@ -32,6 +35,9 @@ const PublicLandingContent = ({
   paymentPix,
   paymentBoleto,
   maxInstallments,
+  manualPixType,
+  manualPixKey,
+  manualPixQrImageUrl,
 }: {
   weddingId?: string;
   mercadoPagoPublicKey?: string | null;
@@ -39,6 +45,9 @@ const PublicLandingContent = ({
   paymentPix?: boolean;
   paymentBoleto?: boolean;
   maxInstallments?: number;
+  manualPixType?: string;
+  manualPixKey?: string;
+  manualPixQrImageUrl?: string;
 }) => {
   const { config } = useWedding();
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
@@ -89,6 +98,9 @@ const PublicLandingContent = ({
             paymentPix={paymentPix}
             paymentBoleto={paymentBoleto}
             maxInstallments={maxInstallments}
+            manualPixType={manualPixType}
+            manualPixKey={manualPixKey}
+            manualPixQrImageUrl={manualPixQrImageUrl}
           />
         </>
       )}

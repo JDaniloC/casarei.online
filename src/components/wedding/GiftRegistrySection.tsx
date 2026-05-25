@@ -206,9 +206,27 @@ const GiftRegistrySection = () => {
                 <h3 className="font-serif text-lg text-foreground mt-1">
                   {gift.name}
                 </h3>
+                {gift.isVaquinha && (
+                  <div className="mt-3 mb-2">
+                    <div className="flex justify-between text-xs mb-1">
+                      <span className="font-medium text-gold">Arrecadado: R$ {(gift.raisedAmount || 0).toFixed(2).replace(".", ",")}</span>
+                      <span className="text-muted-foreground">Meta: R$ {gift.price.toFixed(2).replace(".", ",")}</span>
+                    </div>
+                    <div className="w-full bg-secondary h-2.5 rounded-full overflow-hidden border border-border">
+                      <div 
+                        className="bg-gold h-full rounded-full transition-all duration-1000 relative overflow-hidden"
+                        style={{ width: `${Math.min(100, ((gift.raisedAmount || 0) / gift.price) * 100)}%` }}
+                      >
+                        <div className="absolute inset-0 bg-white/20 animate-pulse" />
+                      </div>
+                    </div>
+                  </div>
+                )}
                 {gift.isOpenPrice ? (
                   <div className="space-y-2 mt-3">
-                    <span className="text-xs font-medium text-muted-foreground">Quanto deseja contribuir?</span>
+                    <span className="text-xs font-medium text-muted-foreground">
+                      {gift.isVaquinha ? "Com quanto deseja apoiar essa meta?" : "Quanto deseja contribuir?"}
+                    </span>
                     <div className="relative">
                       <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm font-medium">R$</span>
                       <Input

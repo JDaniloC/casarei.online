@@ -41,9 +41,12 @@ interface CheckoutModalProps {
   paymentPix?: boolean;
   paymentBoleto?: boolean;
   maxInstallments?: number;
+  manualPixType?: string;
+  manualPixKey?: string;
+  manualPixQrImageUrl?: string;
 }
 
-type CheckoutStep = "cart" | "info" | "payment" | "success" | "pix" | "boleto";
+type CheckoutStep = "cart" | "info" | "payment" | "success" | "pix" | "boleto" | "manual_pix";
 
 interface PixData {
   qr_code: string;
@@ -102,6 +105,9 @@ const CheckoutModal = ({
   paymentPix = true,
   paymentBoleto = true,
   maxInstallments = 12,
+  manualPixType,
+  manualPixKey,
+  manualPixQrImageUrl,
 }: CheckoutModalProps) => {
   const { config } = useWedding();
   const {
@@ -135,6 +141,10 @@ const CheckoutModal = ({
 
   // Track if abandonment was saved
   const [abandonmentSaved, setAbandonmentSaved] = useState(false);
+
+  // Manual PIX receipt
+  const [receiptFile, setReceiptFile] = useState<File | null>(null);
+  const [uploadingReceipt, setUploadingReceipt] = useState(false);
 
   useEffect(() => {
     if (mercadoPagoPublicKey && !mpInitialized) {
@@ -193,6 +203,7 @@ const CheckoutModal = ({
       setAttendanceGuests(1);
       setCompanionNames([]);
       setAbandonmentSaved(false);
+      setReceiptFile(null);
     }
     onClose();
   };
@@ -413,6 +424,52 @@ const CheckoutModal = ({
       console.error("Payment error:", err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleManualPixSubmit = async () => {
+    if (!orderId || !weddingId) return;
+    setUploadingReceipt(true);
+    let uploadedUrl = null;
+
+    try {
+      if (receiptFile) {
+        const fileExt = receiptFile.name.split('.').pop();
+        const fileName = `${weddingId}/${orderId}-${Date.now()}.${fileExt}`;
+        const { data: uploadData, error: uploadError } = await supabase.storage
+          .from('receipts')
+          .upload(fileName, receiptFile);
+
+        if (uploadError) throw uploadError;
+        
+        const { data: { publicUrl } } = supabase.storage
+          .from('receipts')
+          .getPublicUrl(fileName);
+          
+        uploadedUrl = publicUrl;
+      }
+
+      // Update order to pending_manual_verification or just leave it pending but save receipt
+      const { error } = await supabase
+        .from('orders')
+        .update({ 
+          receipt_url: uploadedUrl,
+          // If we want to change status, we could. For now we leave it pending, 
+          // or maybe change to "pending_manual_verification" if that status existed.
+          // Let's just set the receipt_url. The Dashboard will show orders with receipts.
+        })
+        .eq('id', orderId);
+
+      if (error) throw error;
+
+      clearCart();
+      setStep("success");
+      toast.success("Comprovante enviado! Os noivos irão conferir e confirmar seu presente.");
+    } catch (err: unknown) {
+      toast.error("Erro ao enviar comprovante. Tente novamente.");
+      console.error(err);
+    } finally {
+      setUploadingReceipt(false);
     }
   };
 
@@ -799,49 +856,79 @@ const CheckoutModal = ({
               </div>
             )}
 
-            {step === "payment" && mpInitialized && (
+            {step === "payment" && (
               <div className="space-y-4 relative">
                 {loading && (
                   <div className="absolute inset-0 bg-card/80 backdrop-blur-sm z-10 flex flex-col items-center justify-center rounded-lg">
                     <Loader2 className="w-10 h-10 animate-spin text-gold mb-3" />
-                    <p className="text-sm font-medium text-foreground">Processando pagamento...</p>
+                    <p className="text-sm font-medium text-foreground">Processando...</p>
                     <p className="text-xs text-muted-foreground mt-1">Aguarde, não feche esta tela</p>
                   </div>
                 )}
-                {!mercadoPagoPublicKey ? (
-                  <div className="text-center py-8">
-                    <AlertCircle className="w-12 h-12 text-destructive mx-auto mb-3" />
-                    <p className="text-muted-foreground">
-                      Pagamento não configurado pelos noivos
+                
+                {manualPixKey && (
+                  <div className="p-4 bg-gold/5 border border-gold/20 rounded-lg text-center mb-4">
+                    <QrCode className="w-8 h-8 text-gold mx-auto mb-2" />
+                    <h3 className="font-medium text-foreground mb-1">Pagar via Pix (Sem Taxas)</h3>
+                    <p className="text-sm text-muted-foreground mb-4">
+                      Faça o PIX diretamente para os noivos de forma rápida e envie o comprovante.
                     </p>
+                    <Button 
+                      onClick={() => setStep("manual_pix")}
+                      className="w-full bg-gold hover:bg-gold-dark text-white"
+                    >
+                      Pagar com Pix Direto
+                    </Button>
                   </div>
-                ) : (
-                  <div className="mercadopago-container">
-                    <Payment
-                      initialization={{
-                        amount: getTotalPrice(),
-                        payer: {
-                          email: guestEmail || undefined,
-                        },
-                      }}
-                      customization={{
-                        paymentMethods: {
-                          creditCard: paymentCreditCard ? "all" : [],
-                          debitCard: [],
-                          ticket: paymentBoleto ? "all" : [],
-                          bankTransfer: paymentPix ? "all" : [],
-                          maxInstallments: paymentCreditCard ? maxInstallments : 1,
-                        },
-                        visual: {
-                          style: {
-                            theme: "default",
+                )}
+
+                {mercadoPagoPublicKey ? (
+                  mpInitialized ? (
+                    <div className="mercadopago-container mt-4">
+                      <div className="flex items-center gap-2 mb-4">
+                        <div className="flex-1 h-px bg-border"></div>
+                        <span className="text-xs text-muted-foreground uppercase tracking-wider">Outros meios de pagamento</span>
+                        <div className="flex-1 h-px bg-border"></div>
+                      </div>
+                      <Payment
+                        initialization={{
+                          amount: getTotalPrice(),
+                          payer: {
+                            email: guestEmail || undefined,
                           },
-                        },
-                      }}
-                      onSubmit={handlePaymentSubmit}
-                      onError={handlePaymentError}
-                    />
-                  </div>
+                        }}
+                        customization={{
+                          paymentMethods: {
+                            creditCard: paymentCreditCard ? "all" : [],
+                            debitCard: [],
+                            ticket: paymentBoleto ? "all" : [],
+                            bankTransfer: paymentPix ? "all" : [],
+                            maxInstallments: paymentCreditCard ? maxInstallments : 1,
+                          },
+                          visual: {
+                            style: {
+                              theme: "default",
+                            },
+                          },
+                        }}
+                        onSubmit={handlePaymentSubmit}
+                        onError={handlePaymentError}
+                      />
+                    </div>
+                  ) : (
+                    <div className="flex justify-center py-8">
+                      <Loader2 className="w-8 h-8 animate-spin text-gold" />
+                    </div>
+                  )
+                ) : (
+                  !manualPixKey && (
+                    <div className="text-center py-8">
+                      <AlertCircle className="w-12 h-12 text-destructive mx-auto mb-3" />
+                      <p className="text-muted-foreground">
+                        Pagamento não configurado pelos noivos
+                      </p>
+                    </div>
+                  )
                 )}
               </div>
             )}
@@ -862,6 +949,79 @@ const CheckoutModal = ({
                     ✓ Sua presença foi confirmada para {attendanceGuests} {attendanceGuests === 1 ? "pessoa" : "pessoas"}
                   </p>
                 )}
+              </div>
+            )}
+
+            {step === "manual_pix" && (
+              <div className="space-y-4 text-center">
+                <div className="p-3 sm:p-4 bg-secondary/50 rounded-lg">
+                  <QrCode className="w-8 h-8 text-gold mx-auto mb-2" />
+                  <p className="text-sm text-foreground font-medium mb-1">
+                    Chave PIX dos Noivos
+                  </p>
+                  <p className="text-sm text-muted-foreground mb-4">
+                    Abra o app do seu banco e faça o PIX usando a chave abaixo:
+                  </p>
+                  
+                  <div className="bg-background p-3 rounded-lg border border-border mb-4 break-all">
+                    <p className="text-xs text-muted-foreground mb-1 uppercase tracking-wider">
+                      {manualPixType === 'cpf' ? 'CPF' :
+                       manualPixType === 'cnpj' ? 'CNPJ' :
+                       manualPixType === 'email' ? 'E-mail' :
+                       manualPixType === 'celular' ? 'Celular' :
+                       'Chave Aleatória'}
+                    </p>
+                    <p className="font-mono text-lg font-bold">{manualPixKey}</p>
+                  </div>
+
+                  {manualPixQrImageUrl && (
+                    <div className="mb-4">
+                      <p className="text-xs text-muted-foreground mb-2 uppercase tracking-wider">
+                        Ou escaneie o QR Code:
+                      </p>
+                      <img 
+                        src={manualPixQrImageUrl} 
+                        alt="QR Code da Chave PIX" 
+                        className="w-40 h-40 mx-auto rounded-lg object-contain bg-white p-2 border border-border"
+                      />
+                    </div>
+                  )}
+
+                  <Button
+                    onClick={() => {
+                      if (manualPixKey) {
+                        navigator.clipboard.writeText(manualPixKey);
+                        toast.success("Chave PIX copiada!");
+                      }
+                    }}
+                    variant="outline"
+                    className="w-full mb-4"
+                  >
+                    <Copy className="w-4 h-4 mr-2" />
+                    Copiar Chave
+                  </Button>
+
+                  <div className="border-t border-border pt-4 text-left">
+                    <Label className="text-sm font-medium mb-2 block">Envie o comprovante (opcional)</Label>
+                    <Input
+                      type="file"
+                      accept="image/*,.pdf"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) setReceiptFile(file);
+                      }}
+                      className="text-sm"
+                    />
+                    <p className="text-xs text-muted-foreground mt-2">
+                      Você pode anexar uma imagem ou PDF do comprovante para facilitar a identificação.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="text-sm text-muted-foreground">
+                  <p>Valor: <span className="font-medium text-foreground">R$ {getTotalPrice().toFixed(2).replace(".", ",")}</span></p>
+                  <p className="mt-2">Após concluir, clique no botão abaixo para confirmar.</p>
+                </div>
               </div>
             )}
 
@@ -1012,6 +1172,33 @@ const CheckoutModal = ({
                 >
                   Voltar
                 </Button>
+              )}
+
+              {step === "manual_pix" && (
+                <>
+                  <Button
+                    variant="outline"
+                    onClick={() => setStep("payment")}
+                    className="flex-1"
+                    disabled={uploadingReceipt}
+                  >
+                    Voltar
+                  </Button>
+                  <Button
+                    onClick={handleManualPixSubmit}
+                    disabled={uploadingReceipt}
+                    className="flex-1 bg-gold hover:bg-gold-dark text-white"
+                  >
+                    {uploadingReceipt ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                        Enviando...
+                      </>
+                    ) : (
+                      "Confirmar Pagamento"
+                    )}
+                  </Button>
+                </>
               )}
 
               {step === "success" && (

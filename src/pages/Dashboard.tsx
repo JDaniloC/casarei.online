@@ -216,6 +216,8 @@ const Dashboard = () => {
             image: g.image_url || "",
             externalLink: g.external_link || "",
             isOpenPrice: g.is_open_price || false,
+            isVaquinha: g.is_vaquinha || false,
+            raisedAmount: Number(g.raised_amount) || 0,
           }));
           updateConfig({ gifts: formattedGifts });
         }
@@ -399,17 +401,21 @@ const Dashboard = () => {
         weddingId = newWedding.id;
       }
 
-      // Save gifts - delete existing first then insert new ones
-      const { error: deleteGiftsError } = await supabase.from("gifts").delete().eq("wedding_id", weddingId);
+      // Save gifts - only insert new ones and update existing ones, delete removed ones
+      const currentGiftsIds = config.gifts.map(g => g.id).filter(id => id.length > 20); // valid UUIDs
       
-      if (deleteGiftsError) {
-        console.error("Error deleting gifts:", deleteGiftsError);
-        throw new Error("Erro ao atualizar presentes. Tente novamente.");
+      // Find gifts to delete (in DB but not in current config)
+      const { data: dbGifts } = await supabase.from("gifts").select("id").eq("wedding_id", weddingId);
+      if (dbGifts) {
+        const idsToDelete = dbGifts.map(g => g.id).filter(id => !currentGiftsIds.includes(id));
+        if (idsToDelete.length > 0) {
+          await supabase.from("gifts").delete().in("id", idsToDelete);
+        }
       }
 
-      // Insert new gifts only after successful delete
       if (config.gifts.length > 0) {
-        const giftsToInsert = config.gifts.map(g => ({
+        const giftsToUpdate = config.gifts.filter(g => g.id.length > 20).map(g => ({
+          id: g.id,
           wedding_id: weddingId,
           name: g.name,
           category: g.category,
@@ -417,21 +423,36 @@ const Dashboard = () => {
           image_url: g.image || null,
           external_link: g.externalLink || null,
           is_open_price: g.isOpenPrice || false,
+          is_vaquinha: g.isVaquinha || false,
         }));
 
-        const { error: insertGiftsError } = await supabase.from("gifts").insert(giftsToInsert);
-        
-        if (insertGiftsError) {
-          console.error("Error inserting gifts:", insertGiftsError);
-          throw new Error("Erro ao salvar presentes. Tente novamente.");
+        const giftsToInsert = config.gifts.filter(g => g.id.length <= 20).map(g => ({
+          wedding_id: weddingId,
+          name: g.name,
+          category: g.category,
+          price: g.price,
+          image_url: g.image || null,
+          external_link: g.externalLink || null,
+          is_open_price: g.isOpenPrice || false,
+          is_vaquinha: g.isVaquinha || false,
+        }));
+
+        if (giftsToUpdate.length > 0) {
+          const { error: updateGiftsError } = await supabase.from("gifts").upsert(giftsToUpdate);
+          if (updateGiftsError) throw new Error("Erro ao atualizar presentes.");
         }
 
-        // Reload gifts from DB to get proper UUIDs
+        if (giftsToInsert.length > 0) {
+          const { error: insertGiftsError } = await supabase.from("gifts").insert(giftsToInsert);
+          if (insertGiftsError) throw new Error("Erro ao inserir novos presentes.");
+        }
+
+        // Reload gifts from DB to get proper UUIDs and raised_amount
         const { data: savedGifts } = await supabase
           .from("gifts")
           .select("*")
           .eq("wedding_id", weddingId);
-
+  
         if (savedGifts) {
           const formattedGifts = savedGifts.map(g => ({
             id: g.id,
@@ -441,6 +462,8 @@ const Dashboard = () => {
             image: g.image_url || "",
             externalLink: g.external_link || "",
             isOpenPrice: g.is_open_price || false,
+            isVaquinha: g.is_vaquinha || false,
+            raisedAmount: Number(g.raised_amount) || 0,
           }));
           updateConfig({ gifts: formattedGifts });
         }
@@ -681,6 +704,19 @@ const Dashboard = () => {
                 value={config.tagline}
                 onChange={(e) => updateConfig({ tagline: e.target.value })}
                 placeholder="Uma frase especial..."
+                className="bg-background"
+              />
+            </div>
+            <div className="space-y-2 sm:col-span-2 lg:col-span-1">
+              <Label htmlFor="whatsappNumber">WhatsApp para Contato/Dúvidas (Opcional)</Label>
+              <Input
+                id="whatsappNumber"
+                value={whatsappNumber}
+                onChange={(e) => {
+                  setWhatsappNumber(e.target.value);
+                  updateConfig({ whatsappNumber: e.target.value });
+                }}
+                placeholder="Ex: 11999999999"
                 className="bg-background"
               />
             </div>
@@ -1433,30 +1469,47 @@ const Dashboard = () => {
                       </Select>
                     </div>
                     <div className="space-y-2">
-                      <Label>Valor (R$) *</Label>
+                      <Label>{newGift.isVaquinha ? "Meta da Vaquinha (R$) *" : "Valor (R$) *"}</Label>
                       <Input
                         type="number"
-                        value={newGift.isOpenPrice ? "" : (newGift.price || "")}
+                        value={(newGift.isOpenPrice && !newGift.isVaquinha) ? "" : (newGift.price || "")}
                         onChange={(e) => setNewGift({ ...newGift, price: parseFloat(e.target.value) || 0 })}
                         placeholder="0.00"
                         className="bg-background"
-                        disabled={newGift.isOpenPrice}
+                        disabled={newGift.isOpenPrice && !newGift.isVaquinha}
                       />
                     </div>
                   </div>
-                  <div className="flex items-center space-x-2 py-1">
-                    <Checkbox
-                      id="isOpenPrice"
-                      checked={newGift.isOpenPrice || false}
-                      onCheckedChange={(checked) => setNewGift({ 
-                        ...newGift, 
-                        isOpenPrice: checked === true,
-                        price: checked === true ? 0 : newGift.price 
-                      })}
-                    />
-                    <Label htmlFor="isOpenPrice" className="text-sm font-medium leading-none cursor-pointer">
-                      Permitir valor livre (definido pelo convidado)
-                    </Label>
+                  <div className="flex flex-col space-y-3 py-1">
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="isVaquinha"
+                        checked={newGift.isVaquinha || false}
+                        onCheckedChange={(checked) => setNewGift({ 
+                          ...newGift, 
+                          isVaquinha: checked === true,
+                          isOpenPrice: checked === true ? true : newGift.isOpenPrice // Vaquinha is always Open Price
+                        })}
+                      />
+                      <Label htmlFor="isVaquinha" className="text-sm font-medium leading-none cursor-pointer">
+                        É uma Vaquinha? (Exibe barra de progresso)
+                      </Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="isOpenPrice"
+                        checked={newGift.isOpenPrice || false}
+                        disabled={newGift.isVaquinha}
+                        onCheckedChange={(checked) => setNewGift({ 
+                          ...newGift, 
+                          isOpenPrice: checked === true,
+                          price: checked === true ? 0 : newGift.price 
+                        })}
+                      />
+                      <Label htmlFor="isOpenPrice" className="text-sm font-medium leading-none cursor-pointer">
+                        Permitir valor livre (definido pelo convidado)
+                      </Label>
+                    </div>
                   </div>
                   <div className="space-y-2">
                     <div className="flex items-center gap-2">
@@ -1512,9 +1565,23 @@ const Dashboard = () => {
                 <div className="p-4">
                   <span className="text-xs text-gold uppercase tracking-wider">{gift.category}</span>
                   <h3 className="font-medium text-foreground mt-1">{gift.name}</h3>
-                  <p className="text-lg font-serif text-gold mt-2">
-                    {gift.isOpenPrice ? "Valor Livre" : `R$ ${gift.price.toFixed(2).replace(".", ",")}`}
-                  </p>
+                  {gift.isVaquinha ? (
+                    <div className="mt-2">
+                      <p className="text-sm font-medium text-muted-foreground mb-1">
+                        Arrecadado: R$ {(gift.raisedAmount || 0).toFixed(2).replace(".", ",")} de R$ {gift.price.toFixed(2).replace(".", ",")}
+                      </p>
+                      <div className="w-full bg-secondary h-2 rounded-full overflow-hidden">
+                        <div 
+                          className="bg-gold h-full rounded-full transition-all duration-500"
+                          style={{ width: `${Math.min(100, ((gift.raisedAmount || 0) / gift.price) * 100)}%` }}
+                        />
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-lg font-serif text-gold mt-2">
+                      {gift.isOpenPrice ? "Valor Livre" : `R$ ${gift.price.toFixed(2).replace(".", ",")}`}
+                    </p>
+                  )}
                 </div>
               </div>
             ))}
@@ -1554,29 +1621,46 @@ const Dashboard = () => {
                       </Select>
                     </div>
                     <div className="space-y-2">
-                      <Label>Valor (R$)</Label>
+                      <Label>{editingGift.isVaquinha ? "Meta da Vaquinha (R$)" : "Valor (R$)"}</Label>
                       <Input
                         type="number"
-                        value={editingGift.isOpenPrice ? "" : editingGift.price}
+                        value={(editingGift.isOpenPrice && !editingGift.isVaquinha) ? "" : editingGift.price}
                         onChange={(e) => setEditingGift({ ...editingGift, price: parseFloat(e.target.value) || 0 })}
                         className="bg-background"
-                        disabled={editingGift.isOpenPrice}
+                        disabled={editingGift.isOpenPrice && !editingGift.isVaquinha}
                       />
                     </div>
                   </div>
-                  <div className="flex items-center space-x-2 py-1">
-                    <Checkbox
-                      id="editIsOpenPrice"
-                      checked={editingGift.isOpenPrice || false}
-                      onCheckedChange={(checked) => setEditingGift({ 
-                        ...editingGift, 
-                        isOpenPrice: checked === true,
-                        price: checked === true ? 0 : editingGift.price 
-                      })}
-                    />
-                    <Label htmlFor="editIsOpenPrice" className="text-sm font-medium leading-none cursor-pointer">
-                      Permitir valor livre (definido pelo convidado)
-                    </Label>
+                  <div className="flex flex-col space-y-3 py-1">
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="editIsVaquinha"
+                        checked={editingGift.isVaquinha || false}
+                        onCheckedChange={(checked) => setEditingGift({ 
+                          ...editingGift, 
+                          isVaquinha: checked === true,
+                          isOpenPrice: checked === true ? true : editingGift.isOpenPrice
+                        })}
+                      />
+                      <Label htmlFor="editIsVaquinha" className="text-sm font-medium leading-none cursor-pointer">
+                        É uma Vaquinha? (Exibe barra de progresso)
+                      </Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="editIsOpenPrice"
+                        checked={editingGift.isOpenPrice || false}
+                        disabled={editingGift.isVaquinha}
+                        onCheckedChange={(checked) => setEditingGift({ 
+                          ...editingGift, 
+                          isOpenPrice: checked === true,
+                          price: checked === true ? 0 : editingGift.price 
+                        })}
+                      />
+                      <Label htmlFor="editIsOpenPrice" className="text-sm font-medium leading-none cursor-pointer">
+                        Permitir valor livre (definido pelo convidado)
+                      </Label>
+                    </div>
                   </div>
                   <div className="space-y-2">
                     <Label>URL da Imagem</Label>

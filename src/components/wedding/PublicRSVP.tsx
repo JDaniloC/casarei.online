@@ -365,6 +365,24 @@ const PublicRSVP = ({ weddingId }: PublicRSVPProps) => {
                 </>
               )}
             </button>
+
+            {config.whatsappNumber && (
+              <div className="pt-4 border-t border-border mt-6">
+                <p className="text-center text-sm text-muted-foreground mb-3">
+                  Prefer confirmar pelo WhatsApp ou teve algum problema?
+                </p>
+                <a
+                  href={`https://wa.me/55${config.whatsappNumber.replace(/\D/g, '')}?text=${encodeURIComponent(
+                    `Olá! Gostaria de falar sobre a confirmação de presença no casamento de ${config.coupleName}.`
+                  )}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center justify-center w-full px-8 py-3 rounded-full font-medium transition-all duration-300 text-sm sm:text-base border border-green-500 text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20"
+                >
+                  Confirmar pelo WhatsApp
+                </a>
+              </div>
+            )}
           </div>
         </motion.form>
       </div>

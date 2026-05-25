@@ -245,6 +245,7 @@ serve(async (req) => {
           const coupleEmail = profile?.email;
           const giftName = fullOrder.order_items?.[0]?.gift_name_snapshot ?? fullOrder.order_items?.[0]?.gift_name ?? "Presente";
 
+          // PR-05: Notificar o casal
           if (coupleEmail) {
             await fetch(`${supabaseUrl}/functions/v1/send-email`, {
               method: "POST",
@@ -253,6 +254,19 @@ serve(async (req) => {
                 to: coupleEmail,
                 template: "purchase_approved_couple",
                 data: { guestName: fullOrder.guest_name, giftName, amount: fullOrder.total_amount },
+              }),
+            }).catch(console.error);
+          }
+
+          // PR-06: Notificar o convidado
+          if (fullOrder.guest_email) {
+            await fetch(`${supabaseUrl}/functions/v1/send-email`, {
+              method: "POST",
+              headers: { Authorization: `Bearer ${supabaseKey}`, "Content-Type": "application/json" },
+              body: JSON.stringify({
+                to: fullOrder.guest_email,
+                template: "purchase_confirmed_guest",
+                data: { giftName, amount: fullOrder.total_amount },
               }),
             }).catch(console.error);
           }

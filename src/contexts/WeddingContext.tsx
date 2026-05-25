@@ -8,6 +8,8 @@ export interface Gift {
   image: string;
   externalLink: string;
   isOpenPrice?: boolean;
+  isVaquinha?: boolean;
+  raisedAmount?: number;
 }
 
 export interface WeddingConfig {
@@ -18,6 +20,9 @@ export interface WeddingConfig {
   
   // Layout
   layout: "classic" | "modern" | "minimalist";
+  
+  // Contact
+  whatsappNumber?: string;
   
   // Sections Toggle
   sections: {

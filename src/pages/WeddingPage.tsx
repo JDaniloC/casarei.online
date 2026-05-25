@@ -43,6 +43,10 @@ interface WeddingData {
   payment_pix?: boolean;
   payment_boleto?: boolean;
   max_installments?: number;
+  manual_pix_type?: string;
+  manual_pix_key?: string;
+  manual_pix_qr_image_url?: string;
+  whatsapp_number?: string;
 }
 
 interface GiftData {
@@ -78,6 +82,7 @@ const WeddingContent = ({
     weddingDate: weddingData.wedding_date || "",
     tagline: weddingData.tagline || "",
     layout: weddingData.layout as "classic" | "modern" | "minimalist",
+    whatsappNumber: weddingData.whatsapp_number || "",
     sections: {
       about: weddingData.section_about,
       weddingInfo: weddingData.section_wedding_info,
@@ -127,6 +132,9 @@ const WeddingContent = ({
         paymentPix={weddingData.payment_pix ?? true}
         paymentBoleto={weddingData.payment_boleto ?? true}
         maxInstallments={weddingData.max_installments ?? 12}
+        manualPixType={weddingData.manual_pix_type}
+        manualPixKey={weddingData.manual_pix_key}
+        manualPixQrImageUrl={weddingData.manual_pix_qr_image_url}
       />
     </WeddingProvider>
   );
