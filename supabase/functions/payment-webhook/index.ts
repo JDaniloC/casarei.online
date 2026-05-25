@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { createHmac } from "https://deno.land/std@0.168.0/node/crypto.ts";
+import { securityHeaders } from "../_shared/security-headers.ts";
 
 // Público intencional — função sem dados de autenticação
 const ALLOWED_ORIGIN = Deno.env.get("ALLOWED_ORIGIN") ?? "*";
@@ -9,6 +10,7 @@ const corsHeaders = {
   "Access-Control-Allow-Origin": ALLOWED_ORIGIN,
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
+  ...securityHeaders(),
 };
 
 function hexToBytes(hex: string): Uint8Array {
