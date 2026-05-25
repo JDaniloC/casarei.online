@@ -2,7 +2,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { securityHeaders } from "../_shared/security-headers.ts";
 
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
-const FROM_EMAIL = Deno.env.get("RESEND_FROM_EMAIL") ?? "noreply@casarei.online";
+const FROM_EMAIL = Deno.env.get("RESEND_FROM_EMAIL") ?? "contato@seu-dominio.com.br";
 
 interface EmailPayload {
   to: string;
