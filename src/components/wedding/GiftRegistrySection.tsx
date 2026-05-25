@@ -57,6 +57,17 @@ const GiftRegistrySection = () => {
   const hasMore = visibleCount < filteredGifts.length;
 
   const handleAddToCart = (gift: GiftType) => {
+    if (gift.stock !== null && gift.stock !== undefined && gift.stock <= 0) {
+      toast.error("Este presente está esgotado.");
+      return;
+    }
+    
+    const currentQuantity = cartItems.find((item) => item.gift.id === gift.id)?.quantity || 0;
+    if (gift.stock !== null && gift.stock !== undefined && currentQuantity >= gift.stock) {
+      toast.error(`Você já adicionou o limite disponível deste presente (${gift.stock}).`);
+      return;
+    }
+
     let priceToUse = gift.price;
     if (gift.isOpenPrice) {
       const customAmount = customAmounts[gift.id] || 0;
@@ -247,26 +258,35 @@ const GiftRegistrySection = () => {
                     R$ {gift.price.toFixed(2).replace(".", ",")}
                   </p>
                 )}
-                <Button
-                  onClick={() => handleAddToCart(gift)}
-                  className={`w-full mt-4 transition-all ${
-                    isAdded
-                      ? "bg-green-500 hover:bg-green-600"
-                      : "bg-gold hover:bg-gold-dark"
-                  } text-white`}
-                >
-                  {isAdded ? (
-                    <>
-                      <Check className="w-4 h-4 mr-2" />
-                      Adicionado!
-                    </>
-                  ) : (
-                    <>
-                      <Plus className="w-4 h-4 mr-2" />
-                      Adicionar ao Carrinho
-                    </>
-                  )}
-                </Button>
+                {gift.stock === 0 ? (
+                  <Button
+                    disabled
+                    className="w-full mt-4 bg-muted text-muted-foreground cursor-not-allowed"
+                  >
+                    Esgotado
+                  </Button>
+                ) : (
+                  <Button
+                    onClick={() => handleAddToCart(gift)}
+                    className={`w-full mt-4 transition-all ${
+                      isAdded
+                        ? "bg-green-500 hover:bg-green-600"
+                        : "bg-gold hover:bg-gold-dark"
+                    } text-white`}
+                  >
+                    {isAdded ? (
+                      <>
+                        <Check className="w-4 h-4 mr-2" />
+                        Adicionado!
+                      </>
+                    ) : (
+                      <>
+                        <Plus className="w-4 h-4 mr-2" />
+                        Adicionar ao Carrinho
+                      </>
+                    )}
+                  </Button>
+                )}
               </motion.div>
             );
           })}

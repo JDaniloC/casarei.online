@@ -10,6 +10,7 @@ export interface Gift {
   isOpenPrice?: boolean;
   isVaquinha?: boolean;
   raisedAmount?: number;
+  stock?: number | null;
 }
 
 export interface WeddingConfig {

@@ -218,6 +218,7 @@ const Dashboard = () => {
             isOpenPrice: g.is_open_price || false,
             isVaquinha: g.is_vaquinha || false,
             raisedAmount: Number(g.raised_amount) || 0,
+            stock: g.stock !== null && g.stock !== undefined ? Number(g.stock) : null,
           }));
           updateConfig({ gifts: formattedGifts });
         }
@@ -424,6 +425,7 @@ const Dashboard = () => {
           external_link: g.externalLink || null,
           is_open_price: g.isOpenPrice || false,
           is_vaquinha: g.isVaquinha || false,
+          stock: g.stock !== undefined ? g.stock : null,
         }));
 
         const giftsToInsert = config.gifts.filter(g => g.id.length <= 20).map(g => ({
@@ -435,6 +437,7 @@ const Dashboard = () => {
           external_link: g.externalLink || null,
           is_open_price: g.isOpenPrice || false,
           is_vaquinha: g.isVaquinha || false,
+          stock: g.stock !== undefined ? g.stock : null,
         }));
 
         if (giftsToUpdate.length > 0) {
@@ -464,6 +467,7 @@ const Dashboard = () => {
             isOpenPrice: g.is_open_price || false,
             isVaquinha: g.is_vaquinha || false,
             raisedAmount: Number(g.raised_amount) || 0,
+            stock: g.stock !== null && g.stock !== undefined ? Number(g.stock) : null,
           }));
           updateConfig({ gifts: formattedGifts });
         }
@@ -1523,6 +1527,23 @@ const Dashboard = () => {
                       className="bg-background"
                     />
                   </div>
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <Label>Quantidade em Estoque</Label>
+                      <span className="text-xs text-muted-foreground">(Opcional)</span>
+                    </div>
+                    <Input
+                      type="number"
+                      min="0"
+                      value={newGift.stock !== null && newGift.stock !== undefined ? newGift.stock : ""}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setNewGift({ ...newGift, stock: val === "" ? null : parseInt(val) || 0 });
+                      }}
+                      placeholder="Ilimitado"
+                      className="bg-background"
+                    />
+                  </div>
                   <Button onClick={handleSaveNewGift} className="w-full bg-gold hover:bg-gold-light text-background">
                     <Save className="w-4 h-4 mr-2" />
                     Salvar Presente
@@ -1563,8 +1584,15 @@ const Dashboard = () => {
                   </div>
                 </div>
                 <div className="p-4">
-                  <span className="text-xs text-gold uppercase tracking-wider">{gift.category}</span>
-                  <h3 className="font-medium text-foreground mt-1">{gift.name}</h3>
+                    <div className="flex justify-between items-start mb-1">
+                      <span className="text-xs text-gold uppercase tracking-wider">{gift.category}</span>
+                      {gift.stock !== null && gift.stock !== undefined && (
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${gift.stock > 0 ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}>
+                          {gift.stock > 0 ? `RESTAM ${gift.stock}` : "ESGOTADO"}
+                        </span>
+                      )}
+                    </div>
+                    <h3 className="font-medium text-foreground mt-1">{gift.name}</h3>
                   {gift.isVaquinha ? (
                     <div className="mt-2">
                       <p className="text-sm font-medium text-muted-foreground mb-1">
@@ -1667,6 +1695,23 @@ const Dashboard = () => {
                     <Input
                       value={editingGift.image}
                       onChange={(e) => setEditingGift({ ...editingGift, image: e.target.value })}
+                      className="bg-background"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <Label>Quantidade em Estoque</Label>
+                      <span className="text-xs text-muted-foreground">(Opcional)</span>
+                    </div>
+                    <Input
+                      type="number"
+                      min="0"
+                      value={editingGift.stock !== null && editingGift.stock !== undefined ? editingGift.stock : ""}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setEditingGift({ ...editingGift, stock: val === "" ? null : parseInt(val) || 0 });
+                      }}
+                      placeholder="Ilimitado"
                       className="bg-background"
                     />
                   </div>
