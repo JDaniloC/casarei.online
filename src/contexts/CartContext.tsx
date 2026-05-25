@@ -8,7 +8,7 @@ export interface CartItem {
 
 interface CartContextType {
   items: CartItem[];
-  addItem: (gift: Gift) => void;
+  addItem: (gift: Gift, customPrice?: number) => void;
   removeItem: (giftId: string) => void;
   updateQuantity: (giftId: string, quantity: number) => void;
   clearCart: () => void;
@@ -34,17 +34,18 @@ export const CartProvider = ({ children }: CartProviderProps) => {
   const [includeEnvelope, setIncludeEnvelope] = useState(true);
   const [giftMessage, setGiftMessage] = useState("");
 
-  const addItem = (gift: Gift) => {
+  const addItem = (gift: Gift, customPrice?: number) => {
+    const priceToUse = customPrice !== undefined ? customPrice : gift.price;
     setItems((prev) => {
-      const existing = prev.find((item) => item.gift.id === gift.id);
+      const existing = prev.find((item) => item.gift.id === gift.id && item.gift.price === priceToUse);
       if (existing) {
         return prev.map((item) =>
-          item.gift.id === gift.id
+          item.gift.id === gift.id && item.gift.price === priceToUse
             ? { ...item, quantity: item.quantity + 1 }
             : item
         );
       }
-      return [...prev, { gift, quantity: 1 }];
+      return [...prev, { gift: { ...gift, price: priceToUse }, quantity: 1 }];
     });
   };
 
