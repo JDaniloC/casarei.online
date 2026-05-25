@@ -2,7 +2,8 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { z } from "https://deno.land/x/zod@v3.21.4/mod.ts";
 
-const ALLOWED_ORIGIN = Deno.env.get("ALLOWED_ORIGIN") || "*";
+// Público intencional — função sem dados de autenticação
+const ALLOWED_ORIGIN = Deno.env.get("ALLOWED_ORIGIN") ?? "*";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": ALLOWED_ORIGIN,
@@ -76,6 +77,27 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const encryptionKey = Deno.env.get("ENCRYPTION_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    // Rate limit by IP (10 req/min)
+    const forwarded = req.headers.get("x-forwarded-for");
+    const ip = forwarded?.split(",")[0]?.trim() || req.headers.get("cf-connecting-ip") || "unknown";
+
+    const oneMinuteAgo = new Date(Date.now() - 60_000).toISOString();
+    const { count } = await supabase
+      .from("rate_limit_log")
+      .select("id", { count: "exact", head: true })
+      .eq("identifier", ip)
+      .eq("action", "create_payment")
+      .gte("created_at", oneMinuteAgo);
+
+    if ((count ?? 0) >= 10) {
+      return new Response(
+        JSON.stringify({ error: "Muitas tentativas. Aguarde 1 minuto." }),
+        { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    await supabase.from("rate_limit_log").insert({ identifier: ip, action: "create_payment" });
 
     // Fetch wedding credentials (prefer encrypted)
     const { data: wedding, error: weddingError } = await supabase

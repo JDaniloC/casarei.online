@@ -10,13 +10,13 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.validate-mercadopago]
-verify_jwt = false
+verify_jwt = true
 
 [functions.get-public-wedding]
 verify_jwt = false
 
 [functions.save-mp-credentials]
-verify_jwt = false
+verify_jwt = true
 
 [functions.submit-rsvp]
 verify_jwt = false
