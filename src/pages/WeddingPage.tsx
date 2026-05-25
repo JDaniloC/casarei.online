@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useParams, Link, useLocation } from "react-router-dom";
 import { Heart, Loader2, ArrowLeft } from "lucide-react";
 import { WeddingProvider, WeddingConfig } from "@/contexts/WeddingContext";
 import PublicLanding from "@/components/wedding/PublicLanding";
@@ -123,6 +123,10 @@ const WeddingContent = ({
     galleryImages: [],
   };
 
+  const location = useLocation();
+  const isPreview = location.pathname.startsWith("/preview");
+  const isGuestView = isPreview || location.pathname.endsWith("/convite") || new URLSearchParams(location.search).has("convite");
+
   return (
     <WeddingProvider initialConfig={initialConfig}>
       <PublicLanding 
@@ -135,6 +139,7 @@ const WeddingContent = ({
         manualPixType={weddingData.manual_pix_type}
         manualPixKey={weddingData.manual_pix_key}
         manualPixQrImageUrl={weddingData.manual_pix_qr_image_url}
+        isGuestView={isGuestView}
       />
     </WeddingProvider>
   );
