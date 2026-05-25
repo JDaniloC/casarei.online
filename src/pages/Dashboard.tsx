@@ -89,6 +89,24 @@ const Dashboard = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [weddingSlug, setWeddingSlug] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [copiedPublic, setCopiedPublic] = useState(false);
+  const [copiedGuest, setCopiedGuest] = useState(false);
+
+  const copyPublicLink = () => {
+    if (weddingSlug) {
+      navigator.clipboard.writeText(`${window.location.origin}/${weddingSlug}`);
+      setCopiedPublic(true);
+      setTimeout(() => setCopiedPublic(false), 2000);
+    }
+  };
+
+  const copyGuestLink = () => {
+    if (weddingSlug) {
+      navigator.clipboard.writeText(`${window.location.origin}/${weddingSlug}/convite`);
+      setCopiedGuest(true);
+      setTimeout(() => setCopiedGuest(false), 2000);
+    }
+  };
   const [newGift, setNewGift] = useState({
     name: "",
     category: "Cozinha",
@@ -640,27 +658,62 @@ const Dashboard = () => {
           <motion.section
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="bg-gold/10 rounded-xl p-6 border border-gold/20"
+            className="bg-gold/10 rounded-xl p-6 border border-gold/20 space-y-6"
           >
-            <div className="flex items-center justify-between flex-wrap gap-4">
-              <div className="flex items-center gap-3">
-                <Link2 className="w-5 h-5 text-gold" />
+            <div>
+              <h3 className="font-serif text-lg text-gold font-medium mb-1">Compartilhar Site de Casamento</h3>
+              <p className="text-sm text-muted-foreground">Copie e compartilhe os links corretos dependendo de quem irá acessar.</p>
+            </div>
+
+            <div className="grid md:grid-cols-2 gap-6">
+              {/* Public Link Card */}
+              <div className="p-4 bg-background/50 rounded-lg border border-border flex flex-col justify-between space-y-4">
                 <div>
-                  <p className="text-sm text-muted-foreground">Seu site está publicado em:</p>
-                  <p className="font-medium text-foreground">{publicUrl}</p>
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="px-2 py-0.5 text-xs font-semibold bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300 rounded">Público</span>
+                    <h4 className="font-medium text-foreground text-sm">Link Geral (Para Todos)</h4>
+                  </div>
+                  <p className="text-xs text-muted-foreground mb-4">
+                    Ideal para colocar na bio do Instagram ou redes sociais. Exibe apenas a história do casal, fotos e a lista de presentes (oculta local e RSVP).
+                  </p>
+                  <p className="text-sm font-mono bg-muted/80 p-2 rounded border border-border select-all truncate">{publicUrl}</p>
+                </div>
+                <div className="flex gap-2 pt-2">
+                  <Button variant="outline" size="sm" className="w-full" onClick={copyPublicLink}>
+                    {copiedPublic ? <Check className="w-4 h-4 mr-2 text-green-500" /> : <Copy className="w-4 h-4 mr-2" />}
+                    {copiedPublic ? "Copiado!" : "Copiar Link"}
+                  </Button>
+                  <Button size="sm" variant="ghost" asChild>
+                    <a href={publicUrl} target="_blank" rel="noopener noreferrer">
+                      <ExternalLink className="w-4 h-4" />
+                    </a>
+                  </Button>
                 </div>
               </div>
-              <div className="flex gap-2">
-                <Button variant="outline" size="sm" onClick={copyLink}>
-                  {copied ? <Check className="w-4 h-4 mr-2" /> : <Copy className="w-4 h-4 mr-2" />}
-                  {copied ? "Copiado!" : "Copiar Link"}
-                </Button>
-                <Button size="sm" className="bg-gold hover:bg-gold-light text-background" asChild>
-                  <a href={publicUrl} target="_blank" rel="noopener noreferrer">
-                    <ExternalLink className="w-4 h-4 mr-2" />
-                    Abrir Site
-                  </a>
-                </Button>
+
+              {/* Guest Link Card */}
+              <div className="p-4 bg-background/50 rounded-lg border border-border flex flex-col justify-between space-y-4">
+                <div>
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="px-2 py-0.5 text-xs font-semibold bg-gold/20 text-gold rounded">Convidados</span>
+                    <h4 className="font-medium text-foreground text-sm">Link do Convite (Para Convidados)</h4>
+                  </div>
+                  <p className="text-xs text-muted-foreground mb-4">
+                    Compartilhe privadamente via WhatsApp ou no convite oficial. Exibe o local, horário da cerimônia, dress code, RSVP e mural de recados.
+                  </p>
+                  <p className="text-sm font-mono bg-muted/80 p-2 rounded border border-border select-all truncate">{`${publicUrl}/convite`}</p>
+                </div>
+                <div className="flex gap-2 pt-2">
+                  <Button variant="outline" size="sm" className="w-full" onClick={copyGuestLink}>
+                    {copiedGuest ? <Check className="w-4 h-4 mr-2 text-green-500" /> : <Copy className="w-4 h-4 mr-2" />}
+                    {copiedGuest ? "Copiado!" : "Copiar Link"}
+                  </Button>
+                  <Button size="sm" className="bg-gold hover:bg-gold-light text-background" asChild>
+                    <a href={`${publicUrl}/convite`} target="_blank" rel="noopener noreferrer">
+                      <ExternalLink className="w-4 h-4" />
+                    </a>
+                  </Button>
+                </div>
               </div>
             </div>
           </motion.section>
