@@ -7,7 +7,7 @@ import {
   Plus, Trash2, Edit2, Save, ChevronRight, LogOut,
   CreditCard, Link2, Copy, Check, ExternalLink, Info,
   Loader2, CheckCircle2, XCircle, AlertCircle, MapPin,
-  History, QrCode, FileText, Wand2, Upload
+  History, QrCode, FileText, Wand2, Upload, Download
 } from "lucide-react";
 import DashboardHistory from "@/components/wedding/DashboardHistory";
 import { useWedding, Gift as GiftType } from "@/contexts/WeddingContext";
@@ -620,6 +620,23 @@ const Dashboard = () => {
         fileInputRef.current.value = "";
       }
     }
+  };
+
+  const handleDownloadTemplate = () => {
+    const csvContent = "Nome,Categoria,Preco,Link,Imagem\nGeladeira Frost Free,Cozinha,3299.90,https://www.example.com/geladeira,https://www.example.com/geladeira.jpg\nJogo de Panelas Antiaderente,Cozinha,499.00,,\nJogo de Pratos 20 Pecas,Jantar,299.90,,";
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", "modelo_presentes.csv");
+    link.style.visibility = "hidden";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    toast({
+      title: "Modelo baixado!",
+      description: "Preencha a planilha e depois clique em Importar.",
+    });
   };
 
   const handleScrapeGift = async (isEditing: boolean = false) => {
@@ -1642,6 +1659,15 @@ const Dashboard = () => {
                 Importar CSV
               </Button>
 
+              <Button 
+                variant="outline" 
+                className="bg-background text-foreground hover:bg-muted"
+                onClick={handleDownloadTemplate}
+              >
+                <Download className="w-4 h-4 mr-2" />
+                Baixar Modelo
+              </Button>
+
               <Dialog open={isAddingGift} onOpenChange={setIsAddingGift}>
                 <DialogTrigger asChild>
                   <Button className="bg-gold hover:bg-gold-light text-background">
@@ -1813,6 +1839,7 @@ const Dashboard = () => {
               </DialogContent>
             </Dialog>
           </div>
+        </div>
 
           {/* Gifts Grid */}
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -2053,7 +2080,6 @@ const Dashboard = () => {
               )}
             </DialogContent>
           </Dialog>
-            </div>
         </motion.section>
 
         {/* Save Button */}
