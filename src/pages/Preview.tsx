@@ -58,7 +58,7 @@ const Preview = () => {
           <div className="flex items-center gap-4">
             <Button
               variant="ghost"
-              onClick={() => navigate("/dashboard")}
+              onClick={() => navigate("/dashboard", { state: { activeTab: "settings" } })}
               className="text-background hover:bg-background/10"
             >
               <ArrowLeft className="w-4 h-4 mr-2" />

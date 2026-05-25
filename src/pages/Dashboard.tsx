@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { motion } from "framer-motion";
 import { 
   Settings, Eye, Heart, Calendar, Image, Gift, 
@@ -117,9 +117,12 @@ const Dashboard = () => {
     isOpenPrice: false,
   });
 
-  const [dashboardTab, setDashboardTab] = useState<"settings" | "history">("history");
+  const location = useLocation();
+  const [dashboardTab, setDashboardTab] = useState<"settings" | "history">(() => {
+    return (location.state as any)?.activeTab || "history";
+  });
   const [settingsSubTab, setSettingsSubTab] = useState<"appearance" | "story" | "event" | "gifts">("appearance");
-  const [initialLoaded, setInitialLoaded] = useState<boolean>(false);
+  const [initialLoaded, setInitialLoaded] = useState<boolean>(() => sessionStorage.getItem("dashboard_initial_loaded") === "true");
 
   // Mercado Pago credentials
   const [mercadoPagoPublicKey, setMercadoPagoPublicKey] = useState("");
@@ -249,6 +252,7 @@ const Dashboard = () => {
         }
 
         setInitialLoaded(true);
+        sessionStorage.setItem("dashboard_initial_loaded", "true");
       }
     };
 
@@ -718,6 +722,7 @@ const Dashboard = () => {
   };
 
   const handleLogout = async () => {
+    sessionStorage.removeItem("dashboard_initial_loaded");
     await signOut();
     navigate("/");
   };
