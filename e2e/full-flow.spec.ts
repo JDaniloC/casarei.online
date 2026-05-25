@@ -85,6 +85,7 @@ test.describe('Full Flow E2E', () => {
     // STEP 2: Informações do Convidado
     await page.fill('input[placeholder="Digite seu nome completo"]', 'Tio Patinhas');
     await page.fill('input[placeholder="Digite seu e-mail"]', 'tio@patinhas.com');
+    await page.fill('input[placeholder="(11) 99999-9999"]', '(11) 99999-9999');
     // Preencher mensagem se existir no step info
     
     // Selecionar presença (obrigatório)
@@ -96,9 +97,10 @@ test.describe('Full Flow E2E', () => {
     
     // STEP 3: Pagamento
     // O template atual tem métodos de pagamento. Vamos selecionar Pix e Gerar.
-    await page.click('button:has-text("Pix")', { force: true });
+    // Procura o texto exato "Pix" (pois agora é um div)
+    await page.click('text="Pix"', { force: true });
     await page.waitForTimeout(500);
-    await page.click('button:has-text("Gerar Pix")', { force: true });
+    await page.click('button:has-text("Gerar Pagamento")', { force: true });
     
     // Aguardar redirecionamento pro checkout do mercado pago ou página de sucesso do Pix
     await page.waitForTimeout(5000);

@@ -302,7 +302,7 @@ const CheckoutModal = ({
           items: paymentItems,
           guestName: guestName.trim(),
           guestEmail: guestEmail.trim(),
-          giftMessage: giftMessage.trim() || undefined,
+          giftMessage: giftMessage?.trim() || undefined,
         },
       });
 
