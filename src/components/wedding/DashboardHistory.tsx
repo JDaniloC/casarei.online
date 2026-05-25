@@ -46,6 +46,7 @@ interface Order {
 interface OrderItem {
   id: string;
   gift_name: string;
+  gift_name_snapshot?: string | null;
   quantity: number;
   unit_price: number;
 }
@@ -398,7 +399,7 @@ const DashboardHistory = () => {
                           <p className="text-sm font-medium text-foreground">Itens:</p>
                           {order.items.map((item) => (
                             <div key={item.id} className="flex justify-between text-sm text-muted-foreground pl-4">
-                              <span>{item.quantity}x {item.gift_name}</span>
+                              <span>{item.quantity}x {item.gift_name_snapshot ?? item.gift_name}</span>
                               <span>R$ {(item.unit_price * item.quantity).toFixed(2).replace(".", ",")}</span>
                             </div>
                           ))}

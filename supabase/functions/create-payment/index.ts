@@ -186,13 +186,17 @@ serve(async (req) => {
     }
 
     // Create order items
-    const orderItems = items.map((item) => ({
-      order_id: order.id,
-      gift_id: item.id.startsWith("envelope") ? null : item.id,
-      gift_name: sanitizeString(item.name),
-      quantity: item.quantity,
-      unit_price: item.unit_price,
-    }));
+    const orderItems = items.map((item) => {
+      const gift = gifts?.find((g) => g.id === item.id);
+      return {
+        order_id: order.id,
+        gift_id: item.id.startsWith("envelope") ? null : item.id,
+        gift_name: sanitizeString(item.name),
+        gift_name_snapshot: gift?.name ?? sanitizeString(item.name),
+        quantity: item.quantity,
+        unit_price: item.unit_price,
+      };
+    });
     await supabase.from("order_items").insert(orderItems);
 
     // Validate ALLOWED_ORIGIN for safe payment redirects (PR-S04)
