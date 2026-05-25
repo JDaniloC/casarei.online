@@ -24,12 +24,17 @@ Object.defineProperty(window, 'matchMedia', {
 
 // Mock framer-motion
 vi.mock('framer-motion', () => {
+  const motionProxy = new Proxy({}, {
+    get: (_target, property: string) => {
+      return property;
+    }
+  });
+
   return {
     AnimatePresence: ({ children }: any) => children,
-    motion: {
-      div: 'div',
-      span: 'span',
-      button: 'button'
-    },
+    useInView: () => true,
+    motion: motionProxy,
   };
 });
+
+
