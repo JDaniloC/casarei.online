@@ -248,10 +248,12 @@ const CheckoutModal = ({
     }
 
     if (!mercadoPagoPublicKey) {
+      console.log("handleProceedToPayment ERROR: No mercadoPagoPublicKey", { mercadoPagoPublicKey });
       toast.error("Pagamento não configurado. Contate os noivos.");
       return;
     }
 
+    console.log("handleProceedToPayment SUCCESS! Transitioning to payment. manualPixKey=", manualPixKey);
     setLoading(true);
 
     try {

@@ -7,7 +7,8 @@ import {
   Plus, Trash2, Edit2, Save, ChevronRight, LogOut,
   CreditCard, Link2, Copy, Check, ExternalLink, Info,
   Loader2, CheckCircle2, XCircle, AlertCircle, MapPin,
-  History, QrCode, FileText, Wand2, Upload, Download
+  History, QrCode, FileText, Wand2, Upload, Download,
+  Palette, LayoutDashboard
 } from "lucide-react";
 import DashboardHistory from "@/components/wedding/DashboardHistory";
 import { useWedding, Gift as GiftType } from "@/contexts/WeddingContext";
@@ -116,7 +117,8 @@ const Dashboard = () => {
     isOpenPrice: false,
   });
 
-  const [dashboardTab, setDashboardTab] = useState<"settings" | "history">("settings");
+  const [dashboardTab, setDashboardTab] = useState<"settings" | "history">("history");
+  const [settingsSubTab, setSettingsSubTab] = useState<"appearance" | "story" | "event" | "gifts">("appearance");
   const [initialLoaded, setInitialLoaded] = useState<boolean>(false);
 
   // Mercado Pago credentials
@@ -777,6 +779,17 @@ const Dashboard = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex gap-1">
             <button
+              onClick={() => setDashboardTab("history")}
+              className={`flex items-center gap-2 px-5 py-3 text-sm font-medium border-b-2 transition-colors ${
+                dashboardTab === "history"
+                  ? "border-gold text-gold"
+                  : "border-transparent text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <LayoutDashboard className="w-4 h-4" />
+              Painel Geral
+            </button>
+            <button
               onClick={() => setDashboardTab("settings")}
               className={`flex items-center gap-2 px-5 py-3 text-sm font-medium border-b-2 transition-colors ${
                 dashboardTab === "settings"
@@ -785,18 +798,7 @@ const Dashboard = () => {
               }`}
             >
               <Settings className="w-4 h-4" />
-              Configurações
-            </button>
-            <button
-              onClick={() => setDashboardTab("history")}
-              className={`flex items-center gap-2 px-5 py-3 text-sm font-medium border-b-2 transition-colors ${
-                dashboardTab === "history"
-                  ? "border-gold text-gold"
-                  : "border-transparent text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              <History className="w-4 h-4" />
-              Histórico
+              Configurar Site
             </button>
           </div>
         </div>
@@ -872,1215 +874,1443 @@ const Dashboard = () => {
             </div>
           </motion.section>
         )}
-
-        {/* Section 1: Couple Info */}
-        <motion.section
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="bg-card rounded-xl p-6 shadow-soft border border-border"
-        >
-          <div className="flex items-center gap-3 mb-6">
-            <Heart className="w-5 h-5 text-gold" />
-            <h2 className="font-serif text-xl text-foreground">Informações do Casal</h2>
-          </div>
-          
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            <div className="space-y-2">
-              <Label htmlFor="coupleName">Nome do Casal *</Label>
-              <Input
-                id="coupleName"
-                value={config.coupleName}
-                onChange={(e) => updateConfig({ coupleName: e.target.value })}
-                placeholder="Ex: Maria & João"
-                className="bg-background"
-              />
-              <p className="text-xs text-muted-foreground">
-                Será usado na URL: /{generateSlug(config.coupleName) || "nome-do-casal"}
-              </p>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="weddingDate">Data do Casamento</Label>
-              <Input
-                id="weddingDate"
-                type="date"
-                value={config.weddingDate}
-                onChange={(e) => updateConfig({ weddingDate: e.target.value })}
-                className="bg-background"
-              />
-            </div>
-            <div className="space-y-2 sm:col-span-2 lg:col-span-1">
-              <Label htmlFor="tagline">Frase de Destaque</Label>
-              <Input
-                id="tagline"
-                value={config.tagline}
-                onChange={(e) => updateConfig({ tagline: e.target.value })}
-                placeholder="Uma frase especial..."
-                className="bg-background"
-              />
-            </div>
-            <div className="space-y-2 sm:col-span-2 lg:col-span-1">
-              <Label htmlFor="whatsappNumber">WhatsApp para Contato/Dúvidas (Opcional)</Label>
-              <Input
-                id="whatsappNumber"
-                value={whatsappNumber}
-                onChange={(e) => {
-                  setWhatsappNumber(e.target.value);
-                  updateConfig({ whatsappNumber: e.target.value });
-                }}
-                placeholder="Ex: 11999999999"
-                className="bg-background"
-              />
-            </div>
-          </div>
-        </motion.section>
-
-        {/* Section 2: Layout Selection */}
-        <motion.section
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
-          className="bg-card rounded-xl p-6 shadow-soft border border-border"
-        >
-          <div className="flex items-center gap-3 mb-6">
-            <Image className="w-5 h-5 text-gold" />
-            <h2 className="font-serif text-xl text-foreground">Escolha do Layout</h2>
-          </div>
-          
-          <div className="grid sm:grid-cols-3 gap-4">
-            {layoutOptions.map((layout) => (
-              <button
-                key={layout.id}
-                onClick={() => updateConfig({ layout: layout.id })}
-                className={`p-4 rounded-xl border-2 transition-all text-left ${
-                  config.layout === layout.id
-                    ? "border-gold bg-gold/5"
-                    : "border-border hover:border-gold/50"
-                }`}
-              >
-                <div className={`h-24 rounded-lg mb-3 ${layout.preview}`} />
-                <h3 className="font-medium text-foreground">{layout.name}</h3>
-                <p className="text-sm text-muted-foreground mt-1">{layout.description}</p>
-              </button>
-            ))}
-          </div>
-        </motion.section>
-
-        {/* Section 3: Toggle Sections */}
-        <motion.section
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-          className="bg-card rounded-xl p-6 shadow-soft border border-border"
-        >
-          <div className="flex items-center gap-3 mb-6">
-            <Settings className="w-5 h-5 text-gold" />
-            <h2 className="font-serif text-xl text-foreground">Seções do Site</h2>
-          </div>
-          
-          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {sectionOptions.map(({ key, label, icon: Icon }) => (
-              <div
-                key={key}
-                className="flex items-center justify-between p-4 rounded-lg bg-muted/50 border border-border"
-              >
-                <div className="flex items-center gap-3">
-                  <Icon className="w-4 h-4 text-gold" />
-                  <span className="text-sm font-medium text-foreground">{label}</span>
-                </div>
-                <Switch
-                  checked={config.sections[key]}
-                  onCheckedChange={() => toggleSection(key)}
-                />
-              </div>
-            ))}
-          </div>
-        </motion.section>
-
-        {/* Section 4: Media with dimensions */}
-        <motion.section
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-          className="bg-card rounded-xl p-6 shadow-soft border border-border"
-        >
-          <div className="flex items-center gap-3 mb-6">
-            <Camera className="w-5 h-5 text-gold" />
-            <h2 className="font-serif text-xl text-foreground">Mídia (Opcional)</h2>
-          </div>
-          
-          <div className="grid sm:grid-cols-2 gap-6">
-            <div className="space-y-2">
-              <div className="flex items-center gap-2">
-                <Label htmlFor="heroImage">URL da Foto Principal (Hero)</Label>
-                <Tooltip>
-                  <TooltipTrigger>
-                    <Info className="w-4 h-4 text-muted-foreground" />
-                  </TooltipTrigger>
-                  <TooltipContent className="max-w-xs">
-                    <p className="font-medium mb-1">Dimensões recomendadas:</p>
-                    <p className="text-sm">1920 x 1080 pixels (16:9)</p>
-                    <p className="text-sm">ou 1920 x 1280 pixels (3:2)</p>
-                    <p className="text-sm text-muted-foreground mt-1">Formato: JPG ou PNG</p>
-                  </TooltipContent>
-                </Tooltip>
-              </div>
-              <Input
-                id="heroImage"
-                value={config.heroImage}
-                onChange={(e) => updateConfig({ heroImage: e.target.value })}
-                placeholder="https://..."
-                className="bg-background"
-              />
-              <p className="text-xs text-muted-foreground">
-                📐 Recomendado: 1920x1080px (16:9) ou 1920x1280px (3:2)
-              </p>
-            </div>
-            <div className="space-y-2">
-              <div className="flex items-center gap-2">
-                <Label htmlFor="videoUrl">Link do Vídeo (YouTube/Vimeo)</Label>
-                <Tooltip>
-                  <TooltipTrigger>
-                    <Info className="w-4 h-4 text-muted-foreground" />
-                  </TooltipTrigger>
-                  <TooltipContent className="max-w-xs">
-                    <p className="font-medium mb-1">Formatos aceitos:</p>
-                    <p className="text-sm">youtube.com/watch?v=...</p>
-                    <p className="text-sm">vimeo.com/...</p>
-                    <p className="text-sm text-muted-foreground mt-1">Proporção 16:9 recomendada</p>
-                  </TooltipContent>
-                </Tooltip>
-              </div>
-              <Input
-                id="videoUrl"
-                value={config.videoUrl}
-                onChange={(e) => updateConfig({ videoUrl: e.target.value })}
-                placeholder="https://youtube.com/watch?v=..."
-                className="bg-background"
-              />
-              <p className="text-xs text-muted-foreground">
-                🎬 Proporção recomendada: 16:9
-              </p>
-            </div>
-          </div>
-
-          {/* Gallery dimensions note */}
-          <div className="mt-6 p-4 bg-muted/50 rounded-lg border border-border">
-            <h4 className="font-medium text-foreground mb-2 flex items-center gap-2">
-              <Camera className="w-4 h-4 text-gold" />
-              Dimensões para Galeria de Fotos
-            </h4>
-            <div className="grid sm:grid-cols-3 gap-4 text-sm text-muted-foreground">
-              <div>
-                <p className="font-medium text-foreground">Fotos da História</p>
-                <p>800 x 600px (4:3)</p>
-              </div>
-              <div>
-                <p className="font-medium text-foreground">Galeria Geral</p>
-                <p>800 x 800px (1:1) ou 800 x 600px</p>
-              </div>
-              <div>
-                <p className="font-medium text-foreground">Imagem de Presente</p>
-                <p>400 x 400px (1:1)</p>
-              </div>
-            </div>
-          </div>
-        </motion.section>
-
-        {/* Section 5: Story Photos */}
-        <motion.section
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.32 }}
-          className="bg-card rounded-xl p-6 shadow-soft border border-border"
-        >
-          <div className="flex items-center gap-3 mb-6">
-            <Heart className="w-5 h-5 text-gold" />
-            <h2 className="font-serif text-xl text-foreground">Fotos da Nossa História</h2>
-          </div>
-          
-          <p className="text-sm text-muted-foreground mb-4">
-            Adicione até 3 fotos do casal para a seção "Nossa História". Essas fotos aparecerão na página pública do seu casamento.
-          </p>
-
-          <div className="grid sm:grid-cols-3 gap-4">
-            <div className="space-y-2">
-              <Label>Foto Principal (grande)</Label>
-              <Input
-                value={storyPhoto1}
-                onChange={(e) => setStoryPhoto1(e.target.value)}
-                placeholder="URL da foto 1"
-                className="bg-background"
-              />
-              {storyPhoto1 && (
-                <div className="aspect-video rounded-lg overflow-hidden bg-muted">
-                  <img src={storyPhoto1} alt="Preview 1" className="w-full h-full object-cover" />
-                </div>
-              )}
-            </div>
-            <div className="space-y-2">
-              <Label>Foto 2</Label>
-              <Input
-                value={storyPhoto2}
-                onChange={(e) => setStoryPhoto2(e.target.value)}
-                placeholder="URL da foto 2"
-                className="bg-background"
-              />
-              {storyPhoto2 && (
-                <div className="aspect-video rounded-lg overflow-hidden bg-muted">
-                  <img src={storyPhoto2} alt="Preview 2" className="w-full h-full object-cover" />
-                </div>
-              )}
-            </div>
-            <div className="space-y-2">
-              <Label>Foto 3</Label>
-              <Input
-                value={storyPhoto3}
-                onChange={(e) => setStoryPhoto3(e.target.value)}
-                placeholder="URL da foto 3"
-                className="bg-background"
-              />
-              {storyPhoto3 && (
-                <div className="aspect-video rounded-lg overflow-hidden bg-muted">
-                  <img src={storyPhoto3} alt="Preview 3" className="w-full h-full object-cover" />
-                </div>
-              )}
-            </div>
-          </div>
-          <p className="text-xs text-muted-foreground mt-4">
-            📐 Dimensão recomendada: 800x600px (4:3) para melhor visualização
-          </p>
-        </motion.section>
-
-        {/* Section 6: Mercado Pago Integration */}
-        <motion.section
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.35 }}
-          className="bg-card rounded-xl p-6 shadow-soft border border-border"
-        >
-          <div className="flex items-center gap-3 mb-6">
-            <CreditCard className="w-5 h-5 text-gold" />
-            <h2 className="font-serif text-xl text-foreground">Integração Mercado Pago</h2>
-          </div>
-          
-          <div className="bg-muted/50 rounded-lg p-4 mb-6 border border-border">
-            <p className="text-sm text-muted-foreground">
-              Configure sua conta do Mercado Pago para receber pagamentos diretamente na sua conta.
-              Os convidados poderão pagar via Pix, cartão ou boleto.
-            </p>
-            <a 
-              href="https://www.mercadopago.com.br/developers/panel/credentials" 
-              target="_blank" 
-              rel="noopener noreferrer"
-              className="text-sm text-gold hover:underline inline-flex items-center gap-1 mt-2"
+        {/* Sub-tabs for Settings */}
+        <div className="flex gap-2 border-b border-border overflow-x-auto pb-1 mb-6">
+          {[
+            { key: "appearance" as const, label: "Aparência & Seções", icon: Palette },
+            { key: "story" as const, label: "Nossa História", icon: Heart },
+            { key: "event" as const, label: "Evento & Estilo", icon: MapPin },
+            { key: "gifts" as const, label: "Presentes & Pix", icon: Gift },
+          ].map(({ key, label, icon: Icon }) => (
+            <button
+              key={key}
+              onClick={() => setSettingsSubTab(key)}
+              className={`flex items-center gap-2 px-5 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+                settingsSubTab === key
+                  ? "border-gold text-gold"
+                  : "border-transparent text-muted-foreground hover:text-foreground"
+              }`}
             >
-              Obter credenciais no Mercado Pago
-              <ExternalLink className="w-3 h-3" />
-            </a>
-          </div>
+              <Icon className="w-4 h-4" />
+              {label}
+            </button>
+          ))}
+        </div>
 
-          {mpValidation && (
-            <Alert className={`mb-4 ${mpValidation.valid ? 'border-green-500 bg-green-500/10' : 'border-destructive bg-destructive/10'}`}>
-              <AlertDescription className="flex items-center gap-2">
-                {mpValidation.valid ? (
-                  <>
-                    <CheckCircle2 className="w-4 h-4 text-green-500" />
-                    <span className="text-green-700">{mpValidation.message}</span>
-                    {mpValidation.isTestMode && (
-                      <span className="text-xs bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded">Modo Teste</span>
-                    )}
-                  </>
-                ) : (
-                  <>
-                    <XCircle className="w-4 h-4 text-destructive" />
-                    <span className="text-destructive">{mpValidation.error}</span>
-                  </>
-                )}
-              </AlertDescription>
-            </Alert>
-          )}
-
-          <div className="grid sm:grid-cols-2 gap-6">
-            <div className="space-y-2">
-              <Label htmlFor="mpPublicKey">Public Key</Label>
-              <Input
-                id="mpPublicKey"
-                value={mercadoPagoPublicKey}
-                onChange={(e) => {
-                  setMercadoPagoPublicKey(e.target.value);
-                  setMpValidation(null);
-                }}
-                placeholder="APP_USR-... ou TEST-..."
-                className="bg-background font-mono text-sm"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="mpAccessToken">Access Token</Label>
-              <Input
-                id="mpAccessToken"
-                type="password"
-                value={mercadoPagoAccessToken}
-                onChange={(e) => {
-                  setMercadoPagoAccessToken(e.target.value);
-                  setMpValidation(null);
-                }}
-                placeholder="APP_USR-... ou TEST-..."
-                className="bg-background font-mono text-sm"
-              />
-            </div>
-          </div>
-
-          <div className="mt-4 flex items-center gap-4">
-            <Button
-              variant="outline"
-              onClick={validateMercadoPago}
-              disabled={mpValidating || !mercadoPagoPublicKey || !mercadoPagoAccessToken}
+        {settingsSubTab === "appearance" && (
+          <div className="space-y-8 animate-fade-in">
+            {/* Section 1: Couple Info */}
+            <motion.section
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="bg-card rounded-xl p-6 shadow-soft border border-border"
             >
-              {mpValidating ? (
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-              ) : (
-                <CheckCircle2 className="w-4 h-4 mr-2" />
-              )}
-              Testar Conexão
-            </Button>
-            <p className="text-xs text-muted-foreground">
-              ⚠️ As credenciais serão validadas antes de salvar
-            </p>
-          </div>
-
-          {/* Payment Method Toggles */}
-          <div className="mt-6 border-t border-border pt-6">
-            <h3 className="font-medium text-foreground mb-4 flex items-center gap-2">
-              <CreditCard className="w-4 h-4 text-gold" />
-              Métodos de Pagamento
-            </h3>
-            <p className="text-sm text-muted-foreground mb-4">
-              Escolha quais métodos de pagamento estarão disponíveis para os convidados.
-            </p>
-            
-            <div className="grid sm:grid-cols-3 gap-4 mb-6">
-              <div className="flex items-center justify-between p-4 rounded-lg bg-muted/50 border border-border">
-                <div className="flex items-center gap-3">
-                  <CreditCard className="w-4 h-4 text-gold" />
-                  <span className="text-sm font-medium text-foreground">Cartão de Crédito</span>
-                </div>
-                <Switch
-                  checked={paymentCreditCard}
-                  onCheckedChange={setPaymentCreditCard}
-                />
-              </div>
-              <div className="flex items-center justify-between p-4 rounded-lg bg-muted/50 border border-border">
-                <div className="flex items-center gap-3">
-                  <QrCode className="w-4 h-4 text-gold" />
-                  <span className="text-sm font-medium text-foreground">Pix</span>
-                </div>
-                <Switch
-                  checked={paymentPix}
-                  onCheckedChange={setPaymentPix}
-                />
-              </div>
-              <div className="flex items-center justify-between p-4 rounded-lg bg-muted/50 border border-border">
-                <div className="flex items-center gap-3">
-                  <FileText className="w-4 h-4 text-gold" />
-                  <span className="text-sm font-medium text-foreground">Boleto</span>
-                </div>
-                <Switch
-                  checked={paymentBoleto}
-                  onCheckedChange={setPaymentBoleto}
-                />
-              </div>
-            </div>
-
-            {/* Installment Configuration */}
-            {paymentCreditCard && (
-              <div className="p-4 rounded-lg bg-muted/50 border border-border mb-6">
-                <Label htmlFor="maxInstallments" className="flex items-center gap-2 mb-2">
-                  <CreditCard className="w-4 h-4 text-gold" />
-                  Máximo de Parcelas
-                </Label>
-                <Select
-                  value={maxInstallments.toString()}
-                  onValueChange={(val) => setMaxInstallments(parseInt(val))}
-                >
-                  <SelectTrigger className="w-full sm:w-48 bg-background">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {[1, 2, 3, 4, 5, 6, 9, 10, 12].map((n) => (
-                      <SelectItem key={n} value={n.toString()}>
-                        {n === 1 ? "À vista (sem parcelamento)" : `Até ${n}x`}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-muted-foreground mt-2">
-                  Define o número máximo de parcelas disponíveis no cartão de crédito.
-                </p>
-              </div>
-            )}
-
-            {/* Manual PIX Configuration */}
-            <div className="p-4 rounded-lg bg-muted/50 border border-border">
-              <h4 className="font-medium text-foreground mb-4 flex items-center gap-2">
-                <QrCode className="w-4 h-4 text-gold" />
-                Pix Manual (Sem taxas do Mercado Pago)
-              </h4>
-              <p className="text-sm text-muted-foreground mb-4">
-                Se preenchido, os convidados poderão fazer um PIX diretamente para sua conta. Eles confirmarão o envio e você aprovará manualmente depois.
-              </p>
-              <div className="grid sm:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="manualPixType">Tipo de Chave</Label>
-                  <Select
-                    value={manualPixType}
-                    onValueChange={setManualPixType}
-                  >
-                    <SelectTrigger className="w-full bg-background">
-                      <SelectValue placeholder="Selecione o tipo" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="cpf">CPF</SelectItem>
-                      <SelectItem value="cnpj">CNPJ</SelectItem>
-                      <SelectItem value="email">E-mail</SelectItem>
-                      <SelectItem value="celular">Celular</SelectItem>
-                      <SelectItem value="aleatoria">Chave Aleatória</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="manualPixKey">Chave PIX</Label>
-                  <Input
-                    id="manualPixKey"
-                    value={manualPixKey}
-                    onChange={(e) => setManualPixKey(e.target.value)}
-                    placeholder="Ex: 123.456.789-00"
-                    className="bg-background"
-                  />
-                </div>
+              <div className="flex items-center gap-3 mb-6">
+                <Heart className="w-5 h-5 text-gold" />
+                <h2 className="font-serif text-xl text-foreground">Informações do Casal</h2>
               </div>
               
-              <div className="space-y-2 sm:col-span-2 mt-2">
-                <Label>QR Code da Chave PIX (Opcional)</Label>
-                <div className="flex gap-4 items-start">
-                  <div className="flex-1 space-y-2">
-                    <Input
-                      type="file"
-                      accept="image/*"
-                      disabled={uploadingQr}
-                      onChange={async (e) => {
-                        const file = e.target.files?.[0];
-                        if (!file) return;
-                        
-                        setUploadingQr(true);
-                        try {
-                          const fileExt = file.name.split('.').pop();
-                          const fileName = `${user?.id}-qr-${Date.now()}.${fileExt}`;
-                          
-                          const { error: uploadError } = await supabase.storage
-                            .from('wedding-assets')
-                            .upload(fileName, file);
-
-                          if (uploadError) throw uploadError;
-                          
-                          const { data: { publicUrl } } = supabase.storage
-                            .from('wedding-assets')
-                            .getPublicUrl(fileName);
-                            
-                          setManualPixQrImageUrl(publicUrl);
-                          toast({ title: "Imagem do QR Code enviada com sucesso!" });
-                        } catch (error) {
-                          console.error("Error uploading QR code:", error);
-                          toast({ title: "Erro ao enviar imagem do QR Code.", variant: "destructive" });
-                        } finally {
-                          setUploadingQr(false);
-                        }
-                      }}
-                      className="bg-background"
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      Você pode anexar uma imagem do QR Code gerada pelo seu banco para facilitar o pagamento dos convidados.
-                    </p>
-                  </div>
-                  
-                  {manualPixQrImageUrl && (
-                    <div className="relative w-24 h-24 rounded-lg overflow-hidden border border-border bg-muted flex-shrink-0 group">
-                      <img 
-                        src={manualPixQrImageUrl} 
-                        alt="QR Code PIX" 
-                        className="w-full h-full object-cover"
-                      />
-                      <button
-                        onClick={() => setManualPixQrImageUrl("")}
-                        className="absolute inset-0 bg-black/50 text-white opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
-                        title="Remover imagem"
-                      >
-                        <Trash2 className="w-5 h-5" />
-                      </button>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {!paymentCreditCard && !paymentPix && !paymentBoleto && (
-              <Alert className="border-destructive bg-destructive/10">
-                <AlertDescription className="flex items-center gap-2">
-                  <AlertCircle className="w-4 h-4 text-destructive" />
-                  <span className="text-destructive">Pelo menos um método de pagamento deve estar ativado.</span>
-                </AlertDescription>
-              </Alert>
-            )}
-          </div>
-        </motion.section>
-
-        {/* Section 7: Wedding Info */}
-        <motion.section
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.4 }}
-          className="bg-card rounded-xl p-6 shadow-soft border border-border"
-        >
-          <div className="flex items-center gap-3 mb-6">
-            <Calendar className="w-5 h-5 text-gold" />
-            <h2 className="font-serif text-xl text-foreground">Informações do Casamento</h2>
-          </div>
-          
-          <div className="grid lg:grid-cols-2 gap-8">
-            {/* Ceremony */}
-            <div className="space-y-4">
-              <h3 className="font-medium text-foreground flex items-center gap-2">
-                <MapPin className="w-4 h-4 text-gold" />
-                Cerimônia
-              </h3>
-              <div className="grid sm:grid-cols-2 gap-4">
+              <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
                 <div className="space-y-2">
-                  <Label>Data</Label>
+                  <Label htmlFor="coupleName">Nome do Casal *</Label>
                   <Input
-                    value={config.ceremonyDate}
-                    onChange={(e) => updateConfig({ ceremonyDate: e.target.value })}
-                    placeholder="15 de Agosto de 2025"
-                    className="bg-background"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Horário</Label>
-                  <Input
-                    value={config.ceremonyTime}
-                    onChange={(e) => updateConfig({ ceremonyTime: e.target.value })}
-                    placeholder="16:00"
-                    className="bg-background"
-                  />
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label>Local</Label>
-                <Input
-                  value={config.ceremonyLocation}
-                  onChange={(e) => updateConfig({ ceremonyLocation: e.target.value })}
-                  placeholder="Nome do local"
-                  className="bg-background"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Endereço</Label>
-                <Input
-                  value={config.ceremonyAddress}
-                  onChange={(e) => updateConfig({ ceremonyAddress: e.target.value })}
-                  placeholder="Endereço completo"
-                  className="bg-background"
-                />
-              </div>
-            </div>
-
-            {/* Reception */}
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <h3 className="font-medium text-foreground flex items-center gap-2">
-                  <MapPin className="w-4 h-4 text-gold" />
-                  Recepção
-                </h3>
-              </div>
-
-              {/* Same location toggle */}
-              <div className="flex items-center gap-3 p-3 rounded-lg bg-gold/5 border border-gold/20">
-                <Checkbox
-                  id="sameLocation"
-                  checked={config.sameLocation}
-                  onCheckedChange={(checked) => handleSameLocationChange(checked === true)}
-                />
-                <label htmlFor="sameLocation" className="text-sm cursor-pointer">
-                  Cerimônia e recepção no mesmo local
-                </label>
-              </div>
-
-              {!config.sameLocation && (
-                <>
-                  <div className="space-y-2">
-                    <Label>Horário</Label>
-                    <Input
-                      value={config.receptionTime}
-                      onChange={(e) => updateConfig({ receptionTime: e.target.value })}
-                      placeholder="18:30"
-                      className="bg-background"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Local</Label>
-                    <Input
-                      value={config.receptionLocation}
-                      onChange={(e) => updateConfig({ receptionLocation: e.target.value })}
-                      placeholder="Nome do local"
-                      className="bg-background"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Endereço</Label>
-                    <Input
-                      value={config.receptionAddress}
-                      onChange={(e) => updateConfig({ receptionAddress: e.target.value })}
-                      placeholder="Endereço completo"
-                      className="bg-background"
-                    />
-                  </div>
-                </>
-              )}
-
-              {config.sameLocation && (
-                <div className="space-y-2">
-                  <Label>Horário da Recepção</Label>
-                  <Input
-                    value={config.receptionTime}
-                    onChange={(e) => updateConfig({ receptionTime: e.target.value })}
-                    placeholder="18:30"
+                    id="coupleName"
+                    value={config.coupleName}
+                    onChange={(e) => updateConfig({ coupleName: e.target.value })}
+                    placeholder="Ex: Maria & João"
                     className="bg-background"
                   />
                   <p className="text-xs text-muted-foreground">
-                    Local será o mesmo da cerimônia
+                    Será usado na URL: /{generateSlug(config.coupleName) || "nome-do-casal"}
                   </p>
                 </div>
-              )}
-            </div>
-          </div>
-        </motion.section>
-
-        {/* Section 8: About */}
-        <motion.section
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.45 }}
-          className="bg-card rounded-xl p-6 shadow-soft border border-border"
-        >
-          <div className="flex items-center gap-3 mb-6">
-            <Heart className="w-5 h-5 text-gold" />
-            <h2 className="font-serif text-xl text-foreground">Sobre o Casal</h2>
-          </div>
-          
-          <div className="space-y-2">
-            <Label>Sua História</Label>
-            <Textarea
-              value={config.aboutText}
-              onChange={(e) => updateConfig({ aboutText: e.target.value })}
-              placeholder="Conte a história de vocês..."
-              className="bg-background min-h-[150px]"
-            />
-          </div>
-        </motion.section>
-
-        {/* Section 9: Dress Code */}
-        <motion.section
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.47 }}
-          className="bg-card rounded-xl p-6 shadow-soft border border-border"
-        >
-          <div className="flex items-center gap-3 mb-6">
-            <Shirt className="w-5 h-5 text-gold" />
-            <h2 className="font-serif text-xl text-foreground">Dress Code</h2>
-          </div>
-          
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label>Descrição do Traje</Label>
-              <Textarea
-                value={config.dressCodeText}
-                onChange={(e) => updateConfig({ dressCodeText: e.target.value })}
-                placeholder="Esporte fino, traje social, etc."
-                className="bg-background"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Cores a Evitar</Label>
-              <Input
-                value={config.colorsToAvoid}
-                onChange={(e) => updateConfig({ colorsToAvoid: e.target.value })}
-                placeholder="Branco, off-white..."
-                className="bg-background"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Informações Adicionais</Label>
-              <Textarea
-                value={config.additionalInfo}
-                onChange={(e) => updateConfig({ additionalInfo: e.target.value })}
-                placeholder="Dicas extras, como calçados confortáveis..."
-                className="bg-background"
-              />
-            </div>
-          </div>
-        </motion.section>
-
-        {/* Section 10: Gift Registry */}
-        <motion.section
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.5 }}
-          className="bg-card rounded-xl p-6 shadow-soft border border-border"
-        >
-          <div className="flex items-center justify-between mb-6">
-            <div className="flex items-center gap-3">
-              <Gift className="w-5 h-5 text-gold" />
-              <h2 className="font-serif text-xl text-foreground">Lista de Presentes</h2>
-            </div>
-            <div className="flex gap-2">
-              <input 
-                type="file" 
-                accept=".csv" 
-                className="hidden" 
-                ref={fileInputRef} 
-                onChange={handleFileUpload} 
-              />
-              <Button 
-                variant="outline" 
-                className="bg-background text-foreground hover:bg-muted"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={isImporting}
-              >
-                {isImporting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Upload className="w-4 h-4 mr-2" />}
-                Importar CSV
-              </Button>
-
-              <Button 
-                variant="outline" 
-                className="bg-background text-foreground hover:bg-muted"
-                onClick={handleDownloadTemplate}
-              >
-                <Download className="w-4 h-4 mr-2" />
-                Baixar Modelo
-              </Button>
-
-              <Dialog open={isAddingGift} onOpenChange={setIsAddingGift}>
-                <DialogTrigger asChild>
-                  <Button className="bg-gold hover:bg-gold-light text-background">
-                    <Plus className="w-4 h-4 mr-2" />
-                    Adicionar Presente
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="bg-card">
-                <DialogHeader>
-                  <DialogTitle className="font-serif">Adicionar Novo Presente</DialogTitle>
-                </DialogHeader>
-                <div className="space-y-4 mt-4">
-                  
-                  <div className="space-y-2 bg-secondary/50 p-4 rounded-lg border border-border">
-                    <Label className="text-gold font-medium">Link do Presente (Auto-preenchimento)</Label>
-                    <p className="text-xs text-muted-foreground mb-2">Cole o link da loja e clique no botão para extrair os dados automaticamente.</p>
-                    <div className="flex gap-2">
-                      <Input
-                        value={newGift.externalLink || ""}
-                        onChange={(e) => setNewGift({ ...newGift, externalLink: e.target.value })}
-                        placeholder="https://www.loja..."
-                        className="bg-background flex-1"
-                      />
-                      <Button 
-                        onClick={() => handleScrapeGift(false)} 
-                        disabled={isScraping || !newGift.externalLink}
-                        variant="secondary"
-                        className="bg-gold text-background hover:bg-gold-light"
-                      >
-                        {isScraping ? <Loader2 className="w-4 h-4 animate-spin" /> : <Wand2 className="w-4 h-4" />}
-                      </Button>
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label>Nome do Presente *</Label>
-                    <Input
-                      value={newGift.name}
-                      onChange={(e) => setNewGift({ ...newGift, name: e.target.value })}
-                      placeholder="Ex: Jogo de Panelas"
-                      className="bg-background"
-                    />
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label>Categoria</Label>
-                      <Select
-                        value={newGift.category}
-                        onValueChange={(value) => setNewGift({ ...newGift, category: value })}
-                      >
-                        <SelectTrigger className="bg-background">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent className="bg-card border-border">
-                          {categories.map((cat) => (
-                            <SelectItem key={cat} value={cat}>{cat}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label>{newGift.isVaquinha ? "Meta da Vaquinha (R$) *" : "Valor (R$) *"}</Label>
-                      <Input
-                        type="number"
-                        value={(newGift.isOpenPrice && !newGift.isVaquinha) ? "" : (newGift.price || "")}
-                        onChange={(e) => setNewGift({ ...newGift, price: parseFloat(e.target.value) || 0 })}
-                        placeholder="0.00"
-                        className="bg-background"
-                        disabled={newGift.isOpenPrice && !newGift.isVaquinha}
-                      />
-                    </div>
-                  </div>
-                  <div className="flex flex-col space-y-3 py-1">
-                    <div className="flex items-center space-x-2">
-                      <Checkbox
-                        id="isVaquinha"
-                        checked={newGift.isVaquinha || false}
-                        onCheckedChange={(checked) => setNewGift({ 
-                          ...newGift, 
-                          isVaquinha: checked === true,
-                          isOpenPrice: checked === true ? true : newGift.isOpenPrice // Vaquinha is always Open Price
-                        })}
-                      />
-                      <Label htmlFor="isVaquinha" className="text-sm font-medium leading-none cursor-pointer">
-                        É uma Vaquinha? (Exibe barra de progresso)
-                      </Label>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <Checkbox
-                        id="isOpenPrice"
-                        checked={newGift.isOpenPrice || false}
-                        disabled={newGift.isVaquinha}
-                        onCheckedChange={(checked) => setNewGift({ 
-                          ...newGift, 
-                          isOpenPrice: checked === true,
-                          price: checked === true ? 0 : newGift.price 
-                        })}
-                      />
-                      <Label htmlFor="isOpenPrice" className="text-sm font-medium leading-none cursor-pointer">
-                        Permitir valor livre (definido pelo convidado)
-                      </Label>
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2">
-                      <Label>URL da Imagem</Label>
-                      <span className="text-xs text-muted-foreground">(400x400px)</span>
-                    </div>
-                    <Input
-                      value={newGift.image}
-                      onChange={(e) => setNewGift({ ...newGift, image: e.target.value })}
-                      placeholder="https://..."
-                      className="bg-background"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2">
-                      <Label>Quantidade em Estoque</Label>
-                      <span className="text-xs text-muted-foreground">(Opcional)</span>
-                    </div>
-                    <Input
-                      type="number"
-                      min="0"
-                      value={newGift.stock !== null && newGift.stock !== undefined ? newGift.stock : ""}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        setNewGift({ ...newGift, stock: val === "" ? null : parseInt(val) || 0 });
-                      }}
-                      placeholder="Ilimitado"
-                      className="bg-background"
-                      disabled={!!newGift.totalQuotas}
-                    />
-                    {!!newGift.totalQuotas && (
-                      <p className="text-xs text-muted-foreground">Estoque gerenciado pelas cotas</p>
-                    )}
-                  </div>
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2">
-                      <Label>Número de Cotas</Label>
-                      <span className="text-xs text-muted-foreground">(Opcional — divide o valor em partes iguais)</span>
-                    </div>
-                    <Input
-                      type="number"
-                      min="2"
-                      value={newGift.totalQuotas !== null && newGift.totalQuotas !== undefined ? newGift.totalQuotas : ""}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        const quotas = val === "" ? null : parseInt(val) || 0;
-                        setNewGift({ 
-                          ...newGift, 
-                          totalQuotas: quotas,
-                          stock: quotas ? quotas : newGift.stock,
-                        });
-                      }}
-                      placeholder="Sem cotas"
-                      className="bg-background"
-                    />
-                    {newGift.totalQuotas && newGift.price > 0 && (
-                      <p className="text-xs text-gold font-medium">
-                        Cada cota: R$ {(newGift.price / newGift.totalQuotas).toFixed(2).replace(".", ",")}
-                      </p>
-                    )}
-                  </div>
-                  <Button onClick={handleSaveNewGift} className="w-full bg-gold hover:bg-gold-light text-background">
-                    <Save className="w-4 h-4 mr-2" />
-                    Salvar Presente
-                  </Button>
+                <div className="space-y-2">
+                  <Label htmlFor="weddingDate">Data do Casamento</Label>
+                  <Input
+                    id="weddingDate"
+                    type="date"
+                    value={config.weddingDate}
+                    onChange={(e) => updateConfig({ weddingDate: e.target.value })}
+                    className="bg-background"
+                  />
                 </div>
-              </DialogContent>
-            </Dialog>
-          </div>
-        </div>
-
-          {/* Gifts Grid */}
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {config.gifts.map((gift) => (
-              <div
-                key={gift.id}
-                className="bg-muted/50 rounded-lg border border-border overflow-hidden group"
-              >
-                <div className="aspect-video bg-secondary relative">
-                  {gift.image ? (
-                    <img src={gift.image} alt={gift.name} className="w-full h-full object-cover" />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center">
-                      <Gift className="w-8 h-8 text-muted-foreground" />
-                    </div>
-                  )}
-                  <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button
-                      onClick={() => setEditingGift(gift)}
-                      className="p-2 bg-card rounded-lg shadow hover:bg-muted"
-                    >
-                      <Edit2 className="w-4 h-4 text-foreground" />
-                    </button>
-                    <button
-                      onClick={() => removeGift(gift.id)}
-                      className="p-2 bg-card rounded-lg shadow hover:bg-destructive hover:text-destructive-foreground"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
+                <div className="space-y-2 sm:col-span-2 lg:col-span-1">
+                  <Label htmlFor="tagline">Frase de Destaque</Label>
+                  <Input
+                    id="tagline"
+                    value={config.tagline}
+                    onChange={(e) => updateConfig({ tagline: e.target.value })}
+                    placeholder="Uma frase especial..."
+                    className="bg-background"
+                  />
                 </div>
-                <div className="p-4">
-                    <div className="flex justify-between items-start mb-1">
-                      <span className="text-xs text-gold uppercase tracking-wider">{gift.category}</span>
-                      {gift.totalQuotas ? (
-                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${(gift.stock || 0) > 0 ? "bg-blue-100 text-blue-700" : "bg-red-100 text-red-700"}`}>
-                          {(gift.stock || 0) > 0 ? `${gift.stock} DE ${gift.totalQuotas} COTAS` : "TODAS AS COTAS VENDIDAS"}
-                        </span>
-                      ) : gift.stock !== null && gift.stock !== undefined && (
-                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${gift.stock > 0 ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}>
-                          {gift.stock > 0 ? `RESTAM ${gift.stock}` : "ESGOTADO"}
-                        </span>
-                      )}
-                    </div>
-                    <h3 className="font-medium text-foreground mt-1">{gift.name}</h3>
-                  {gift.totalQuotas && gift.price > 0 ? (
-                    <div className="mt-2">
-                      <p className="text-sm font-medium text-muted-foreground mb-1">
-                        {gift.totalQuotas} cotas de R$ {(gift.price / gift.totalQuotas).toFixed(2).replace(".", ",")}
-                      </p>
-                      <div className="w-full bg-secondary h-2 rounded-full overflow-hidden">
-                        <div 
-                          className="bg-blue-500 h-full rounded-full transition-all duration-500"
-                          style={{ width: `${Math.min(100, ((gift.totalQuotas - (gift.stock || 0)) / gift.totalQuotas) * 100)}%` }}
-                        />
-                      </div>
-                    </div>
-                  ) : gift.isVaquinha ? (
-                    <div className="mt-2">
-                      <p className="text-sm font-medium text-muted-foreground mb-1">
-                        Arrecadado: R$ {(gift.raisedAmount || 0).toFixed(2).replace(".", ",")} de R$ {gift.price.toFixed(2).replace(".", ",")}
-                      </p>
-                      <div className="w-full bg-secondary h-2 rounded-full overflow-hidden">
-                        <div 
-                          className="bg-gold h-full rounded-full transition-all duration-500"
-                          style={{ width: `${Math.min(100, ((gift.raisedAmount || 0) / gift.price) * 100)}%` }}
-                        />
-                      </div>
-                    </div>
-                  ) : (
-                    <p className="text-lg font-serif text-gold mt-2">
-                      {gift.isOpenPrice ? "Valor Livre" : `R$ ${gift.price.toFixed(2).replace(".", ",")}`}
-                    </p>
-                  )}
+                <div className="space-y-2 sm:col-span-2 lg:col-span-1">
+                  <Label htmlFor="whatsappNumber">WhatsApp para Contato/Dúvidas (Opcional)</Label>
+                  <Input
+                    id="whatsappNumber"
+                    value={whatsappNumber}
+                    onChange={(e) => {
+                      setWhatsappNumber(e.target.value);
+                      updateConfig({ whatsappNumber: e.target.value });
+                    }}
+                    placeholder="Ex: 11999999999"
+                    className="bg-background"
+                  />
                 </div>
               </div>
-            ))}
-          </div>
+            </motion.section>
 
-          {/* Edit Gift Dialog */}
-          <Dialog open={!!editingGift} onOpenChange={(open) => !open && setEditingGift(null)}>
-            <DialogContent className="bg-card">
-              <DialogHeader>
-                <DialogTitle className="font-serif">Editar Presente</DialogTitle>
-              </DialogHeader>
-              {editingGift && (
-                <div className="space-y-4 mt-4">
-                  
-                  <div className="space-y-2 bg-secondary/50 p-4 rounded-lg border border-border">
-                    <Label className="text-gold font-medium">Link do Presente (Auto-preenchimento)</Label>
-                    <p className="text-xs text-muted-foreground mb-2">Cole o link da loja e clique no botão para extrair os dados automaticamente.</p>
-                    <div className="flex gap-2">
-                      <Input
-                        value={editingGift.externalLink || ""}
-                        onChange={(e) => setEditingGift({ ...editingGift, externalLink: e.target.value })}
-                        placeholder="https://www.loja..."
-                        className="bg-background flex-1"
-                      />
-                      <Button 
-                        onClick={() => handleScrapeGift(true)} 
-                        disabled={isScraping || !editingGift.externalLink}
-                        variant="secondary"
-                        className="bg-gold text-background hover:bg-gold-light"
-                      >
-                        {isScraping ? <Loader2 className="w-4 h-4 animate-spin" /> : <Wand2 className="w-4 h-4" />}
-                      </Button>
+            {/* Section 2: Layout Selection */}
+            <motion.section
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.1 }}
+              className="bg-card rounded-xl p-6 shadow-soft border border-border"
+            >
+              <div className="flex items-center gap-3 mb-6">
+                <Image className="w-5 h-5 text-gold" />
+                <h2 className="font-serif text-xl text-foreground">Escolha do Layout</h2>
+              </div>
+              
+              <div className="grid sm:grid-cols-3 gap-4">
+                {layoutOptions.map((layout) => (
+                  <button
+                    key={layout.id}
+                    onClick={() => updateConfig({ layout: layout.id })}
+                    className={`p-4 rounded-xl border-2 transition-all text-left ${
+                      config.layout === layout.id
+                        ? "border-gold bg-gold/5"
+                        : "border-border hover:border-gold/50"
+                    }`}
+                  >
+                    {layout.id === "classic" && (
+                      <div className="h-28 rounded-lg mb-3 bg-[#FAF8F5] border border-[#EBE6DD] flex flex-col items-center justify-between p-3 relative overflow-hidden font-serif select-none">
+                        <div className="absolute inset-1 border border-[#D4AF37]/20 rounded pointer-events-none" />
+                        <div className="flex justify-between w-full text-[6px] text-[#8C7A6B] font-sans px-1 tracking-wider uppercase opacity-80">
+                          <span>Home</span>
+                          <span>História</span>
+                          <span>Presentes</span>
+                        </div>
+                        <div className="flex flex-col items-center justify-center my-auto">
+                          <span className="text-[11px] font-bold text-[#B38F4D] tracking-widest leading-none mb-0.5">M & J</span>
+                          <span className="text-[5px] text-[#8C7A6B] font-sans italic opacity-75">15 de Agosto de 2025</span>
+                          <div className="w-8 h-[0.5px] bg-[#D4AF37] my-1 opacity-60" />
+                          <span className="text-[4px] text-[#8C7A6B] font-sans tracking-wide">SALVEM A DATA</span>
+                        </div>
+                        <div className="flex gap-1 justify-center items-center w-full">
+                          <div className="w-1 h-1 rounded-full bg-[#D4AF37]/40" />
+                          <div className="w-[3px] h-[3px] rounded-full bg-[#D4AF37]/30" />
+                          <div className="w-1 h-1 rounded-full bg-[#D4AF37]/40" />
+                        </div>
+                      </div>
+                    )}
+
+                    {layout.id === "modern" && (
+                      <div className="h-28 rounded-lg mb-3 bg-[#F1F3F5] border border-[#E2E8F0] flex flex-col justify-between p-3 relative overflow-hidden font-sans select-none">
+                        <div className="flex justify-between items-center w-full text-[6px] text-[#475569] font-medium border-b border-[#E2E8F0] pb-1 px-1">
+                          <span className="font-bold text-primary">m+j</span>
+                          <div className="flex gap-2 text-[4px] opacity-75">
+                            <span>Gifts</span>
+                            <span className="bg-primary text-white px-1 py-0.5 rounded-full">RSVP</span>
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2 my-auto items-center">
+                          <div className="flex flex-col text-left">
+                            <span className="text-[8px] font-bold text-[#1E293B] leading-none mb-0.5">Maria + João</span>
+                            <span className="text-[4px] text-[#64748B] font-semibold tracking-wider uppercase mb-1">15.08.2025</span>
+                            <div className="h-2.5 w-10 bg-primary rounded-sm flex items-center justify-center">
+                              <span className="text-[4px] text-white font-bold">Confirmar</span>
+                            </div>
+                          </div>
+                          <div className="w-full h-8 bg-[#CBD5E1] rounded-md relative overflow-hidden flex items-center justify-center">
+                            <div className="w-4 h-4 rounded-full bg-[#94A3B8]/40" />
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {layout.id === "minimalist" && (
+                      <div className="h-28 rounded-lg mb-3 bg-white border border-[#E5E7EB] flex flex-col justify-between p-3 relative overflow-hidden font-light select-none tracking-wide text-neutral-800">
+                        <div className="flex justify-start gap-3 w-full text-[5px] text-neutral-400 font-sans tracking-widest uppercase">
+                          <span>M | J</span>
+                          <span className="ml-auto">Info</span>
+                          <span>RSVP</span>
+                        </div>
+                        <div className="flex flex-col items-start text-left my-auto font-serif pl-1">
+                          <span className="text-[9px] font-light tracking-tight text-neutral-900 leading-none mb-1">
+                            Maria <span className="font-sans text-[7px] font-thin text-neutral-400">|</span> João
+                          </span>
+                          <span className="text-[4px] font-sans tracking-widest text-neutral-400 uppercase">AUGUST 15, 2025</span>
+                        </div>
+                        <div className="border-t border-[#F3F4F6] pt-1 flex justify-between items-center w-full">
+                          <span className="text-[4px] text-neutral-400 tracking-wider">#MARIAEJOAO</span>
+                          <span className="text-[4px] font-sans uppercase tracking-widest text-neutral-900 border-b border-neutral-900 pb-0.5 font-medium">VER DETALHES</span>
+                        </div>
+                      </div>
+                    )}
+                    <h3 className="font-medium text-foreground">{layout.name}</h3>
+                    <p className="text-sm text-muted-foreground mt-1">{layout.description}</p>
+                  </button>
+                ))}
+              </div>
+            </motion.section>
+
+            {/* Section 3: Toggle Sections */}
+            <motion.section
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2 }}
+              className="bg-card rounded-xl p-6 shadow-soft border border-border"
+            >
+              <div className="flex items-center gap-3 mb-6">
+                <Settings className="w-5 h-5 text-gold" />
+                <h2 className="font-serif text-xl text-foreground">Seções do Site</h2>
+              </div>
+              
+              <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                {sectionOptions.map(({ key, label, icon: Icon }) => (
+                  <div
+                    key={key}
+                    className="flex items-center justify-between p-4 rounded-lg bg-muted/50 border border-border"
+                  >
+                    <div className="flex items-center gap-3">
+                      <Icon className="w-4 h-4 text-gold" />
+                      <span className="text-sm font-medium text-foreground">{label}</span>
                     </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label>Nome do Presente</Label>
-                    <Input
-                      value={editingGift.name}
-                      onChange={(e) => setEditingGift({ ...editingGift, name: e.target.value })}
-                      className="bg-background"
+                    <Switch
+                      checked={config.sections[key]}
+                      onCheckedChange={() => toggleSection(key)}
                     />
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label>Categoria</Label>
-                      <Select
-                        value={editingGift.category}
-                        onValueChange={(value) => setEditingGift({ ...editingGift, category: value })}
-                      >
-                        <SelectTrigger className="bg-background">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent className="bg-card border-border">
-                          {categories.map((cat) => (
-                            <SelectItem key={cat} value={cat}>{cat}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label>{editingGift.isVaquinha ? "Meta da Vaquinha (R$)" : "Valor (R$)"}</Label>
-                      <Input
-                        type="number"
-                        value={(editingGift.isOpenPrice && !editingGift.isVaquinha) ? "" : editingGift.price}
-                        onChange={(e) => setEditingGift({ ...editingGift, price: parseFloat(e.target.value) || 0 })}
-                        className="bg-background"
-                        disabled={editingGift.isOpenPrice && !editingGift.isVaquinha}
-                      />
-                    </div>
+                ))}
+              </div>
+
+              {/* UX Tip Banner */}
+              <div className="mt-6 flex gap-3 p-4 bg-gold/5 rounded-lg border border-gold/20 text-sm text-gold items-start">
+                <Info className="w-5 h-5 flex-shrink-0 mt-0.5 text-gold" />
+                <div>
+                  <p className="font-semibold mb-1">Dica de UX</p>
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    Ao desativar uma seção acima, o painel de configurações correspondente ficará oculto temporariamente para simplificar sua navegação. Não se preocupe: você pode reativar qualquer seção a qualquer momento sem perder os dados já preenchidos!
+                  </p>
+                </div>
+              </div>
+            </motion.section>
+
+            {/* Section 4: Media with dimensions */}
+            <motion.section
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.3 }}
+              className="bg-card rounded-xl p-6 shadow-soft border border-border"
+            >
+              <div className="flex items-center gap-3 mb-6">
+                <Camera className="w-5 h-5 text-gold" />
+                <h2 className="font-serif text-xl text-foreground">Mídia (Opcional)</h2>
+              </div>
+              
+              <div className={`grid gap-6 ${config.sections.video ? 'sm:grid-cols-2' : 'grid-cols-1'}`}>
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Label htmlFor="heroImage">URL da Foto Principal (Hero)</Label>
+                    <Tooltip>
+                      <TooltipTrigger>
+                        <Info className="w-4 h-4 text-muted-foreground" />
+                      </TooltipTrigger>
+                      <TooltipContent className="max-w-xs">
+                        <p className="font-medium mb-1">Dimensões recomendadas:</p>
+                        <p className="text-sm">1920 x 1080 pixels (16:9)</p>
+                        <p className="text-sm">ou 1920 x 1280 pixels (3:2)</p>
+                        <p className="text-sm text-muted-foreground mt-1">Formato: JPG ou PNG</p>
+                      </TooltipContent>
+                    </Tooltip>
                   </div>
-                  <div className="flex flex-col space-y-3 py-1">
-                    <div className="flex items-center space-x-2">
-                      <Checkbox
-                        id="editIsVaquinha"
-                        checked={editingGift.isVaquinha || false}
-                        onCheckedChange={(checked) => setEditingGift({ 
-                          ...editingGift, 
-                          isVaquinha: checked === true,
-                          isOpenPrice: checked === true ? true : editingGift.isOpenPrice
-                        })}
-                      />
-                      <Label htmlFor="editIsVaquinha" className="text-sm font-medium leading-none cursor-pointer">
-                        É uma Vaquinha? (Exibe barra de progresso)
-                      </Label>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <Checkbox
-                        id="editIsOpenPrice"
-                        checked={editingGift.isOpenPrice || false}
-                        disabled={editingGift.isVaquinha}
-                        onCheckedChange={(checked) => setEditingGift({ 
-                          ...editingGift, 
-                          isOpenPrice: checked === true,
-                          price: checked === true ? 0 : editingGift.price 
-                        })}
-                      />
-                      <Label htmlFor="editIsOpenPrice" className="text-sm font-medium leading-none cursor-pointer">
-                        Permitir valor livre (definido pelo convidado)
-                      </Label>
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>URL da Imagem</Label>
-                    <Input
-                      value={editingGift.image}
-                      onChange={(e) => setEditingGift({ ...editingGift, image: e.target.value })}
-                      className="bg-background"
-                    />
-                  </div>
+                  <Input
+                    id="heroImage"
+                    value={config.heroImage}
+                    onChange={(e) => updateConfig({ heroImage: e.target.value })}
+                    placeholder="https://..."
+                    className="bg-background"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    📐 Recomendado: 1920x1080px (16:9) ou 1920x1280px (3:2)
+                  </p>
+                </div>
+                {config.sections.video && (
                   <div className="space-y-2">
                     <div className="flex items-center gap-2">
-                      <Label>Quantidade em Estoque</Label>
-                      <span className="text-xs text-muted-foreground">(Opcional)</span>
+                      <Label htmlFor="videoUrl">Link do Vídeo (YouTube/Vimeo)</Label>
+                      <Tooltip>
+                        <TooltipTrigger>
+                          <Info className="w-4 h-4 text-muted-foreground" />
+                        </TooltipTrigger>
+                        <TooltipContent className="max-w-xs">
+                          <p className="font-medium mb-1">Formatos aceitos:</p>
+                          <p className="text-sm">youtube.com/watch?v=...</p>
+                          <p className="text-sm">vimeo.com/...</p>
+                          <p className="text-sm text-muted-foreground mt-1">Proporção 16:9 recomendada</p>
+                        </TooltipContent>
+                      </Tooltip>
                     </div>
                     <Input
-                      type="number"
-                      min="0"
-                      value={editingGift.stock !== null && editingGift.stock !== undefined ? editingGift.stock : ""}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        setEditingGift({ ...editingGift, stock: val === "" ? null : parseInt(val) || 0 });
-                      }}
-                      placeholder="Ilimitado"
-                      className="bg-background"
-                      disabled={!!editingGift.totalQuotas}
-                    />
-                    {!!editingGift.totalQuotas && (
-                      <p className="text-xs text-muted-foreground">Estoque gerenciado pelas cotas</p>
-                    )}
-                  </div>
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2">
-                      <Label>Número de Cotas</Label>
-                      <span className="text-xs text-muted-foreground">(Opcional — divide o valor em partes iguais)</span>
-                    </div>
-                    <Input
-                      type="number"
-                      min="2"
-                      value={editingGift.totalQuotas !== null && editingGift.totalQuotas !== undefined ? editingGift.totalQuotas : ""}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        const quotas = val === "" ? null : parseInt(val) || 0;
-                        setEditingGift({ 
-                          ...editingGift, 
-                          totalQuotas: quotas,
-                          stock: quotas ? quotas : editingGift.stock,
-                        });
-                      }}
-                      placeholder="Sem cotas"
+                      id="videoUrl"
+                      value={config.videoUrl}
+                      onChange={(e) => updateConfig({ videoUrl: e.target.value })}
+                      placeholder="https://youtube.com/watch?v=..."
                       className="bg-background"
                     />
-                    {editingGift.totalQuotas && editingGift.price > 0 && (
-                      <p className="text-xs text-gold font-medium">
-                        Cada cota: R$ {(editingGift.price / editingGift.totalQuotas).toFixed(2).replace(".", ",")}
-                      </p>
+                    <p className="text-xs text-muted-foreground">
+                      🎬 Proporção recomendada: 16:9
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {/* Gallery dimensions note */}
+              {(config.sections.about || config.sections.gallery || config.sections.gifts) && (
+                <div className="mt-6 p-4 bg-muted/50 rounded-lg border border-border">
+                  <h4 className="font-medium text-foreground mb-2 flex items-center gap-2">
+                    <Camera className="w-4 h-4 text-gold" />
+                    Dimensões Recomendadas
+                  </h4>
+                  <div className="grid sm:grid-cols-3 gap-4 text-sm text-muted-foreground">
+                    {config.sections.about && (
+                      <div>
+                        <p className="font-medium text-foreground">Fotos da História</p>
+                        <p>800 x 600px (4:3)</p>
+                      </div>
+                    )}
+                    {config.sections.gallery && (
+                      <div>
+                        <p className="font-medium text-foreground">Galeria Geral</p>
+                        <p>800 x 800px (1:1) ou 800 x 600px</p>
+                      </div>
+                    )}
+                    {config.sections.gifts && (
+                      <div>
+                        <p className="font-medium text-foreground">Imagem de Presente</p>
+                        <p>400 h 400px (1:1)</p>
+                      </div>
                     )}
                   </div>
-                  <Button onClick={handleUpdateGift} className="w-full bg-gold hover:bg-gold-light text-background">
-                    <Save className="w-4 h-4 mr-2" />
-                    Atualizar Presente
-                  </Button>
                 </div>
               )}
-            </DialogContent>
-          </Dialog>
-        </motion.section>
+            </motion.section>
+          </div>
+        )}
+
+        {settingsSubTab === "story" && (
+          <div className="space-y-8 animate-fade-in">
+            {!config.sections.about ? (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="bg-card rounded-xl p-8 border border-border text-center space-y-6 max-w-xl mx-auto shadow-soft my-10"
+              >
+                <div className="mx-auto w-16 h-16 rounded-full bg-gold/10 flex items-center justify-center">
+                  <Heart className="w-8 h-8 text-gold" />
+                </div>
+                <div className="space-y-2">
+                  <h3 className="font-serif text-2xl text-foreground">Sua História está oculta</h3>
+                  <p className="text-muted-foreground text-sm leading-relaxed">
+                    A seção "Sobre o Casal" e as "Fotos da História" estão desativadas no site do seu casamento. Ative-as para personalizar sua história para os convidados!
+                  </p>
+                </div>
+                <Button
+                  onClick={() => toggleSection("about")}
+                  className="bg-gold hover:bg-gold-light text-background font-medium px-6"
+                >
+                  Ativar Seção "Sobre o Casal"
+                </Button>
+              </motion.div>
+            ) : (
+              <>
+                {/* Section 8: About */}
+                <motion.section
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.45 }}
+                  className="bg-card rounded-xl p-6 shadow-soft border border-border"
+                >
+                  <div className="flex items-center gap-3 mb-6">
+                    <Heart className="w-5 h-5 text-gold" />
+                    <h2 className="font-serif text-xl text-foreground">Sobre o Casal</h2>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label>Sua História</Label>
+                    <Textarea
+                      value={config.aboutText}
+                      onChange={(e) => updateConfig({ aboutText: e.target.value })}
+                      placeholder="Conte a história de vocês..."
+                      className="bg-background min-h-[150px]"
+                    />
+                  </div>
+                </motion.section>
+
+                {/* Section 5: Story Photos */}
+                <motion.section
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.32 }}
+                  className="bg-card rounded-xl p-6 shadow-soft border border-border"
+                >
+                  <div className="flex items-center gap-3 mb-6">
+                    <Heart className="w-5 h-5 text-gold" />
+                    <h2 className="font-serif text-xl text-foreground">Fotos da Nossa História</h2>
+                  </div>
+                  
+                  <p className="text-sm text-muted-foreground mb-4">
+                    Adicione até 3 fotos do casal para a seção "Nossa História". Essas fotos aparecerão na página pública do seu casamento.
+                  </p>
+
+                  <div className="grid sm:grid-cols-3 gap-4">
+                    <div className="space-y-2">
+                      <Label>Foto Principal (grande)</Label>
+                      <Input
+                        value={storyPhoto1}
+                        onChange={(e) => setStoryPhoto1(e.target.value)}
+                        placeholder="URL da foto 1"
+                        className="bg-background"
+                      />
+                      {storyPhoto1 && (
+                        <div className="aspect-video rounded-lg overflow-hidden bg-muted">
+                          <img src={storyPhoto1} alt="Preview 1" className="w-full h-full object-cover" />
+                        </div>
+                      )}
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Foto 2</Label>
+                      <Input
+                        value={storyPhoto2}
+                        onChange={(e) => setStoryPhoto2(e.target.value)}
+                        placeholder="URL da foto 2"
+                        className="bg-background"
+                      />
+                      {storyPhoto2 && (
+                        <div className="aspect-video rounded-lg overflow-hidden bg-muted">
+                          <img src={storyPhoto2} alt="Preview 2" className="w-full h-full object-cover" />
+                        </div>
+                      )}
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Foto 3</Label>
+                      <Input
+                        value={storyPhoto3}
+                        onChange={(e) => setStoryPhoto3(e.target.value)}
+                        placeholder="URL da foto 3"
+                        className="bg-background"
+                      />
+                      {storyPhoto3 && (
+                        <div className="aspect-video rounded-lg overflow-hidden bg-muted">
+                          <img src={storyPhoto3} alt="Preview 3" className="w-full h-full object-cover" />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-4">
+                    📐 Dimensão recomendada: 800x600px (4:3) para melhor visualização
+                  </p>
+                </motion.section>
+              </>
+            )}
+          </div>
+        )}
+
+        {settingsSubTab === "event" && (
+          <div className="space-y-8 animate-fade-in">
+            {!config.sections.weddingInfo && !config.sections.dressCode ? (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="bg-card rounded-xl p-8 border border-border text-center space-y-6 max-w-xl mx-auto shadow-soft my-10"
+              >
+                <div className="mx-auto w-16 h-16 rounded-full bg-gold/10 flex items-center justify-center">
+                  <Calendar className="w-8 h-8 text-gold" />
+                </div>
+                <div className="space-y-2">
+                  <h3 className="font-serif text-2xl text-foreground">Evento e Estilo ocultados</h3>
+                  <p className="text-muted-foreground text-sm leading-relaxed">
+                    As seções de "Informações do Casamento" e "Dress Code" estão desativadas no site. Ative-as para configurar local, data, horário e trajes recomendados.
+                  </p>
+                </div>
+                <div className="flex gap-3 justify-center">
+                  <Button
+                    variant="outline"
+                    onClick={() => toggleSection("weddingInfo")}
+                    className="border-gold text-gold hover:bg-gold/5"
+                  >
+                    Ativar Info do Casamento
+                  </Button>
+                  <Button
+                    onClick={() => toggleSection("dressCode")}
+                    className="bg-gold hover:bg-gold-light text-background"
+                  >
+                    Ativar Dress Code
+                  </Button>
+                </div>
+              </motion.div>
+            ) : (
+              <>
+                {!config.sections.weddingInfo && (
+                  <div className="p-4 bg-muted/50 rounded-lg border border-border text-sm text-muted-foreground flex items-center gap-2">
+                    <Info className="w-4 h-4 text-gold flex-shrink-0" />
+                    <span>As informações da cerimônia/recepção estão desativadas no site. Você pode ativá-las na aba <strong>Aparência & Seções</strong>.</span>
+                  </div>
+                )}
+                
+                {config.sections.weddingInfo && (
+                  /* Section 7: Wedding Info */
+                  <motion.section
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.4 }}
+                    className="bg-card rounded-xl p-6 shadow-soft border border-border"
+                  >
+                    <div className="flex items-center gap-3 mb-6">
+                      <Calendar className="w-5 h-5 text-gold" />
+                      <h2 className="font-serif text-xl text-foreground">Informações do Casamento</h2>
+                    </div>
+                    
+                    <div className="grid lg:grid-cols-2 gap-8">
+                      {/* Ceremony */}
+                      <div className="space-y-4">
+                        <h3 className="font-medium text-foreground flex items-center gap-2">
+                          <MapPin className="w-4 h-4 text-gold" />
+                          Cerimônia
+                        </h3>
+                        <div className="grid sm:grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label>Data</Label>
+                            <Input
+                              value={config.ceremonyDate}
+                              onChange={(e) => updateConfig({ ceremonyDate: e.target.value })}
+                              placeholder="15 de Agosto de 2025"
+                              className="bg-background"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label>Horário</Label>
+                            <Input
+                              value={config.ceremonyTime}
+                              onChange={(e) => updateConfig({ ceremonyTime: e.target.value })}
+                              placeholder="16:00"
+                              className="bg-background"
+                            />
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Local</Label>
+                          <Input
+                            value={config.ceremonyLocation}
+                            onChange={(e) => updateConfig({ ceremonyLocation: e.target.value })}
+                            placeholder="Nome do local"
+                            className="bg-background"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Endereço</Label>
+                          <Input
+                            value={config.ceremonyAddress}
+                            onChange={(e) => updateConfig({ ceremonyAddress: e.target.value })}
+                            placeholder="Endereço completo"
+                            className="bg-background"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Reception */}
+                      <div className="space-y-4">
+                        <div className="flex items-center justify-between">
+                          <h3 className="font-medium text-foreground flex items-center gap-2">
+                            <MapPin className="w-4 h-4 text-gold" />
+                            Recepção
+                          </h3>
+                        </div>
+
+                        {/* Same location toggle */}
+                        <div className="flex items-center gap-3 p-3 rounded-lg bg-gold/5 border border-gold/20">
+                          <Checkbox
+                            id="sameLocation"
+                            checked={config.sameLocation}
+                            onCheckedChange={(checked) => handleSameLocationChange(checked === true)}
+                          />
+                          <label htmlFor="sameLocation" className="text-sm cursor-pointer">
+                            Cerimônia e recepção no mesmo local
+                          </label>
+                        </div>
+
+                        {!config.sameLocation && (
+                          <>
+                            <div className="space-y-2">
+                              <Label>Horário</Label>
+                              <Input
+                                value={config.receptionTime}
+                                onChange={(e) => updateConfig({ receptionTime: e.target.value })}
+                                placeholder="18:30"
+                                className="bg-background"
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label>Local</Label>
+                              <Input
+                                value={config.receptionLocation}
+                                onChange={(e) => updateConfig({ receptionLocation: e.target.value })}
+                                placeholder="Nome do local"
+                                className="bg-background"
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label>Endereço</Label>
+                              <Input
+                                value={config.receptionAddress}
+                                onChange={(e) => updateConfig({ receptionAddress: e.target.value })}
+                                placeholder="Endereço completo"
+                                className="bg-background"
+                              />
+                            </div>
+                          </>
+                        )}
+
+                        {config.sameLocation && (
+                          <div className="space-y-2">
+                            <Label>Horário da Recepção</Label>
+                            <Input
+                              value={config.receptionTime}
+                              onChange={(e) => updateConfig({ receptionTime: e.target.value })}
+                              placeholder="18:30"
+                              className="bg-background"
+                            />
+                            <p className="text-xs text-muted-foreground">
+                              Local será o mesmo da cerimônia
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </motion.section>
+                )}
+
+                {!config.sections.dressCode && (
+                  <div className="p-4 bg-muted/50 rounded-lg border border-border text-sm text-muted-foreground flex items-center gap-2">
+                    <Info className="w-4 h-4 text-gold flex-shrink-0" />
+                    <span>O Dress Code está desativado no site. Você pode ativá-lo na aba <strong>Aparência & Seções</strong>.</span>
+                  </div>
+                )}
+
+                {config.sections.dressCode && (
+                  /* Section 9: Dress Code */
+                  <motion.section
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.47 }}
+                    className="bg-card rounded-xl p-6 shadow-soft border border-border"
+                  >
+                    <div className="flex items-center gap-3 mb-6">
+                      <Shirt className="w-5 h-5 text-gold" />
+                      <h2 className="font-serif text-xl text-foreground">Dress Code</h2>
+                    </div>
+                    
+                    <div className="space-y-4">
+                      <div className="space-y-2">
+                        <Label>Descrição do Traje</Label>
+                        <Textarea
+                          value={config.dressCodeText}
+                          onChange={(e) => updateConfig({ dressCodeText: e.target.value })}
+                          placeholder="Esporte fino, traje social, etc."
+                          className="bg-background"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Cores a Evitar</Label>
+                        <Input
+                          value={config.colorsToAvoid}
+                          onChange={(e) => updateConfig({ colorsToAvoid: e.target.value })}
+                          placeholder="Branco, off-white..."
+                          className="bg-background"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Informações Adicionais</Label>
+                        <Textarea
+                          value={config.additionalInfo}
+                          onChange={(e) => updateConfig({ additionalInfo: e.target.value })}
+                          placeholder="Dicas extras, como calçados confortáveis..."
+                          className="bg-background"
+                        />
+                      </div>
+                    </div>
+                  </motion.section>
+                )}
+              </>
+            )}
+          </div>
+        )}
+
+        {settingsSubTab === "gifts" && (
+          <div className="space-y-8 animate-fade-in">
+            {!config.sections.gifts ? (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="bg-card rounded-xl p-8 border border-border text-center space-y-6 max-w-xl mx-auto shadow-soft my-10"
+              >
+                <div className="mx-auto w-16 h-16 rounded-full bg-gold/10 flex items-center justify-center">
+                  <Gift className="w-8 h-8 text-gold" />
+                </div>
+                <div className="space-y-2">
+                  <h3 className="font-serif text-2xl text-foreground">Lista de Presentes desativada</h3>
+                  <p className="text-muted-foreground text-sm leading-relaxed">
+                    A "Lista de Presentes" e a "Integração com Mercado Pago" estão desativadas no site do seu casamento. Ative-as para que seus convidados possam enviar presentes em dinheiro de forma segura!
+                  </p>
+                </div>
+                <Button
+                  onClick={() => toggleSection("gifts")}
+                  className="bg-gold hover:bg-gold-light text-background font-medium px-6"
+                >
+                  Ativar Lista de Presentes
+                </Button>
+              </motion.div>
+            ) : (
+              <>
+                {/* Section 6: Mercado Pago Integration */}
+                <motion.section
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.35 }}
+                  className="bg-card rounded-xl p-6 shadow-soft border border-border"
+                >
+                  <div className="flex items-center gap-3 mb-6">
+                    <CreditCard className="w-5 h-5 text-gold" />
+                    <h2 className="font-serif text-xl text-foreground">Integração Mercado Pago</h2>
+                  </div>
+                  
+                  <div className="bg-muted/50 rounded-lg p-4 mb-6 border border-border">
+                    <p className="text-sm text-muted-foreground">
+                      Configure sua conta do Mercado Pago para receber pagamentos diretamente na sua conta.
+                      Os convidados poderão pagar via Pix, cartão ou boleto.
+                    </p>
+                    <a 
+                      href="https://www.mercadopago.com.br/developers/panel/credentials" 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="text-sm text-gold hover:underline inline-flex items-center gap-1 mt-2"
+                    >
+                      Obter credenciais no Mercado Pago
+                      <ExternalLink className="w-3 h-3" />
+                    </a>
+                  </div>
+
+                  {mpValidation && (
+                    <Alert className={`mb-4 ${mpValidation.valid ? 'border-green-500 bg-green-500/10' : 'border-destructive bg-destructive/10'}`}>
+                      <AlertDescription className="flex items-center gap-2">
+                        {mpValidation.valid ? (
+                          <>
+                            <CheckCircle2 className="w-4 h-4 text-green-500" />
+                            <span className="text-green-700">{mpValidation.message}</span>
+                            {mpValidation.isTestMode && (
+                              <span className="text-xs bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded">Modo Teste</span>
+                            )}
+                          </>
+                        ) : (
+                          <>
+                            <XCircle className="w-4 h-4 text-destructive" />
+                            <span className="text-destructive">{mpValidation.error}</span>
+                          </>
+                        )}
+                      </AlertDescription>
+                    </Alert>
+                  )}
+
+                  <div className="grid sm:grid-cols-2 gap-6">
+                    <div className="space-y-2">
+                      <Label htmlFor="mpPublicKey">Public Key</Label>
+                      <Input
+                        id="mpPublicKey"
+                        value={mercadoPagoPublicKey}
+                        onChange={(e) => {
+                          setMercadoPagoPublicKey(e.target.value);
+                          setMpValidation(null);
+                        }}
+                        placeholder="APP_USR-... ou TEST-..."
+                        className="bg-background font-mono text-sm"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="mpAccessToken">Access Token</Label>
+                      <Input
+                        id="mpAccessToken"
+                        type="password"
+                        value={mercadoPagoAccessToken}
+                        onChange={(e) => {
+                          setMercadoPagoAccessToken(e.target.value);
+                          setMpValidation(null);
+                        }}
+                        placeholder="APP_USR-... ou TEST-..."
+                        className="bg-background font-mono text-sm"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="mt-4 flex items-center gap-4">
+                    <Button
+                      variant="outline"
+                      onClick={validateMercadoPago}
+                      disabled={mpValidating || !mercadoPagoPublicKey || !mercadoPagoAccessToken}
+                    >
+                      {mpValidating ? (
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      ) : (
+                        <CheckCircle2 className="w-4 h-4 mr-2" />
+                      )}
+                      Testar Conexão
+                    </Button>
+                    <p className="text-xs text-muted-foreground">
+                      ⚠️ As credenciais serão validadas antes de salvar
+                    </p>
+                  </div>
+
+                  {/* Payment Method Toggles */}
+                  <div className="mt-6 border-t border-border pt-6">
+                    <h3 className="font-medium text-foreground mb-4 flex items-center gap-2">
+                      <CreditCard className="w-4 h-4 text-gold" />
+                      Métodos de Pagamento
+                    </h3>
+                    <p className="text-sm text-muted-foreground mb-4">
+                      Escolha quais métodos de pagamento estarão disponíveis para os convidados.
+                    </p>
+                    
+                    <div className="grid sm:grid-cols-3 gap-4 mb-6">
+                      <div className="flex items-center justify-between p-4 rounded-lg bg-muted/50 border border-border">
+                        <div className="flex items-center gap-3">
+                          <CreditCard className="w-4 h-4 text-gold" />
+                          <span className="text-sm font-medium text-foreground">Cartão de Crédito</span>
+                        </div>
+                        <Switch
+                          checked={paymentCreditCard}
+                          onCheckedChange={setPaymentCreditCard}
+                        />
+                      </div>
+                      <div className="flex items-center justify-between p-4 rounded-lg bg-muted/50 border border-border">
+                        <div className="flex items-center gap-3">
+                          <QrCode className="w-4 h-4 text-gold" />
+                          <span className="text-sm font-medium text-foreground">Pix</span>
+                        </div>
+                        <Switch
+                          checked={paymentPix}
+                          onCheckedChange={setPaymentPix}
+                        />
+                      </div>
+                      <div className="flex items-center justify-between p-4 rounded-lg bg-muted/50 border border-border">
+                        <div className="flex items-center gap-3">
+                          <FileText className="w-4 h-4 text-gold" />
+                          <span className="text-sm font-medium text-foreground">Boleto</span>
+                        </div>
+                        <Switch
+                          checked={paymentBoleto}
+                          onCheckedChange={setPaymentBoleto}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Installment Configuration */}
+                    {paymentCreditCard && (
+                      <div className="p-4 rounded-lg bg-muted/50 border border-border mb-6">
+                        <Label htmlFor="maxInstallments" className="flex items-center gap-2 mb-2">
+                          <CreditCard className="w-4 h-4 text-gold" />
+                          Máximo de Parcelas
+                        </Label>
+                        <Select
+                          value={maxInstallments.toString()}
+                          onValueChange={(val) => setMaxInstallments(parseInt(val))}
+                        >
+                          <SelectTrigger className="w-full sm:w-48 bg-background">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {[1, 2, 3, 4, 5, 6, 9, 10, 12].map((n) => (
+                              <SelectItem key={n} value={n.toString()}>
+                                {n === 1 ? "À vista (sem parcelamento)" : `Até ${n}x`}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <p className="text-xs text-muted-foreground mt-2">
+                          Define o número máximo de parcelas disponíveis no cartão de crédito.
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Manual PIX Configuration */}
+                    <div className="p-4 rounded-lg bg-muted/50 border border-border">
+                      <h4 className="font-medium text-foreground mb-4 flex items-center gap-2">
+                        <QrCode className="w-4 h-4 text-gold" />
+                        Pix Manual (Sem taxas do Mercado Pago)
+                      </h4>
+                      <p className="text-sm text-muted-foreground mb-4">
+                        Se preenchido, os convidados poderão fazer um PIX diretamente para sua conta. Eles confirmarão o envio e você aprovará manualmente depois.
+                      </p>
+                      <div className="grid sm:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="manualPixType">Tipo de Chave</Label>
+                          <Select
+                            value={manualPixType}
+                            onValueChange={setManualPixType}
+                          >
+                            <SelectTrigger className="w-full bg-background">
+                              <SelectValue placeholder="Selecione o tipo" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="cpf">CPF</SelectItem>
+                              <SelectItem value="cnpj">CNPJ</SelectItem>
+                              <SelectItem value="email">E-mail</SelectItem>
+                              <SelectItem value="celular">Celular</SelectItem>
+                              <SelectItem value="aleatoria">Chave Aleatória</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="manualPixKey">Chave PIX</Label>
+                          <Input
+                            id="manualPixKey"
+                            value={manualPixKey}
+                            onChange={(e) => setManualPixKey(e.target.value)}
+                            placeholder="Ex: 123.456.789-00"
+                            className="bg-background"
+                          />
+                        </div>
+                      </div>
+                      
+                      <div className="space-y-2 sm:col-span-2 mt-2">
+                        <Label>QR Code da Chave PIX (Opcional)</Label>
+                        <div className="flex gap-4 items-start">
+                          <div className="flex-1 space-y-2">
+                            <Input
+                              type="file"
+                              accept="image/*"
+                              disabled={uploadingQr}
+                              onChange={async (e) => {
+                                const file = e.target.files?.[0];
+                                if (!file) return;
+                                
+                                setUploadingQr(true);
+                                try {
+                                  const fileExt = file.name.split('.').pop();
+                                  const fileName = `${user?.id}-qr-${Date.now()}.${fileExt}`;
+                                  
+                                  const { error: uploadError } = await supabase.storage
+                                    .from('wedding-assets')
+                                    .upload(fileName, file);
+
+                                  if (uploadError) throw uploadError;
+                                  
+                                  const { data: { publicUrl } } = supabase.storage
+                                    .from('wedding-assets')
+                                    .getPublicUrl(fileName);
+                                    
+                                  setManualPixQrImageUrl(publicUrl);
+                                  toast({ title: "Imagem do QR Code enviada com sucesso!" });
+                                } catch (error) {
+                                  console.error("Error uploading QR code:", error);
+                                  toast({ title: "Erro ao enviar imagem do QR Code.", variant: "destructive" });
+                                } finally {
+                                  setUploadingQr(false);
+                                }
+                              }}
+                              className="bg-background"
+                            />
+                            <p className="text-xs text-muted-foreground">
+                              Você pode anexar uma imagem do QR Code gerada pelo seu banco para facilitar o pagamento dos convidados.
+                            </p>
+                          </div>
+                          
+                          {manualPixQrImageUrl && (
+                            <div className="relative w-24 h-24 rounded-lg overflow-hidden border border-border bg-muted flex-shrink-0 group">
+                              <img 
+                                src={manualPixQrImageUrl} 
+                                alt="QR Code PIX" 
+                                className="w-full h-full object-cover"
+                              />
+                              <button
+                                onClick={() => setManualPixQrImageUrl("")}
+                                className="absolute inset-0 bg-black/50 text-white opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
+                                title="Remover imagem"
+                              >
+                                <Trash2 className="w-5 h-5" />
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {!paymentCreditCard && !paymentPix && !paymentBoleto && (
+                      <Alert className="border-destructive bg-destructive/10 mt-4">
+                        <AlertDescription className="flex items-center gap-2">
+                          <AlertCircle className="w-4 h-4 text-destructive" />
+                          <span className="text-destructive">Pelo menos um método de pagamento deve estar ativado.</span>
+                        </AlertDescription>
+                      </Alert>
+                    )}
+                  </div>
+                </motion.section>
+
+                {/* Section 10: Gift Registry */}
+                <motion.section
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.5 }}
+                  className="bg-card rounded-xl p-6 shadow-soft border border-border"
+                >
+                  <div className="flex items-center justify-between mb-6">
+                    <div className="flex items-center gap-3">
+                      <Gift className="w-5 h-5 text-gold" />
+                      <h2 className="font-serif text-xl text-foreground">Lista de Presentes</h2>
+                    </div>
+                    <div className="flex gap-2">
+                      <input 
+                        type="file" 
+                        accept=".csv" 
+                        className="hidden" 
+                        ref={fileInputRef} 
+                        onChange={handleFileUpload} 
+                      />
+                      <Button 
+                        variant="outline" 
+                        className="bg-background text-foreground hover:bg-muted"
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={isImporting}
+                      >
+                        {isImporting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Upload className="w-4 h-4 mr-2" />}
+                        Importar CSV
+                      </Button>
+
+                      <Button 
+                        variant="outline" 
+                        className="bg-background text-foreground hover:bg-muted"
+                        onClick={handleDownloadTemplate}
+                      >
+                        <Download className="w-4 h-4 mr-2" />
+                        Baixar Modelo
+                      </Button>
+
+                      <Dialog open={isAddingGift} onOpenChange={setIsAddingGift}>
+                        <DialogTrigger asChild>
+                          <Button className="bg-gold hover:bg-gold-light text-background">
+                            <Plus className="w-4 h-4 mr-2" />
+                            Adicionar Presente
+                          </Button>
+                        </DialogTrigger>
+                        <DialogContent className="bg-card">
+                          <DialogHeader>
+                            <DialogTitle className="font-serif">Adicionar Novo Presente</DialogTitle>
+                          </DialogHeader>
+                          <div className="space-y-4 mt-4">
+                            
+                            <div className="space-y-2 bg-secondary/50 p-4 rounded-lg border border-border">
+                              <Label className="text-gold font-medium">Link do Presente (Auto-preenchimento)</Label>
+                              <p className="text-xs text-muted-foreground mb-2">Cole o link da loja e clique no botão para extrair os dados automaticamente.</p>
+                              <div className="flex gap-2">
+                                <Input
+                                  value={newGift.externalLink || ""}
+                                  onChange={(e) => setNewGift({ ...newGift, externalLink: e.target.value })}
+                                  placeholder="https://www.loja..."
+                                  className="bg-background flex-1"
+                                />
+                                <Button 
+                                  onClick={() => handleScrapeGift(false)} 
+                                  disabled={isScraping || !newGift.externalLink}
+                                  variant="secondary"
+                                  className="bg-gold text-background hover:bg-gold-light"
+                                >
+                                  {isScraping ? <Loader2 className="w-4 h-4 animate-spin" /> : <Wand2 className="w-4 h-4" />}
+                                </Button>
+                              </div>
+                            </div>
+
+                            <div className="space-y-2">
+                              <Label>Nome do Presente *</Label>
+                              <Input
+                                value={newGift.name}
+                                onChange={(e) => setNewGift({ ...newGift, name: e.target.value })}
+                                placeholder="Ex: Jogo de Panelas"
+                                className="bg-background"
+                              />
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                              <div className="space-y-2">
+                                <Label>Categoria</Label>
+                                <Select
+                                  value={newGift.category}
+                                  onValueChange={(value) => setNewGift({ ...newGift, category: value })}
+                                >
+                                  <SelectTrigger className="bg-background">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent className="bg-card border-border">
+                                    {categories.map((cat) => (
+                                      <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              <div className="space-y-2">
+                                <Label>{newGift.isVaquinha ? "Meta da Vaquinha (R$) *" : "Valor (R$) *"}</Label>
+                                <Input
+                                  type="number"
+                                  value={(newGift.isOpenPrice && !newGift.isVaquinha) ? "" : (newGift.price || "")}
+                                  onChange={(e) => setNewGift({ ...newGift, price: parseFloat(e.target.value) || 0 })}
+                                  placeholder="0.00"
+                                  className="bg-background"
+                                  disabled={newGift.isOpenPrice && !newGift.isVaquinha}
+                                />
+                              </div>
+                            </div>
+                            <div className="flex flex-col space-y-3 py-1">
+                              <div className="flex items-center space-x-2">
+                                <Checkbox
+                                  id="isVaquinha"
+                                  checked={newGift.isVaquinha || false}
+                                  onCheckedChange={(checked) => setNewGift({ 
+                                    ...newGift, 
+                                    isVaquinha: checked === true,
+                                    isOpenPrice: checked === true ? true : newGift.isOpenPrice // Vaquinha is always Open Price
+                                  })}
+                                />
+                                <Label htmlFor="isVaquinha" className="text-sm font-medium leading-none cursor-pointer">
+                                  É uma Vaquinha? (Exibe barra de progresso)
+                                </Label>
+                              </div>
+                              <div className="flex items-center space-x-2">
+                                <Checkbox
+                                  id="isOpenPrice"
+                                  checked={newGift.isOpenPrice || false}
+                                  disabled={newGift.isVaquinha}
+                                  onCheckedChange={(checked) => setNewGift({ 
+                                    ...newGift, 
+                                    isOpenPrice: checked === true,
+                                    price: checked === true ? 0 : newGift.price 
+                                  })}
+                                />
+                                <Label htmlFor="isOpenPrice" className="text-sm font-medium leading-none cursor-pointer">
+                                  Permitir valor livre (definido pelo convidado)
+                                </Label>
+                              </div>
+                            </div>
+                            <div className="space-y-2">
+                              <div className="flex items-center gap-2">
+                                <Label>URL da Imagem</Label>
+                                <span className="text-xs text-muted-foreground">(400x400px)</span>
+                              </div>
+                              <Input
+                                value={newGift.image}
+                                onChange={(e) => setNewGift({ ...newGift, image: e.target.value })}
+                                placeholder="https://..."
+                                className="bg-background"
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <div className="flex items-center gap-2">
+                                <Label>Quantidade em Estoque</Label>
+                                <span className="text-xs text-muted-foreground">(Opcional)</span>
+                              </div>
+                              <Input
+                                type="number"
+                                min="0"
+                                value={newGift.stock !== null && newGift.stock !== undefined ? newGift.stock : ""}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  setNewGift({ ...newGift, stock: val === "" ? null : parseInt(val) || 0 });
+                                }}
+                                placeholder="Ilimitado"
+                                className="bg-background"
+                                disabled={!!newGift.totalQuotas}
+                              />
+                              {!!newGift.totalQuotas && (
+                                <p className="text-xs text-muted-foreground">Estoque gerenciado pelas cotas</p>
+                              )}
+                            </div>
+                            <div className="space-y-2">
+                              <div className="flex items-center gap-2">
+                                <Label>Número de Cotas</Label>
+                                <span className="text-xs text-muted-foreground">(Opcional — divide o valor em partes iguais)</span>
+                              </div>
+                              <Input
+                                type="number"
+                                min="2"
+                                value={newGift.totalQuotas !== null && newGift.totalQuotas !== undefined ? newGift.totalQuotas : ""}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  const quotas = val === "" ? null : parseInt(val) || 0;
+                                  setNewGift({ 
+                                    ...newGift, 
+                                    totalQuotas: quotas,
+                                    stock: quotas ? quotas : newGift.stock,
+                                  });
+                                }}
+                                placeholder="Sem cotas"
+                                className="bg-background"
+                              />
+                              {newGift.totalQuotas && newGift.price > 0 && (
+                                <p className="text-xs text-gold font-medium">
+                                  Cada cota: R$ {(newGift.price / newGift.totalQuotas).toFixed(2).replace(".", ",")}
+                                </p>
+                              )}
+                            </div>
+                            <Button onClick={handleSaveNewGift} className="w-full bg-gold hover:bg-gold-light text-background">
+                              <Save className="w-4 h-4 mr-2" />
+                              Salvar Presente
+                            </Button>
+                          </div>
+                        </DialogContent>
+                      </Dialog>
+                    </div>
+                  </div>
+
+                  {/* Gifts Grid */}
+                  <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {config.gifts.map((gift) => (
+                      <div
+                        key={gift.id}
+                        className="bg-muted/50 rounded-lg border border-border overflow-hidden group"
+                      >
+                        <div className="aspect-video bg-secondary relative">
+                          {gift.image ? (
+                            <img src={gift.image} alt={gift.name} className="w-full h-full object-cover" />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center">
+                              <Gift className="w-8 h-8 text-muted-foreground" />
+                            </div>
+                          )}
+                          <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button
+                              onClick={() => setEditingGift(gift)}
+                              className="p-2 bg-card rounded-lg shadow hover:bg-muted"
+                            >
+                              <Edit2 className="w-4 h-4 text-foreground" />
+                            </button>
+                            <button
+                              onClick={() => removeGift(gift.id)}
+                              className="p-2 bg-card rounded-lg shadow hover:bg-destructive hover:text-destructive-foreground"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+                        <div className="p-4">
+                          <div className="flex justify-between items-start mb-1">
+                            <span className="text-xs text-gold uppercase tracking-wider">{gift.category}</span>
+                            {gift.totalQuotas ? (
+                              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${(gift.stock || 0) > 0 ? "bg-blue-100 text-blue-700" : "bg-red-100 text-red-700"}`}>
+                                {(gift.stock || 0) > 0 ? `${gift.stock} DE ${gift.totalQuotas} COTAS` : "TODAS AS COTAS VENDIDAS"}
+                              </span>
+                            ) : gift.stock !== null && gift.stock !== undefined && (
+                              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${gift.stock > 0 ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}>
+                                {gift.stock > 0 ? `RESTAM ${gift.stock}` : "ESGOTADO"}
+                              </span>
+                            )}
+                          </div>
+                          <h3 className="font-medium text-foreground mt-1">{gift.name}</h3>
+                          {gift.totalQuotas && gift.price > 0 ? (
+                            <div className="mt-2">
+                              <p className="text-sm font-medium text-muted-foreground mb-1">
+                                {gift.totalQuotas} cotas de R$ {(gift.price / gift.totalQuotas).toFixed(2).replace(".", ",")}
+                              </p>
+                              <div className="w-full bg-secondary h-2 rounded-full overflow-hidden">
+                                <div 
+                                  className="bg-blue-500 h-full rounded-full transition-all duration-500"
+                                  style={{ width: `${Math.min(100, ((gift.totalQuotas - (gift.stock || 0)) / gift.totalQuotas) * 100)}%` }}
+                                />
+                              </div>
+                            </div>
+                          ) : gift.isVaquinha ? (
+                            <div className="mt-2">
+                              <p className="text-sm font-medium text-muted-foreground mb-1">
+                                Arrecadado: R$ {(gift.raisedAmount || 0).toFixed(2).replace(".", ",")} de R$ {gift.price.toFixed(2).replace(".", ",")}
+                              </p>
+                              <div className="w-full bg-secondary h-2 rounded-full overflow-hidden">
+                                <div 
+                                  className="bg-gold h-full rounded-full transition-all duration-500"
+                                  style={{ width: `${Math.min(100, ((gift.raisedAmount || 0) / gift.price) * 100)}%` }}
+                                />
+                              </div>
+                            </div>
+                          ) : (
+                            <p className="text-lg font-serif text-gold mt-2">
+                              {gift.isOpenPrice ? "Valor Livre" : `R$ ${gift.price.toFixed(2).replace(".", ",")}`}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Edit Gift Dialog */}
+                  <Dialog open={!!editingGift} onOpenChange={(open) => !open && setEditingGift(null)}>
+                    <DialogContent className="bg-card">
+                      <DialogHeader>
+                        <DialogTitle className="font-serif">Editar Presente</DialogTitle>
+                      </DialogHeader>
+                      {editingGift && (
+                        <div className="space-y-4 mt-4">
+                          
+                          <div className="space-y-2 bg-secondary/50 p-4 rounded-lg border border-border">
+                            <Label className="text-gold font-medium">Link do Presente (Auto-preenchimento)</Label>
+                            <p className="text-xs text-muted-foreground mb-2">Cole o link da loja e clique no botão para extrair os dados automaticamente.</p>
+                            <div className="flex gap-2">
+                              <Input
+                                value={editingGift.externalLink || ""}
+                                onChange={(e) => setEditingGift({ ...editingGift, externalLink: e.target.value })}
+                                placeholder="https://www.loja..."
+                                className="bg-background flex-1"
+                              />
+                              <Button 
+                                onClick={() => handleScrapeGift(true)} 
+                                disabled={isScraping || !editingGift.externalLink}
+                                variant="secondary"
+                                className="bg-gold text-background hover:bg-gold-light"
+                              >
+                                {isScraping ? <Loader2 className="w-4 h-4 animate-spin" /> : <Wand2 className="w-4 h-4" />}
+                              </Button>
+                            </div>
+                          </div>
+
+                          <div className="space-y-2">
+                            <Label>Nome do Presente</Label>
+                            <Input
+                              value={editingGift.name}
+                              onChange={(e) => setEditingGift({ ...editingGift, name: e.target.value })}
+                              className="bg-background"
+                            />
+                          </div>
+                          <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                              <Label>Categoria</Label>
+                              <Select
+                                value={editingGift.category}
+                                onValueChange={(value) => setEditingGift({ ...editingGift, category: value })}
+                              >
+                                <SelectTrigger className="bg-background">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent className="bg-card border-border">
+                                  {categories.map((cat) => (
+                                    <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            <div className="space-y-2">
+                              <Label>{editingGift.isVaquinha ? "Meta da Vaquinha (R$)" : "Valor (R$)"}</Label>
+                              <Input
+                                type="number"
+                                value={(editingGift.isOpenPrice && !editingGift.isVaquinha) ? "" : editingGift.price}
+                                onChange={(e) => setEditingGift({ ...editingGift, price: parseFloat(e.target.value) || 0 })}
+                                className="bg-background"
+                                disabled={editingGift.isOpenPrice && !editingGift.isVaquinha}
+                              />
+                            </div>
+                          </div>
+                          <div className="flex flex-col space-y-3 py-1">
+                            <div className="flex items-center space-x-2">
+                              <Checkbox
+                                id="editIsVaquinha"
+                                checked={editingGift.isVaquinha || false}
+                                onCheckedChange={(checked) => setEditingGift({ 
+                                  ...editingGift, 
+                                  isVaquinha: checked === true,
+                                  isOpenPrice: checked === true ? true : editingGift.isOpenPrice
+                                })}
+                              />
+                              <Label htmlFor="editIsVaquinha" className="text-sm font-medium leading-none cursor-pointer">
+                                É uma Vaquinha? (Exibe barra de progresso)
+                              </Label>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              <Checkbox
+                                id="editIsOpenPrice"
+                                checked={editingGift.isOpenPrice || false}
+                                disabled={editingGift.isVaquinha}
+                                onCheckedChange={(checked) => setEditingGift({ 
+                                  ...editingGift, 
+                                  isOpenPrice: checked === true,
+                                  price: checked === true ? 0 : editingGift.price 
+                                })}
+                              />
+                              <Label htmlFor="editIsOpenPrice" className="text-sm font-medium leading-none cursor-pointer">
+                                Permitir valor livre (definido pelo convidado)
+                              </Label>
+                            </div>
+                          </div>
+                          <div className="space-y-2">
+                            <Label>URL da Imagem</Label>
+                            <Input
+                              value={editingGift.image}
+                              onChange={(e) => setEditingGift({ ...editingGift, image: e.target.value })}
+                              className="bg-background"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <div className="flex items-center gap-2">
+                              <Label>Quantidade em Estoque</Label>
+                              <span className="text-xs text-muted-foreground">(Opcional)</span>
+                            </div>
+                            <Input
+                              type="number"
+                              min="0"
+                              value={editingGift.stock !== null && editingGift.stock !== undefined ? editingGift.stock : ""}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                setEditingGift({ ...editingGift, stock: val === "" ? null : parseInt(val) || 0 });
+                              }}
+                              placeholder="Ilimitado"
+                              className="bg-background"
+                              disabled={!!editingGift.totalQuotas}
+                            />
+                            {!!editingGift.totalQuotas && (
+                              <p className="text-xs text-muted-foreground">Estoque gerenciado pelas cotas</p>
+                            )}
+                          </div>
+                          <div className="space-y-2">
+                            <div className="flex items-center gap-2">
+                              <Label>Número de Cotas</Label>
+                              <span className="text-xs text-muted-foreground">(Opcional — divide o valor em partes iguais)</span>
+                            </div>
+                            <Input
+                              type="number"
+                              min="2"
+                              value={editingGift.totalQuotas !== null && editingGift.totalQuotas !== undefined ? editingGift.totalQuotas : ""}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                const quotas = val === "" ? null : parseInt(val) || 0;
+                                setEditingGift({ 
+                                  ...editingGift, 
+                                  totalQuotas: quotas,
+                                  stock: quotas ? quotas : editingGift.stock,
+                                });
+                              }}
+                              placeholder="Sem cotas"
+                              className="bg-background"
+                            />
+                            {editingGift.totalQuotas && editingGift.price > 0 && (
+                              <p className="text-xs text-gold font-medium">
+                                Cada cota: R$ {(editingGift.price / editingGift.totalQuotas).toFixed(2).replace(".", ",")}
+                              </p>
+                            )}
+                          </div>
+                          <Button onClick={handleUpdateGift} className="w-full bg-gold hover:bg-gold-light text-background">
+                            <Save className="w-4 h-4 mr-2" />
+                            Atualizar Presente
+                          </Button>
+                        </div>
+                      )}
+                    </DialogContent>
+                  </Dialog>
+                </motion.section>
+              </>
+            )}
+          </div>
+        )}
 
         {/* Save Button */}
         <motion.div

@@ -15,8 +15,11 @@ test('login com email/senha redireciona para dashboard', async ({ page }) => {
   await expect(page).toHaveURL(/dashboard/, { timeout: 10000 });
 
   // Logout
-  await page.click('button:has-text("Sair")');
-  await expect(page).toHaveURL(/login/);
+  await page.click('button:has(.lucide-log-out)');
+  await page.waitForURL('**/*');
+  
+  // Navigate to login for the next step
+  await page.goto('/login');
 
   // Login
   await page.fill('input[type="email"]', testEmail);

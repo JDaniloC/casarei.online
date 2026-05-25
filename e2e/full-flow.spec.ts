@@ -6,6 +6,9 @@ test.describe('Full Flow E2E', () => {
   const testSlug = `casal-${Date.now()}`;
 
   test('Deve criar conta, configurar casamento, adicionar presente e acessar página pública', async ({ page }) => {
+    // Listen to console logs
+    page.on('console', msg => console.log('BROWSER:', msg.text()));
+
     test.setTimeout(90000); // 90s timeout
 
     // Mockar validação do Mercado Pago no Dashboard
@@ -16,8 +19,13 @@ test.describe('Full Flow E2E', () => {
 
     // Mockar endpoint de criação de preferência do Mercado Pago
     await page.route('**/functions/v1/create-payment', async route => {
-      const json = { init_point: 'https://sandbox.mercadopago.com.br/checkout/v1/redirect?pref_id=123' };
+      const json = { id: 'pref-123', orderId: 'order-123', init_point: 'https://sandbox.mercadopago.com.br/checkout/v1/redirect?pref_id=123' };
       await route.fulfill({ json });
+    });
+
+    // Mockar submit-rsvp
+    await page.route('**/functions/v1/submit-rsvp', async route => {
+      await route.fulfill({ json: { success: true } });
     });
 
     // 1. Register
@@ -45,6 +53,9 @@ test.describe('Full Flow E2E', () => {
       await inputs[0].fill('TEST-1234567890'); // Public Key
       await inputs[1].fill('TEST-0987654321'); // Access Token
     }
+    
+    // Preencher Chave Pix Manual para habilitar
+    await page.fill('input[id="manualPixKey"]', '123.456.789-00');
 
     // O app salva as configurações e os 20 presentes padrão.
     await page.click('button:has-text("Salvar e Publicar")');
@@ -79,31 +90,40 @@ test.describe('Full Flow E2E', () => {
     
     // STEP 1: Modal de Checkout (Carrinho)
     // Clica no botão para avançar para as informações do convidado
-    await page.click('button:has-text("Continuar")', { force: true });
+    await page.click('button:has-text("Continuar")');
     await page.waitForTimeout(1000);
 
     // STEP 2: Informações do Convidado
     await page.fill('input[placeholder="Digite seu nome completo"]', 'Tio Patinhas');
     await page.fill('input[placeholder="Digite seu e-mail"]', 'tio@patinhas.com');
-    await page.fill('input[placeholder="(11) 99999-9999"]', '(11) 99999-9999');
-    // Preencher mensagem se existir no step info
+    await page.fill('input[placeholder="(11) 99999-9999"]', '11999999999');
     
     // Selecionar presença (obrigatório)
-    await page.click('text="Sim, estarei presente"', { force: true });
+    await page.click('label:has-text("Sim, estarei presente")');
     
     // Clica no botão de ir para pagamento
-    await page.click('button:has-text("Ir para Pagamento")', { force: true });
+    await page.click('button:has-text("Ir para Pagamento")');
     await page.waitForTimeout(2000);
     
     // STEP 3: Pagamento
-    // O template atual tem métodos de pagamento. Vamos selecionar Pix e Gerar.
-    // Procura o texto exato "Pix" (pois agora é um div)
-    await page.click('text="Pix"', { force: true });
+    // Usaremos Pix Direto no teste E2E pois o Mercado Pago usa um Iframe (Brick) que não carrega com chave falsa
+    await page.click('button:has-text("Pagar com Pix Direto")');
     await page.waitForTimeout(500);
-    await page.click('button:has-text("Gerar Pagamento")', { force: true });
     
-    // Aguardar redirecionamento pro checkout do mercado pago ou página de sucesso do Pix
-    await page.waitForTimeout(5000);
+    // Agora deve ter ido para o step "manual_pix"
+    // Preenche o arquivo de comprovante (dummy)
+    await page.setInputFiles('input[type="file"]', {
+      name: 'comprovante.jpg',
+      mimeType: 'image/jpeg',
+      buffer: Buffer.from('fake image data')
+    });
+    await page.waitForTimeout(500);
+
+    // Clica em "Já fiz o pagamento" ou "Enviar Comprovante"
+    await page.click('button:has-text("Já fiz o pagamento"), button:has-text("Enviar Comprovante")');
+    
+    // Aguardar mensagem de sucesso
+    await page.waitForTimeout(3000);
     console.log("Fluxo E2E finalizou o teste com URL:", page.url());
   });
 });
