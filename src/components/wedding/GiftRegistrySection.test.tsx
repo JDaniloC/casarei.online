@@ -42,6 +42,19 @@ const mockGifts = [
     totalQuotas: null,
     stock: 10,
     externalLink: ''
+  },
+  {
+    id: 'gift-vaquinha',
+    name: 'Vaquinha Lua de Mel',
+    category: 'Lua de Mel',
+    price: 5000,
+    image: '',
+    isOpenPrice: true,
+    isVaquinha: true,
+    totalQuotas: null,
+    stock: null,
+    raisedAmount: 1500,
+    externalLink: ''
   }
 ];
 
@@ -114,7 +127,8 @@ describe('GiftRegistrySection Component (Gift Quotas)', () => {
     expect(screen.getByText('R$ 500,00')).toBeInTheDocument();
 
     // O botão deve indicar "Adicionar ao Carrinho"
-    expect(screen.getByRole('button', { name: /Adicionar ao Carrinho/i })).toBeInTheDocument();
+    const addButtons = screen.getAllByRole('button', { name: /Adicionar ao Carrinho/i });
+    expect(addButtons[0]).toBeInTheDocument();
   });
 
   it('deve adicionar o presente fracionado ao carrinho com o preço da cota', () => {
@@ -132,6 +146,39 @@ describe('GiftRegistrySection Component (Gift Quotas)', () => {
         price: 3000
       }),
       600
+    );
+  });
+
+  it('deve renderizar e lidar com presentes do tipo Vaquinha (valor livre e progresso)', () => {
+    renderGiftRegistry();
+
+    // Deve renderizar informações de vaquinha (arrecadado e meta)
+    expect(screen.getByText('Arrecadado: R$ 1500,00')).toBeInTheDocument();
+    expect(screen.getByText('Meta: R$ 5000,00')).toBeInTheDocument();
+
+    // Deve renderizar o input de valor livre (placeholder "Valor...")
+    const valueInput = screen.getByPlaceholderText('Valor...') as HTMLInputElement;
+    expect(valueInput).toBeInTheDocument();
+
+    // Preenche um valor de contribuição customizado de R$ 250
+    fireEvent.change(valueInput, { target: { value: '250' } });
+
+    // O botão deve indicar "Adicionar ao Carrinho" (neste teste é a segunda ocorrência desse botão)
+    const contributeButtons = screen.getAllByRole('button', { name: /Adicionar ao Carrinho/i });
+    expect(contributeButtons[1]).toBeInTheDocument(); // O primeiro é o Jogo de Panelas normal, o segundo é a Vaquinha
+
+    // Clica para adicionar a contribuição
+    fireEvent.click(contributeButtons[1]);
+
+    // Deve ter chamado o addItem com o valor de contribuição correto de 250
+    expect(mockAddItem).toHaveBeenCalledTimes(1);
+    expect(mockAddItem).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'gift-vaquinha',
+        name: 'Vaquinha Lua de Mel',
+        price: 5000
+      }),
+      250
     );
   });
 });
