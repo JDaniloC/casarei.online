@@ -170,4 +170,68 @@ Jogo de Panelas Antiaderente,Cozinha,499.00,,
       }));
     });
   });
+
+  it('deve auto-preencher os campos de presente ao obter dados do link via scraping', async () => {
+    // Mock fetch global para a Edge Function de scraping
+    const mockScrapedData = {
+      title: 'Batedeira Planetária',
+      price: 899.90,
+      imageUrl: 'https://img.com/batedeira.jpg'
+    };
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve(mockScrapedData)
+    });
+    global.fetch = mockFetch;
+
+    renderDashboard();
+
+    // Vai para a sub-aba Presentes
+    fireEvent.click(screen.getByRole('button', { name: /Configurar Site/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Presentes & Pix/i }));
+
+    // Abre o Dialog de Adicionar Presente
+    fireEvent.click(screen.getByRole('button', { name: /Adicionar Presente/i }));
+
+    // Encontra o input de link externo de preenchimento
+    const linkInput = screen.getByPlaceholderText('https://www.loja...') as HTMLInputElement;
+    expect(linkInput).toBeInTheDocument();
+
+    // Digita o link
+    fireEvent.change(linkInput, { target: { value: 'https://loja.com/batedeira-planetaria' } });
+
+    // Encontra o botão de varinha (scrape) que é o próximo elemento irmão do input de link
+    const scrapeButton = linkInput.nextElementSibling as HTMLButtonElement;
+    expect(scrapeButton).toBeInTheDocument();
+
+    // Clica no botão de raspagem
+    fireEvent.click(scrapeButton);
+
+    // Espera que a raspagem seja executada e os campos sejam atualizados
+    await waitFor(() => {
+      // O fetch deve ter sido chamado para o endpoint correto
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+      expect(mockFetch).toHaveBeenCalledWith(
+        'https://mykaowlastbbtwvhgokt.supabase.co/functions/v1/scrape-gift',
+        expect.objectContaining({
+          method: 'POST',
+          body: JSON.stringify({ url: 'https://loja.com/batedeira-planetaria' })
+        })
+      );
+
+      // Os inputs devem ter sido auto-preenchidos
+      const nameInput = screen.getByPlaceholderText('Ex: Jogo de Panelas') as HTMLInputElement;
+      const priceInput = screen.getByPlaceholderText('0.00') as HTMLInputElement;
+      const imageInput = screen.getByPlaceholderText('https://...') as HTMLInputElement;
+
+      expect(nameInput.value).toBe('Batedeira Planetária');
+      expect(parseFloat(priceInput.value)).toBe(899.90);
+      expect(imageInput.value).toBe('https://img.com/batedeira.jpg');
+
+      // Deve mostrar o toast de sucesso
+      expect(mockToast).toHaveBeenCalledWith(expect.objectContaining({
+        title: 'Presente Importado!',
+      }));
+    });
+  });
 });
