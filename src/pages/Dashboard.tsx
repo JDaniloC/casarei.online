@@ -7,7 +7,7 @@ import {
   Plus, Trash2, Edit2, Save, ChevronRight, LogOut,
   CreditCard, Link2, Copy, Check, ExternalLink, Info,
   Loader2, CheckCircle2, XCircle, AlertCircle, MapPin,
-  History, QrCode, FileText
+  History, QrCode, FileText, Wand2
 } from "lucide-react";
 import DashboardHistory from "@/components/wedding/DashboardHistory";
 import { useWedding, Gift as GiftType } from "@/contexts/WeddingContext";
@@ -547,6 +547,69 @@ const Dashboard = () => {
       addGift(newGift);
       setNewGift({ name: "", category: "Cozinha", price: 0, image: "", externalLink: "", isOpenPrice: false });
       setIsAddingGift(false);
+    }
+  };
+
+  const [isScraping, setIsScraping] = useState(false);
+
+  const handleScrapeGift = async (isEditing: boolean = false) => {
+    const url = isEditing ? editingGift?.externalLink : newGift.externalLink;
+    if (!url) {
+      toast({
+        title: "Link Obrigatório",
+        description: "Por favor, preencha o link do presente primeiro.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsScraping(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      const response = await fetch("https://mykaowlastbbtwvhgokt.supabase.co/functions/v1/scrape-gift", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${session?.access_token}`
+        },
+        body: JSON.stringify({ url })
+      });
+
+      if (!response.ok) {
+        throw new Error("Falha ao buscar dados do presente.");
+      }
+
+      const data = await response.json();
+      
+      if (isEditing && editingGift) {
+        setEditingGift({
+          ...editingGift,
+          name: data.title || editingGift.name,
+          price: data.price || editingGift.price,
+          image: data.imageUrl || editingGift.image,
+        });
+      } else {
+        setNewGift({
+          ...newGift,
+          name: data.title || newGift.name,
+          price: data.price || newGift.price,
+          image: data.imageUrl || newGift.image,
+        });
+      }
+
+      toast({
+        title: "Presente Importado!",
+        description: "Os dados foram preenchidos com sucesso.",
+      });
+    } catch (error) {
+      toast({
+        title: "Erro na importação",
+        description: "Não foi possível extrair os dados. Por favor, preencha manualmente.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsScraping(false);
     }
   };
 
@@ -1503,6 +1566,28 @@ const Dashboard = () => {
                   <DialogTitle className="font-serif">Adicionar Novo Presente</DialogTitle>
                 </DialogHeader>
                 <div className="space-y-4 mt-4">
+                  
+                  <div className="space-y-2 bg-secondary/50 p-4 rounded-lg border border-border">
+                    <Label className="text-gold font-medium">Link do Presente (Auto-preenchimento)</Label>
+                    <p className="text-xs text-muted-foreground mb-2">Cole o link da loja e clique no botão para extrair os dados automaticamente.</p>
+                    <div className="flex gap-2">
+                      <Input
+                        value={newGift.externalLink || ""}
+                        onChange={(e) => setNewGift({ ...newGift, externalLink: e.target.value })}
+                        placeholder="https://www.loja..."
+                        className="bg-background flex-1"
+                      />
+                      <Button 
+                        onClick={() => handleScrapeGift(false)} 
+                        disabled={isScraping || !newGift.externalLink}
+                        variant="secondary"
+                        className="bg-gold text-background hover:bg-gold-light"
+                      >
+                        {isScraping ? <Loader2 className="w-4 h-4 animate-spin" /> : <Wand2 className="w-4 h-4" />}
+                      </Button>
+                    </div>
+                  </div>
+
                   <div className="space-y-2">
                     <Label>Nome do Presente *</Label>
                     <Input
@@ -1727,6 +1812,28 @@ const Dashboard = () => {
               </DialogHeader>
               {editingGift && (
                 <div className="space-y-4 mt-4">
+                  
+                  <div className="space-y-2 bg-secondary/50 p-4 rounded-lg border border-border">
+                    <Label className="text-gold font-medium">Link do Presente (Auto-preenchimento)</Label>
+                    <p className="text-xs text-muted-foreground mb-2">Cole o link da loja e clique no botão para extrair os dados automaticamente.</p>
+                    <div className="flex gap-2">
+                      <Input
+                        value={editingGift.externalLink || ""}
+                        onChange={(e) => setEditingGift({ ...editingGift, externalLink: e.target.value })}
+                        placeholder="https://www.loja..."
+                        className="bg-background flex-1"
+                      />
+                      <Button 
+                        onClick={() => handleScrapeGift(true)} 
+                        disabled={isScraping || !editingGift.externalLink}
+                        variant="secondary"
+                        className="bg-gold text-background hover:bg-gold-light"
+                      >
+                        {isScraping ? <Loader2 className="w-4 h-4 animate-spin" /> : <Wand2 className="w-4 h-4" />}
+                      </Button>
+                    </div>
+                  </div>
+
                   <div className="space-y-2">
                     <Label>Nome do Presente</Label>
                     <Input
