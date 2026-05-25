@@ -128,14 +128,24 @@ const Dashboard = () => {
 
       const { data: wedding } = await supabase
         .from("weddings")
-        .select("*")
+        .select(`
+          id, slug, couple_name, wedding_date, tagline, layout,
+          section_about, section_wedding_info, section_gifts, section_rsvp,
+          section_message_wall, section_gallery, section_video, section_dress_code,
+          hero_image_url, video_url,
+          ceremony_date, ceremony_time, ceremony_location, ceremony_address,
+          reception_location, reception_address, reception_time, same_location,
+          about_text, dress_code_text, colors_to_avoid, additional_info,
+          mercado_pago_public_key,
+          payment_credit_card, payment_pix, payment_boleto, max_installments,
+          story_photo_1, story_photo_2, story_photo_3
+        `)
         .eq("user_id", user.id)
         .single();
 
       if (wedding) {
         setWeddingSlug(wedding.slug);
         setMercadoPagoPublicKey(wedding.mercado_pago_public_key || "");
-        setMercadoPagoAccessToken(wedding.mercado_pago_access_token || "");
         setPaymentCreditCard((wedding as Record<string, unknown>).payment_credit_card as boolean ?? true);
         setPaymentPix((wedding as Record<string, unknown>).payment_pix as boolean ?? true);
         setPaymentBoleto((wedding as Record<string, unknown>).payment_boleto as boolean ?? true);
