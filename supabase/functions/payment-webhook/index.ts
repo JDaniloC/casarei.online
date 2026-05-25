@@ -226,6 +226,38 @@ serve(async (req) => {
         .eq("id", orderId);
 
       console.log("Order updated:", { orderId, status: orderStatus, paymentId });
+
+      // PR-05: Send email notification to couple if approved
+      if (orderStatus === "approved") {
+        const { data: fullOrder } = await supabase
+          .from("orders")
+          .select("*, order_items(gift_name_snapshot, gift_name), weddings(user_id)")
+          .eq("id", orderId)
+          .single();
+
+        if (fullOrder && fullOrder.weddings?.user_id) {
+          const { data: profile } = await supabase
+            .from("profiles")
+            .select("email")
+            .eq("user_id", fullOrder.weddings.user_id)
+            .single();
+
+          const coupleEmail = profile?.email;
+          const giftName = fullOrder.order_items?.[0]?.gift_name_snapshot ?? fullOrder.order_items?.[0]?.gift_name ?? "Presente";
+
+          if (coupleEmail) {
+            await fetch(`${supabaseUrl}/functions/v1/send-email`, {
+              method: "POST",
+              headers: { Authorization: `Bearer ${supabaseKey}`, "Content-Type": "application/json" },
+              body: JSON.stringify({
+                to: coupleEmail,
+                template: "purchase_approved_couple",
+                data: { guestName: fullOrder.guest_name, giftName, amount: fullOrder.total_amount },
+              }),
+            }).catch(console.error);
+          }
+        }
+      }
     }
 
     return new Response(JSON.stringify({ received: true }), {
