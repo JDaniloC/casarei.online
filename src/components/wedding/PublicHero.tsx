@@ -2,6 +2,7 @@ import { motion } from "framer-motion";
 import { useState, useEffect } from "react";
 import { ChevronDown, Heart } from "lucide-react";
 import { useWedding } from "@/contexts/WeddingContext";
+import { useLocation } from "react-router-dom";
 import heroCoupleImage from "@/assets/hero-couple.jpg";
 
 interface CountdownTime {
@@ -41,8 +42,14 @@ const PublicHero = () => {
     return () => clearInterval(interval);
   }, [config.weddingDate]);
 
+  const location = useLocation();
+  const isPreview = location.pathname.startsWith("/preview");
+  const isGuestView = isPreview || location.pathname.endsWith("/convite") || new URLSearchParams(location.search).has("convite");
+
   const scrollToInfo = () => {
-    document.getElementById("wedding-info")?.scrollIntoView({ behavior: "smooth" });
+    const hasWeddingInfo = isGuestView && config.sections.weddingInfo;
+    const targetId = hasWeddingInfo ? "wedding-info" : "gifts";
+    document.getElementById(targetId)?.scrollIntoView({ behavior: "smooth" });
   };
 
   // Fix timezone issue by parsing the date correctly
@@ -175,7 +182,7 @@ const PublicHero = () => {
           onClick={scrollToInfo}
           className="btn-wedding group"
         >
-          Ver informações do casamento
+          {isGuestView && config.sections.weddingInfo ? "Ver informações do casamento" : "Ver lista de presentes"}
           <ChevronDown className="ml-2 w-5 h-5 group-hover:translate-y-1 transition-transform" />
         </motion.button>
       </div>
