@@ -26,6 +26,7 @@ interface PublicLandingProps {
   manualPixType?: string;
   manualPixKey?: string;
   manualPixQrImageUrl?: string;
+  isGuestView?: boolean;
 }
 
 const PublicLandingContent = ({ 
@@ -38,6 +39,7 @@ const PublicLandingContent = ({
   manualPixType,
   manualPixKey,
   manualPixQrImageUrl,
+  isGuestView = true,
 }: {
   weddingId?: string;
   mercadoPagoPublicKey?: string | null;
@@ -48,6 +50,7 @@ const PublicLandingContent = ({
   manualPixType?: string;
   manualPixKey?: string;
   manualPixQrImageUrl?: string;
+  isGuestView?: boolean;
 }) => {
   const { config } = useWedding();
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
@@ -60,28 +63,36 @@ const PublicLandingContent = ({
     };
   }, [config.layout]);
 
+  const sections = {
+    ...config.sections,
+    weddingInfo: isGuestView ? config.sections.weddingInfo : false,
+    dressCode: isGuestView ? config.sections.dressCode : false,
+    rsvp: isGuestView ? config.sections.rsvp : false,
+    messageWall: isGuestView ? config.sections.messageWall : false,
+  };
+
   return (
     <>
       <main className="overflow-x-hidden">
         <PublicHero />
         
-        {config.sections.about && <PublicAbout />}
+        {sections.about && <PublicAbout />}
         
-        {config.sections.video && config.videoUrl && (
+        {sections.video && config.videoUrl && (
           <VideoSection videoUrl={config.videoUrl} />
         )}
         
-        {config.sections.weddingInfo && <PublicWeddingInfo />}
+        {sections.weddingInfo && <PublicWeddingInfo />}
         
-        {config.sections.dressCode && <PublicDressCode />}
+        {sections.dressCode && <PublicDressCode />}
         
-        {config.sections.gifts && <GiftRegistrySection />}
+        {sections.gifts && <GiftRegistrySection />}
         
-        {config.sections.rsvp && <PublicRSVP weddingId={weddingId} />}
+        {sections.rsvp && <PublicRSVP weddingId={weddingId} />}
         
-        {config.sections.gallery && <PhotoGallery />}
+        {sections.gallery && <PhotoGallery />}
         
-        {config.sections.messageWall && <PublicMessageWall weddingId={weddingId} />}
+        {sections.messageWall && <PublicMessageWall weddingId={weddingId} />}
         
         <PublicFooter />
       </main>
@@ -117,6 +128,7 @@ const PublicLanding = ({
   paymentPix,
   paymentBoleto,
   maxInstallments,
+  isGuestView,
 }: PublicLandingProps) => {
   return (
     <CartProvider>
@@ -127,6 +139,7 @@ const PublicLanding = ({
         paymentPix={paymentPix}
         paymentBoleto={paymentBoleto}
         maxInstallments={maxInstallments}
+        isGuestView={isPreview ? true : isGuestView}
       />
     </CartProvider>
   );
