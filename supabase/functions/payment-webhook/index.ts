@@ -18,6 +18,19 @@ function hexToBytes(hex: string): Uint8Array {
   return bytes;
 }
 
+// Timing-safe string comparison to prevent timing attacks on HMAC verification
+function timingSafeEqualStr(a: string, b: string): boolean {
+  const enc = new TextEncoder();
+  const aBytes = enc.encode(a);
+  const bBytes = enc.encode(b);
+  if (aBytes.length !== bBytes.length) return false;
+  let diff = 0;
+  for (let i = 0; i < aBytes.length; i++) {
+    diff |= aBytes[i] ^ bBytes[i];
+  }
+  return diff === 0;
+}
+
 async function decryptValue(encryptedHex: string, ivHex: string, keyHex: string): Promise<string> {
   const keyBytes = hexToBytes(keyHex);
   const iv = hexToBytes(ivHex);
@@ -43,7 +56,7 @@ const verifyWebhookSignature = (
     const hmac = createHmac("sha256", webhookSecret);
     hmac.update(manifest);
     const calculatedSignature = hmac.digest("hex");
-    return calculatedSignature === v1;
+    return timingSafeEqualStr(calculatedSignature, v1);
   } catch {
     return false;
   }
@@ -97,15 +110,19 @@ serve(async (req) => {
       const xSignature = req.headers.get("x-signature");
       const xRequestId = req.headers.get("x-request-id");
       const webhookSecret = Deno.env.get("MERCADO_PAGO_WEBHOOK_SECRET");
+      if (!webhookSecret) {
+        return new Response(
+          JSON.stringify({ error: "Webhook secret not configured" }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
 
-      if (webhookSecret) {
-        const isValid = verifyWebhookSignature(xSignature, xRequestId, paymentId, webhookSecret);
-        if (!isValid) {
-          return new Response(
-            JSON.stringify({ error: "Invalid signature" }),
-            { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-          );
-        }
+      const isValid = verifyWebhookSignature(xSignature, xRequestId, paymentId, webhookSecret);
+      if (!isValid) {
+        return new Response(
+          JSON.stringify({ error: "Invalid signature" }),
+          { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
       }
 
       let orderId: string | null = null;

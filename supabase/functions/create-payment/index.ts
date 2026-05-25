@@ -171,6 +171,15 @@ serve(async (req) => {
     }));
     await supabase.from("order_items").insert(orderItems);
 
+    // Validate ALLOWED_ORIGIN for safe payment redirects (PR-S04)
+    const allowedOrigin = Deno.env.get("ALLOWED_ORIGIN");
+    if (!allowedOrigin) {
+      return new Response(
+        JSON.stringify({ error: "ALLOWED_ORIGIN not configured" }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     // Create MP preference
     const preference = {
       items: items.map((item) => ({
@@ -182,9 +191,9 @@ serve(async (req) => {
       })),
       payer: { name: sanitizedGuestName, email: sanitizedGuestEmail || undefined },
       back_urls: {
-        success: `${req.headers.get("origin")}/payment-success?order=${order.id}`,
-        failure: `${req.headers.get("origin")}/payment-failure?order=${order.id}`,
-        pending: `${req.headers.get("origin")}/payment-pending?order=${order.id}`,
+        success: `${allowedOrigin}/payment-success?order=${order.id}`,
+        failure: `${allowedOrigin}/payment-failure?order=${order.id}`,
+        pending: `${allowedOrigin}/payment-pending?order=${order.id}`,
       },
       auto_return: "approved",
       external_reference: order.id,
