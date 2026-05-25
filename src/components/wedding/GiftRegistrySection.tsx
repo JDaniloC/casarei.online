@@ -36,6 +36,7 @@ const GiftRegistrySection = () => {
   const [selectedPriceRange, setSelectedPriceRange] = useState(0);
   const [visibleCount, setVisibleCount] = useState(ITEMS_PER_PAGE);
   const [addedItems, setAddedItems] = useState<Set<string>>(new Set());
+  const [customAmounts, setCustomAmounts] = useState<Record<string, number>>({});
 
   const categories = useMemo(() => {
     const cats = new Set(config.gifts.map((g) => g.category));
@@ -47,7 +48,7 @@ const GiftRegistrySection = () => {
       const matchesSearch = gift.name.toLowerCase().includes(searchTerm.toLowerCase());
       const matchesCategory = selectedCategory === "all" || gift.category === selectedCategory;
       const range = priceRanges[selectedPriceRange];
-      const matchesPrice = gift.price >= range.min && gift.price <= range.max;
+      const matchesPrice = gift.isOpenPrice || (gift.price >= range.min && gift.price <= range.max);
       return matchesSearch && matchesCategory && matchesPrice;
     });
   }, [config.gifts, searchTerm, selectedCategory, selectedPriceRange]);
@@ -56,7 +57,17 @@ const GiftRegistrySection = () => {
   const hasMore = visibleCount < filteredGifts.length;
 
   const handleAddToCart = (gift: GiftType) => {
-    addItem(gift);
+    let priceToUse = gift.price;
+    if (gift.isOpenPrice) {
+      const customAmount = customAmounts[gift.id] || 0;
+      if (customAmount <= 0) {
+        toast.error("Por favor, insira um valor válido para presentear.");
+        return;
+      }
+      priceToUse = customAmount;
+    }
+    
+    addItem(gift, priceToUse);
     setAddedItems((prev) => new Set(prev).add(gift.id));
     toast.success(`${gift.name} adicionado ao carrinho!`);
     
@@ -195,9 +206,29 @@ const GiftRegistrySection = () => {
                 <h3 className="font-serif text-lg text-foreground mt-1">
                   {gift.name}
                 </h3>
-                <p className="text-2xl font-serif text-gold mt-3">
-                  R$ {gift.price.toFixed(2).replace(".", ",")}
-                </p>
+                {gift.isOpenPrice ? (
+                  <div className="space-y-2 mt-3">
+                    <span className="text-xs font-medium text-muted-foreground">Quanto deseja contribuir?</span>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm font-medium">R$</span>
+                      <Input
+                        type="number"
+                        min="1"
+                        placeholder="Valor..."
+                        className="pl-8 bg-card"
+                        value={customAmounts[gift.id] || ""}
+                        onChange={(e) => setCustomAmounts({
+                          ...customAmounts,
+                          [gift.id]: parseFloat(e.target.value) || 0
+                        })}
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-2xl font-serif text-gold mt-3">
+                    R$ {gift.price.toFixed(2).replace(".", ",")}
+                  </p>
+                )}
                 <Button
                   onClick={() => handleAddToCart(gift)}
                   className={`w-full mt-4 transition-all ${
