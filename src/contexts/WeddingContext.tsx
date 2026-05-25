@@ -7,6 +7,7 @@ export interface Gift {
   price: number;
   image: string;
   externalLink: string;
+  isOpenPrice?: boolean;
 }
 
 export interface WeddingConfig {

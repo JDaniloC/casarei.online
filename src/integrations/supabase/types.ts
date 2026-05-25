@@ -125,6 +125,7 @@ export type Database = {
           name: string
           price: number
           wedding_id: string
+          is_open_price: boolean
         }
         Insert: {
           category?: string
@@ -135,6 +136,7 @@ export type Database = {
           name: string
           price: number
           wedding_id: string
+          is_open_price?: boolean
         }
         Update: {
           category?: string
@@ -145,6 +147,7 @@ export type Database = {
           name?: string
           price?: number
           wedding_id?: string
+          is_open_price?: boolean
         }
         Relationships: [
           {
