@@ -1,6 +1,6 @@
-# casalzinnn | Seu Casamento Perfeito 💍
+# Casarei.online | A Plataforma Perfeita para seu Casamento 💍
 
-Este é o site oficial do casamento de **Camila & Rafael**. Desenvolvido com foco em elegância e facilidade de uso, o projeto serve como o ponto central para informações do evento, lista de presentes e confirmação de presença (RSVP).
+**Casarei.online** é uma plataforma open-source, moderna e elegante para criação de sites de casamento personalizados. Desenvolvida com foco em facilidade de uso, permite que qualquer casal configure seu site com informações do evento, lista de presentes integrada e confirmação de presença (RSVP).
 
 ---
 
@@ -21,7 +21,7 @@ Siga os passos abaixo para rodar o projeto localmente em sua máquina de desenvo
 
 2. Entre na pasta do projeto:
    ```bash
-   cd casalzinnn
+   cd casarei.online
    ```
 
 3. Instale as dependências:
@@ -84,6 +84,16 @@ O comando criará uma pasta `dist/`. Você pode hospedar essa pasta gratuitament
 - Noivos: Camila & Rafael
 - Data Prevista: 15 de Agosto de 2025
 - Status: Em desenvolvimento
+
+---
+
+## 📜 Origem do Projeto & Filosofia Open Source
+
+O **Casarei.online** nasceu originalmente sob o nome de **Casalzinnn**, desenvolvido como um projeto sob medida para celebrar o casamento de **Camila & Rafael** (previsto para 15 de Agosto de 2025).
+
+Com o objetivo de ajudar outros casais a criarem seus próprios sites com a mesma facilidade e sem depender de plataformas caras e restritivas, o projeto foi forkado, generalizado e disponibilizado como código aberto. A partir de agora, a comunidade pode utilizar e contribuir livremente com a plataforma.
+
+Os dados de Camila & Rafael continuam sendo utilizados no código-fonte como a demonstração padrão (seed data) para ilustrar visualmente o funcionamento da plataforma assim que ela é iniciada localmente.
 
 ---
 
