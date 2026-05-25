@@ -43,9 +43,17 @@ test.describe('Full Flow E2E', () => {
     // (Opcional, caso a tela mostre algum toast ou intro)
     await page.waitForTimeout(2000);
 
-    // No dashboard, a aba inicial já é "Configurações" (Settings)
+    // Ir para a aba "Configurar Site" pois agora a aba padrão é "Painel Geral"
+    await page.click('button:has-text("Configurar Site")');
+    await page.waitForTimeout(1000);
+
     // O slug é gerado a partir do nome do casal.
+    console.log("Current URL before filling coupleName:", page.url());
     await page.fill('input[id="coupleName"]', testSlug);
+
+    // Ir para a sub-aba "Presentes & Pix" para preencher dados de pagamento
+    await page.click('button:has-text("Presentes & Pix")');
+    await page.waitForTimeout(1000);
 
     // Preencher credenciais fake do MP para que o botão de pagamento não seja bloqueado
     const inputs = await page.locator('input[placeholder*="APP_USR-"]').all();
@@ -119,8 +127,8 @@ test.describe('Full Flow E2E', () => {
     });
     await page.waitForTimeout(500);
 
-    // Clica em "Já fiz o pagamento" ou "Enviar Comprovante"
-    await page.click('button:has-text("Já fiz o pagamento"), button:has-text("Enviar Comprovante")');
+    // Clica em "Confirmar Pagamento"
+    await page.click('button:has-text("Confirmar Pagamento")');
     
     // Aguardar mensagem de sucesso
     await page.waitForTimeout(3000);

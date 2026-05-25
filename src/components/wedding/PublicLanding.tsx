@@ -128,6 +128,9 @@ const PublicLanding = ({
   paymentPix,
   paymentBoleto,
   maxInstallments,
+  manualPixType,
+  manualPixKey,
+  manualPixQrImageUrl,
   isGuestView,
 }: PublicLandingProps) => {
   return (
@@ -139,6 +142,9 @@ const PublicLanding = ({
         paymentPix={paymentPix}
         paymentBoleto={paymentBoleto}
         maxInstallments={maxInstallments}
+        manualPixType={manualPixType}
+        manualPixKey={manualPixKey}
+        manualPixQrImageUrl={manualPixQrImageUrl}
         isGuestView={isPreview ? true : isGuestView}
       />
     </CartProvider>
