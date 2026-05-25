@@ -95,7 +95,9 @@ const Dashboard = () => {
     price: 0,
     image: "",
     externalLink: "",
+    isOpenPrice: false,
   });
+
   const [dashboardTab, setDashboardTab] = useState<"settings" | "history">("settings");
   const [initialLoaded, setInitialLoaded] = useState<boolean>(false);
 
@@ -120,6 +122,10 @@ const Dashboard = () => {
   const [storyPhoto1, setStoryPhoto1] = useState("");
   const [storyPhoto2, setStoryPhoto2] = useState("");
   const [storyPhoto3, setStoryPhoto3] = useState("");
+  const [manualPixType, setManualPixType] = useState<string>("cpf");
+  const [manualPixKey, setManualPixKey] = useState<string>("");
+  const [manualPixQrImageUrl, setManualPixQrImageUrl] = useState<string>("");
+  const [uploadingQr, setUploadingQr] = useState(false);
 
   // Load existing wedding data - only once on mount
   useEffect(() => {
@@ -138,6 +144,7 @@ const Dashboard = () => {
           about_text, dress_code_text, colors_to_avoid, additional_info,
           mercado_pago_public_key,
           payment_credit_card, payment_pix, payment_boleto, max_installments,
+          manual_pix_type, manual_pix_key, manual_pix_qr_image_url,
           story_photo_1, story_photo_2, story_photo_3
         `)
         .eq("user_id", user.id)
@@ -150,6 +157,9 @@ const Dashboard = () => {
         setPaymentPix((wedding as Record<string, unknown>).payment_pix as boolean ?? true);
         setPaymentBoleto((wedding as Record<string, unknown>).payment_boleto as boolean ?? true);
         setMaxInstallments((wedding as Record<string, unknown>).max_installments as number ?? 12);
+        setManualPixType((wedding as Record<string, unknown>).manual_pix_type as string || "cpf");
+        setManualPixKey((wedding as Record<string, unknown>).manual_pix_key as string || "");
+        setManualPixQrImageUrl((wedding as Record<string, unknown>).manual_pix_qr_image_url as string || "");
         setStoryPhoto1((wedding as Record<string, unknown>).story_photo_1 as string || "");
         setStoryPhoto2((wedding as Record<string, unknown>).story_photo_2 as string || "");
         setStoryPhoto3((wedding as Record<string, unknown>).story_photo_3 as string || "");
@@ -205,6 +215,7 @@ const Dashboard = () => {
             price: Number(g.price),
             image: g.image_url || "",
             externalLink: g.external_link || "",
+            isOpenPrice: g.is_open_price || false,
           }));
           updateConfig({ gifts: formattedGifts });
         }
@@ -357,6 +368,9 @@ const Dashboard = () => {
         payment_pix: paymentPix,
         payment_boleto: paymentBoleto,
         max_installments: maxInstallments,
+        manual_pix_type: manualPixType,
+        manual_pix_key: manualPixKey || null,
+        manual_pix_qr_image_url: manualPixQrImageUrl || null,
         story_photo_1: storyPhoto1 || null,
         story_photo_2: storyPhoto2 || null,
         story_photo_3: storyPhoto3 || null,
@@ -402,6 +416,7 @@ const Dashboard = () => {
           price: g.price,
           image_url: g.image || null,
           external_link: g.externalLink || null,
+          is_open_price: g.isOpenPrice || false,
         }));
 
         const { error: insertGiftsError } = await supabase.from("gifts").insert(giftsToInsert);
@@ -425,6 +440,7 @@ const Dashboard = () => {
             price: Number(g.price),
             image: g.image_url || "",
             externalLink: g.external_link || "",
+            isOpenPrice: g.is_open_price || false,
           }));
           updateConfig({ gifts: formattedGifts });
         }
@@ -478,9 +494,9 @@ const Dashboard = () => {
   };
 
   const handleSaveNewGift = () => {
-    if (newGift.name && newGift.price > 0) {
+    if (newGift.name && (newGift.isOpenPrice || newGift.price > 0)) {
       addGift(newGift);
-      setNewGift({ name: "", category: "Cozinha", price: 0, image: "", externalLink: "" });
+      setNewGift({ name: "", category: "Cozinha", price: 0, image: "", externalLink: "", isOpenPrice: false });
       setIsAddingGift(false);
     }
   };
@@ -1030,7 +1046,7 @@ const Dashboard = () => {
 
             {/* Installment Configuration */}
             {paymentCreditCard && (
-              <div className="p-4 rounded-lg bg-muted/50 border border-border">
+              <div className="p-4 rounded-lg bg-muted/50 border border-border mb-6">
                 <Label htmlFor="maxInstallments" className="flex items-center gap-2 mb-2">
                   <CreditCard className="w-4 h-4 text-gold" />
                   Máximo de Parcelas
@@ -1055,6 +1071,109 @@ const Dashboard = () => {
                 </p>
               </div>
             )}
+
+            {/* Manual PIX Configuration */}
+            <div className="p-4 rounded-lg bg-muted/50 border border-border">
+              <h4 className="font-medium text-foreground mb-4 flex items-center gap-2">
+                <QrCode className="w-4 h-4 text-gold" />
+                Pix Manual (Sem taxas do Mercado Pago)
+              </h4>
+              <p className="text-sm text-muted-foreground mb-4">
+                Se preenchido, os convidados poderão fazer um PIX diretamente para sua conta. Eles confirmarão o envio e você aprovará manualmente depois.
+              </p>
+              <div className="grid sm:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="manualPixType">Tipo de Chave</Label>
+                  <Select
+                    value={manualPixType}
+                    onValueChange={setManualPixType}
+                  >
+                    <SelectTrigger className="w-full bg-background">
+                      <SelectValue placeholder="Selecione o tipo" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="cpf">CPF</SelectItem>
+                      <SelectItem value="cnpj">CNPJ</SelectItem>
+                      <SelectItem value="email">E-mail</SelectItem>
+                      <SelectItem value="celular">Celular</SelectItem>
+                      <SelectItem value="aleatoria">Chave Aleatória</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="manualPixKey">Chave PIX</Label>
+                  <Input
+                    id="manualPixKey"
+                    value={manualPixKey}
+                    onChange={(e) => setManualPixKey(e.target.value)}
+                    placeholder="Ex: 123.456.789-00"
+                    className="bg-background"
+                  />
+                </div>
+              </div>
+              
+              <div className="space-y-2 sm:col-span-2 mt-2">
+                <Label>QR Code da Chave PIX (Opcional)</Label>
+                <div className="flex gap-4 items-start">
+                  <div className="flex-1 space-y-2">
+                    <Input
+                      type="file"
+                      accept="image/*"
+                      disabled={uploadingQr}
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        
+                        setUploadingQr(true);
+                        try {
+                          const fileExt = file.name.split('.').pop();
+                          const fileName = `${user?.id}-qr-${Date.now()}.${fileExt}`;
+                          
+                          const { error: uploadError } = await supabase.storage
+                            .from('wedding-assets')
+                            .upload(fileName, file);
+
+                          if (uploadError) throw uploadError;
+                          
+                          const { data: { publicUrl } } = supabase.storage
+                            .from('wedding-assets')
+                            .getPublicUrl(fileName);
+                            
+                          setManualPixQrImageUrl(publicUrl);
+                          toast({ title: "Imagem do QR Code enviada com sucesso!" });
+                        } catch (error) {
+                          console.error("Error uploading QR code:", error);
+                          toast({ title: "Erro ao enviar imagem do QR Code.", variant: "destructive" });
+                        } finally {
+                          setUploadingQr(false);
+                        }
+                      }}
+                      className="bg-background"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Você pode anexar uma imagem do QR Code gerada pelo seu banco para facilitar o pagamento dos convidados.
+                    </p>
+                  </div>
+                  
+                  {manualPixQrImageUrl && (
+                    <div className="relative w-24 h-24 rounded-lg overflow-hidden border border-border bg-muted flex-shrink-0 group">
+                      <img 
+                        src={manualPixQrImageUrl} 
+                        alt="QR Code PIX" 
+                        className="w-full h-full object-cover"
+                      />
+                      <button
+                        onClick={() => setManualPixQrImageUrl("")}
+                        className="absolute inset-0 bg-black/50 text-white opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
+                        title="Remover imagem"
+                      >
+                        <Trash2 className="w-5 h-5" />
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
 
             {!paymentCreditCard && !paymentPix && !paymentBoleto && (
               <Alert className="border-destructive bg-destructive/10">
@@ -1317,12 +1436,27 @@ const Dashboard = () => {
                       <Label>Valor (R$) *</Label>
                       <Input
                         type="number"
-                        value={newGift.price || ""}
+                        value={newGift.isOpenPrice ? "" : (newGift.price || "")}
                         onChange={(e) => setNewGift({ ...newGift, price: parseFloat(e.target.value) || 0 })}
                         placeholder="0.00"
                         className="bg-background"
+                        disabled={newGift.isOpenPrice}
                       />
                     </div>
+                  </div>
+                  <div className="flex items-center space-x-2 py-1">
+                    <Checkbox
+                      id="isOpenPrice"
+                      checked={newGift.isOpenPrice || false}
+                      onCheckedChange={(checked) => setNewGift({ 
+                        ...newGift, 
+                        isOpenPrice: checked === true,
+                        price: checked === true ? 0 : newGift.price 
+                      })}
+                    />
+                    <Label htmlFor="isOpenPrice" className="text-sm font-medium leading-none cursor-pointer">
+                      Permitir valor livre (definido pelo convidado)
+                    </Label>
                   </div>
                   <div className="space-y-2">
                     <div className="flex items-center gap-2">
@@ -1379,7 +1513,7 @@ const Dashboard = () => {
                   <span className="text-xs text-gold uppercase tracking-wider">{gift.category}</span>
                   <h3 className="font-medium text-foreground mt-1">{gift.name}</h3>
                   <p className="text-lg font-serif text-gold mt-2">
-                    R$ {gift.price.toFixed(2).replace(".", ",")}
+                    {gift.isOpenPrice ? "Valor Livre" : `R$ ${gift.price.toFixed(2).replace(".", ",")}`}
                   </p>
                 </div>
               </div>
@@ -1423,11 +1557,26 @@ const Dashboard = () => {
                       <Label>Valor (R$)</Label>
                       <Input
                         type="number"
-                        value={editingGift.price}
+                        value={editingGift.isOpenPrice ? "" : editingGift.price}
                         onChange={(e) => setEditingGift({ ...editingGift, price: parseFloat(e.target.value) || 0 })}
                         className="bg-background"
+                        disabled={editingGift.isOpenPrice}
                       />
                     </div>
+                  </div>
+                  <div className="flex items-center space-x-2 py-1">
+                    <Checkbox
+                      id="editIsOpenPrice"
+                      checked={editingGift.isOpenPrice || false}
+                      onCheckedChange={(checked) => setEditingGift({ 
+                        ...editingGift, 
+                        isOpenPrice: checked === true,
+                        price: checked === true ? 0 : editingGift.price 
+                      })}
+                    />
+                    <Label htmlFor="editIsOpenPrice" className="text-sm font-medium leading-none cursor-pointer">
+                      Permitir valor livre (definido pelo convidado)
+                    </Label>
                   </div>
                   <div className="space-y-2">
                     <Label>URL da Imagem</Label>
