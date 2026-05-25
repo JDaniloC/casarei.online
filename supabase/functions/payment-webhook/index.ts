@@ -195,6 +195,19 @@ serve(async (req) => {
         );
       }
 
+      // Checar idempotência
+      const { data: existingProcessed } = await supabase
+        .from("orders")
+        .select("id")
+        .eq("idempotency_key", paymentId)
+        .single();
+
+      if (existingProcessed) {
+        return new Response(JSON.stringify({ received: true, idempotent: true }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
       const verifiedPayment = await verifyPaymentWithMercadoPago(paymentId, accessToken);
       if (!verifiedPayment || verifiedPayment.externalReference !== orderId) {
         return new Response(
@@ -209,7 +222,7 @@ serve(async (req) => {
 
       await supabase
         .from("orders")
-        .update({ status: orderStatus, mercado_pago_payment_id: paymentId })
+        .update({ status: orderStatus, mercado_pago_payment_id: paymentId, idempotency_key: paymentId })
         .eq("id", orderId);
 
       console.log("Order updated:", { orderId, status: orderStatus, paymentId });
