@@ -20,3 +20,14 @@ verify_jwt = true
 
 [functions.submit-rsvp]
 verify_jwt = false
+
+[functions.scrape-gift]
+enabled = true
+verify_jwt = false
+import_map = "./functions/scrape-gift/deno.json"
+# Uncomment to specify a custom file path to the entrypoint.
+# Supported file extensions are: .ts, .js, .mjs, .jsx, .tsx
+entrypoint = "./functions/scrape-gift/index.ts"
+# Specifies static files to be bundled with the function. Supports glob patterns.
+# For example, if you want to serve static HTML pages in your function:
+# static_files = [ "./functions/scrape-gift/*.html" ]

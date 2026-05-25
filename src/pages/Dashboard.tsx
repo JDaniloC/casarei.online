@@ -2053,6 +2053,7 @@ const Dashboard = () => {
               )}
             </DialogContent>
           </Dialog>
+            </div>
         </motion.section>
 
         {/* Save Button */}

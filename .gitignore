@@ -30,4 +30,11 @@ dist-ssr
 
 # Project-specific
 .agent
-docs/
+docs/
+
+# Local test outputs and tool states
+test-results/
+test_checkout.ts
+supabase/.branches/
+supabase/.temp/
+
