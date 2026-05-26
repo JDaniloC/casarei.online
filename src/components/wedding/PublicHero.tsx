@@ -68,22 +68,146 @@ const PublicHero = () => {
   const hasHeroImage = config.heroImage || heroCoupleImage;
 
   // Layout-specific styles
-  const layoutStyles = {
+  const layoutStyles: Record<string, { overlay: string, titleClass: string }> = {
     classic: {
-      overlay: "bg-gradient-to-b from-foreground/30 via-foreground/20 to-foreground/50",
-      titleClass: "font-serif",
+      overlay: "bg-gradient-to-b from-black/50 via-black/40 to-black/70",
+      titleClass: "font-serif drop-shadow-md",
     },
     modern: {
-      overlay: "bg-gradient-to-b from-slate-900/40 via-slate-900/30 to-slate-900/60",
-      titleClass: "font-sans tracking-tight",
+      overlay: "bg-gradient-to-b from-slate-900/60 via-slate-900/50 to-slate-900/80",
+      titleClass: "font-sans tracking-tight drop-shadow-lg",
     },
     minimalist: {
-      overlay: "bg-gradient-to-b from-stone-900/20 via-transparent to-stone-900/40",
-      titleClass: "font-serif font-light",
+      overlay: "bg-gradient-to-b from-stone-900/40 via-stone-900/20 to-stone-900/60",
+      titleClass: "font-serif font-light drop-shadow-sm",
     },
+    editorial: {
+      overlay: "hidden",
+      titleClass: "font-serif text-primary",
+    }
   };
 
-  const currentStyle = layoutStyles[config.layout];
+  const currentStyle = layoutStyles[config.layout] || layoutStyles.classic;
+
+  if (config.layout === "editorial") {
+    return (
+      <section className="min-h-screen flex flex-col bg-background">
+        {/* Top Image Half */}
+        <div className="w-full h-[50vh] relative overflow-hidden">
+          {hasHeroImage ? (
+            <img
+              src={config.heroImage || heroCoupleImage}
+              alt={config.coupleName}
+              className="w-full h-full object-cover"
+            />
+          ) : (
+            <div className="w-full h-full bg-gradient-to-br from-secondary via-muted to-accent flex items-center justify-center">
+              <Heart className="w-20 h-20 text-gold/20" />
+            </div>
+          )}
+        </div>
+
+        {/* Bottom Text Half */}
+        <div className="flex-1 flex flex-col items-center justify-center py-12 px-4 text-center max-w-4xl mx-auto">
+          <motion.div
+            initial={{ opacity: 0, y: 30 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.8, delay: 0.2 }}
+          >
+            <p className="text-muted-foreground text-sm sm:text-base tracking-[0.3em] uppercase mb-4 font-light">
+              Vamos nos casar
+            </p>
+          </motion.div>
+
+          <motion.h1
+            initial={{ opacity: 0, y: 30 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.8, delay: 0.4 }}
+            className={`${currentStyle.titleClass} text-5xl sm:text-7xl lg:text-8xl mb-6`}
+          >
+            {config.coupleName}
+          </motion.h1>
+
+          {config.tagline && (
+            <motion.p
+              initial={{ opacity: 0, y: 30 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.8, delay: 0.6 }}
+              className="text-foreground/80 text-xl sm:text-2xl font-light italic mb-8 font-serif"
+            >
+              "{config.tagline}"
+            </motion.p>
+          )}
+
+          {config.themeDecorations !== false && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.8, delay: 0.7 }}
+              className="flex justify-center my-6 text-gold"
+            >
+              <svg className="w-16 h-16 opacity-85" viewBox="0 0 100 100" fill="currentColor">
+                <path d="M50 15 C45 35, 25 35, 10 40 C30 45, 45 40, 50 15 Z" />
+                <path d="M50 15 C55 35, 75 35, 90 40 C70 45, 55 40, 50 15 Z" />
+                <path d="M50 15 C50 45, 50 70, 50 85" stroke="currentColor" strokeWidth="1.5" fill="none" />
+                <path d="M50 40 C35 50, 30 65, 20 70 C35 68, 45 60, 50 40 Z" />
+                <path d="M50 50 C65 60, 70 75, 80 80 C65 78, 55 70, 50 50 Z" />
+              </svg>
+            </motion.div>
+          )}
+
+          <motion.div
+            initial={{ opacity: 0, y: 30 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.8, delay: 0.8 }}
+            className="mb-8"
+          >
+            <p className="text-gold text-2xl sm:text-3xl font-serif tracking-wide capitalize">
+              {formattedDate}
+            </p>
+          </motion.div>
+
+          {/* Countdown */}
+          <motion.div
+            initial={{ opacity: 0, y: 30 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.8, delay: 1 }}
+            className="flex justify-center gap-4 sm:gap-8 mb-12"
+          >
+            {[
+              { value: countdown.days, label: "Dias" },
+              { value: countdown.hours, label: "Horas" },
+              { value: countdown.minutes, label: "Min" },
+              { value: countdown.seconds, label: "Seg" },
+            ].map((item) => (
+              <div
+                key={item.label}
+                className="text-center bg-card rounded-lg px-4 sm:px-6 py-3 sm:py-4 border border-border shadow-soft"
+              >
+                <span className="block text-3xl sm:text-4xl lg:text-5xl font-serif text-foreground">
+                  {String(item.value).padStart(2, "0")}
+                </span>
+                <span className="text-muted-foreground text-xs sm:text-sm uppercase tracking-wider">
+                  {item.label}
+                </span>
+              </div>
+            ))}
+          </motion.div>
+
+          <motion.button
+            initial={{ opacity: 0, y: 30 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.8, delay: 1.2 }}
+            onClick={scrollToInfo}
+            className="btn-wedding group"
+          >
+            {isGuestView && config.sections.weddingInfo ? "Ver informações do casamento" : "Ver lista de presentes"}
+            <ChevronDown className="ml-2 w-5 h-5 group-hover:translate-y-1 transition-transform" />
+          </motion.button>
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section className="relative min-h-screen flex items-center justify-center overflow-hidden">
