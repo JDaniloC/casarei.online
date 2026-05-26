@@ -21,7 +21,7 @@ export interface WeddingConfig {
   tagline: string;
   
   // Layout
-  layout: "classic" | "modern" | "minimalist";
+  layout: "classic" | "modern" | "minimalist" | "editorial";
   
   // Contact
   whatsappNumber?: string;

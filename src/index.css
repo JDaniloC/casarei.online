@@ -159,6 +159,40 @@
     --heading-weight: 300;
   }
 
+  /* Editorial Layout */
+  :root[data-layout="editorial"] {
+    --background: 0 0% 99%;
+    --foreground: 0 0% 15%;
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 15%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 15%;
+    --primary: 0 0% 15%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 0 0% 96%;
+    --secondary-foreground: 0 0% 20%;
+    --muted: 0 0% 96%;
+    --muted-foreground: 0 0% 40%;
+    --accent: 0 0% 94%;
+    --accent-foreground: 0 0% 15%;
+    --border: 0 0% 90%;
+    --input: 0 0% 92%;
+    --ring: 0 0% 15%;
+    --gold: 0 0% 15%;
+    --gold-light: 0 0% 50%;
+    --cream: 0 0% 98%;
+
+    --font-serif: 'Playfair Display', Georgia, serif;
+    --font-sans: 'Inter', system-ui, sans-serif;
+
+    --shadow-soft: 0 1px 2px hsl(0 0% 0% / 0.05);
+    --shadow-card: 0 4px 12px hsl(0 0% 0% / 0.05);
+    --shadow-elevated: 0 12px 24px hsl(0 0% 0% / 0.08);
+
+    --section-radius: 0;
+    --heading-weight: 400;
+  }
+
   .dark {
     --background: 25 20% 10%;
     --foreground: 40 30% 95%;
@@ -238,6 +272,36 @@
     --ring: 38 45% 48%;
     --gold: 38 45% 48%;
     --gold-light: 38 35% 75%;
+  }
+
+  :root[data-theme-color="lavender"] {
+    --primary: 270 30% 60%;
+    --primary-foreground: 0 0% 100%;
+    --accent: 270 20% 95%;
+    --accent-foreground: 270 40% 30%;
+    --ring: 270 30% 60%;
+    --gold: 270 30% 60%;
+    --gold-light: 270 20% 80%;
+  }
+
+  :root[data-theme-color="emerald"] {
+    --primary: 150 40% 30%;
+    --primary-foreground: 0 0% 100%;
+    --accent: 150 20% 95%;
+    --accent-foreground: 150 50% 20%;
+    --ring: 150 40% 30%;
+    --gold: 150 40% 30%;
+    --gold-light: 150 20% 50%;
+  }
+
+  :root[data-theme-color="navy"] {
+    --primary: 220 50% 20%;
+    --primary-foreground: 0 0% 100%;
+    --accent: 220 20% 95%;
+    --accent-foreground: 220 60% 15%;
+    --ring: 220 50% 20%;
+    --gold: 220 50% 20%;
+    --gold-light: 220 20% 50%;
   }
 
   /* Custom Typography Pairs */

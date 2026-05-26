@@ -64,6 +64,12 @@ const layoutOptions = [
     description: "Simplicidade sofisticada com muito espaço em branco",
     preview: "bg-gradient-to-br from-stone-50 to-neutral-100",
   },
+  {
+    id: "editorial" as const,
+    name: "Editorial",
+    description: "Layout dividido, foto no topo e texto embaixo para legibilidade perfeita",
+    preview: "bg-gradient-to-b from-primary/10 to-transparent",
+  },
 ];
 
 const sectionOptions = [
@@ -196,7 +202,7 @@ const Dashboard = () => {
           coupleName: wedding.couple_name,
           weddingDate: wedding.wedding_date || "",
           tagline: wedding.tagline || "",
-          layout: wedding.layout as "classic" | "modern" | "minimalist",
+          layout: wedding.layout as "classic" | "modern" | "minimalist" | "editorial",
           sections: {
             about: wedding.section_about,
             weddingInfo: wedding.section_wedding_info,
@@ -997,6 +1003,9 @@ const Dashboard = () => {
                         { id: "rose", name: "Dusty Rose", color: "bg-[#B86F7D]" },
                         { id: "blue", name: "Slate Blue", color: "bg-[#5D7F9B]" },
                         { id: "gold", name: "Champagne Gold", color: "bg-[#A68A5E]" },
+                        { id: "lavender", name: "Lavender", color: "bg-[#9b7bbf]" },
+                        { id: "emerald", name: "Emerald", color: "bg-[#2e6b4d]" },
+                        { id: "navy", name: "Midnight Navy", color: "bg-[#1a2f4c]" },
                       ].map((palette) => (
                         <button
                           key={palette.id}
