@@ -236,6 +236,11 @@ const CheckoutModal = ({
     return true;
   };
 
+  // Determine which payment methods are actually available
+  const hasManualPix = Boolean(manualPixKey);
+  const hasMercadoPago = Boolean(mercadoPagoPublicKey);
+  const hasAnyPaymentMethod = hasManualPix || hasMercadoPago;
+
   const handleProceedToPayment = async () => {
     if (!isInfoStepValid()) {
       toast.error("Por favor, preencha todos os campos obrigatórios");
@@ -247,13 +252,13 @@ const CheckoutModal = ({
       return;
     }
 
-    if (!mercadoPagoPublicKey) {
-      console.log("handleProceedToPayment ERROR: No mercadoPagoPublicKey", { mercadoPagoPublicKey });
-      toast.error("Pagamento não configurado. Contate os noivos.");
+    if (!hasAnyPaymentMethod) {
+      console.log("handleProceedToPayment ERROR: No payment method configured", { mercadoPagoPublicKey, manualPixKey });
+      toast.error("Nenhum método de pagamento configurado. Contate os noivos.");
       return;
     }
 
-    console.log("handleProceedToPayment SUCCESS! Transitioning to payment. manualPixKey=", manualPixKey);
+    console.log("handleProceedToPayment SUCCESS! Transitioning to payment.", { hasMercadoPago, hasManualPix, manualPixKey });
     setLoading(true);
 
     try {
@@ -280,6 +285,50 @@ const CheckoutModal = ({
         } catch (rsvpErr) {
           console.error("RSVP save error:", rsvpErr);
         }
+      }
+
+      // If only manual PIX is configured (no Mercado Pago), go directly to manual_pix step
+      if (hasManualPix && !hasMercadoPago) {
+        // Create a local order record for tracking
+        const paymentItems = items.map((item) => ({
+          id: item.gift.id,
+          name: item.gift.name,
+          quantity: item.quantity,
+          unit_price: item.gift.price,
+        }));
+
+        if (includeEnvelope) {
+          paymentItems.push({
+            id: "envelope-personalizado",
+            name: `Envelope Personalizado para ${config.coupleName}`,
+            quantity: 1,
+            unit_price: envelopePrice,
+          });
+        }
+
+        try {
+          const { data, error } = await supabase.functions.invoke("create-payment", {
+            body: {
+              weddingId,
+              items: paymentItems,
+              guestName: guestName.trim(),
+              guestEmail: guestEmail.trim(),
+              giftMessage: giftMessage?.trim() || undefined,
+            },
+          });
+
+          if (!error && data?.orderId) {
+            setOrderId(data.orderId);
+          }
+        } catch (err) {
+          // Non-blocking: if create-payment fails (e.g. MP not configured on backend),
+          // still allow manual PIX flow
+          console.warn("create-payment skipped for manual PIX only:", err);
+        }
+
+        setStep("manual_pix");
+        setLoading(false);
+        return;
       }
 
       const paymentItems = items.map((item) => ({
@@ -430,12 +479,12 @@ const CheckoutModal = ({
   };
 
   const handleManualPixSubmit = async () => {
-    if (!orderId || !weddingId) return;
+    if (!weddingId) return;
     setUploadingReceipt(true);
     let uploadedUrl = null;
 
     try {
-      if (receiptFile) {
+      if (receiptFile && orderId) {
         const fileExt = receiptFile.name.split('.').pop();
         const fileName = `${weddingId}/${orderId}-${Date.now()}.${fileExt}`;
         const { data: uploadData, error: uploadError } = await supabase.storage
@@ -451,22 +500,24 @@ const CheckoutModal = ({
         uploadedUrl = publicUrl;
       }
 
-      // Update order to pending_manual_verification or just leave it pending but save receipt
-      const { error } = await supabase
-        .from('orders')
-        .update({ 
-          receipt_url: uploadedUrl,
-          // If we want to change status, we could. For now we leave it pending, 
-          // or maybe change to "pending_manual_verification" if that status existed.
-          // Let's just set the receipt_url. The Dashboard will show orders with receipts.
-        })
-        .eq('id', orderId);
+      // Update order with receipt if we have an orderId
+      if (orderId) {
+        const { error } = await supabase
+          .from('orders')
+          .update({ 
+            receipt_url: uploadedUrl,
+          })
+          .eq('id', orderId);
 
-      if (error) throw error;
+        if (error) throw error;
+      }
 
       clearCart();
       setStep("success");
-      toast.success("Comprovante enviado! Os noivos irão conferir e confirmar seu presente.");
+      toast.success(orderId 
+        ? "Comprovante enviado! Os noivos irão conferir e confirmar seu presente."
+        : "Obrigado! Faça o PIX e envie o comprovante diretamente aos noivos."
+      );
     } catch (err: unknown) {
       toast.error("Erro ao enviar comprovante. Tente novamente.");
       console.error(err);
@@ -538,6 +589,7 @@ const CheckoutModal = ({
                   {step === "success" && "Pagamento Confirmado"}
                   {step === "pix" && "Pague com Pix"}
                   {step === "boleto" && "Boleto Gerado"}
+                  {step === "manual_pix" && "Pague com Pix"}
                 </h2>
                 <p className="text-xs sm:text-sm text-muted-foreground truncate">
                   Presente para {config.coupleName}
@@ -553,7 +605,7 @@ const CheckoutModal = ({
           </div>
 
           {/* Steps indicator */}
-          {!["success", "pix", "boleto"].includes(step) && (
+          {!["success", "pix", "boleto", "manual_pix"].includes(step) && (
             <div className="flex items-center justify-center gap-2 py-3 sm:py-4 border-b border-border">
               {["cart", "info", "payment"].map((s, i) => (
                 <div key={s} className="flex items-center">
@@ -868,7 +920,7 @@ const CheckoutModal = ({
                   </div>
                 )}
                 
-                {manualPixKey && (
+                {hasManualPix && (
                   <div className="p-4 bg-gold/5 border border-gold/20 rounded-lg text-center mb-4">
                     <QrCode className="w-8 h-8 text-gold mx-auto mb-2" />
                     <h3 className="font-medium text-foreground mb-1">Pagar via Pix (Sem Taxas)</h3>
@@ -884,14 +936,16 @@ const CheckoutModal = ({
                   </div>
                 )}
 
-                {mercadoPagoPublicKey ? (
+                {hasMercadoPago ? (
                   mpInitialized ? (
                     <div className="mercadopago-container mt-4">
-                      <div className="flex items-center gap-2 mb-4">
-                        <div className="flex-1 h-px bg-border"></div>
-                        <span className="text-xs text-muted-foreground uppercase tracking-wider">Outros meios de pagamento</span>
-                        <div className="flex-1 h-px bg-border"></div>
-                      </div>
+                      {hasManualPix && (
+                        <div className="flex items-center gap-2 mb-4">
+                          <div className="flex-1 h-px bg-border"></div>
+                          <span className="text-xs text-muted-foreground uppercase tracking-wider">Outros meios de pagamento</span>
+                          <div className="flex-1 h-px bg-border"></div>
+                        </div>
+                      )}
                       <Payment
                         initialization={{
                           amount: getTotalPrice(),
@@ -923,7 +977,7 @@ const CheckoutModal = ({
                     </div>
                   )
                 ) : (
-                  !manualPixKey && (
+                  !hasManualPix && (
                     <div className="text-center py-8">
                       <AlertCircle className="w-12 h-12 text-destructive mx-auto mb-3" />
                       <p className="text-muted-foreground">
@@ -1180,7 +1234,7 @@ const CheckoutModal = ({
                 <>
                   <Button
                     variant="outline"
-                    onClick={() => setStep("payment")}
+                    onClick={() => setStep(hasMercadoPago ? "payment" : "info")}
                     className="flex-1"
                     disabled={uploadingReceipt}
                   >
@@ -1227,19 +1281,19 @@ const CheckoutModal = ({
 
             {step === "payment" && (
               <div className="flex items-center justify-center gap-3 sm:gap-4 mt-3 sm:mt-4 pt-3 sm:pt-4 border-t border-border">
-                {paymentPix && (
+                {(paymentPix || hasManualPix) && (
                   <div className="flex items-center gap-1.5 text-xs sm:text-sm text-muted-foreground">
                     <QrCode className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                     <span>Pix</span>
                   </div>
                 )}
-                {paymentCreditCard && (
+                {paymentCreditCard && hasMercadoPago && (
                   <div className="flex items-center gap-1.5 text-xs sm:text-sm text-muted-foreground">
                     <CreditCard className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                     <span>Cartão</span>
                   </div>
                 )}
-                {paymentBoleto && (
+                {paymentBoleto && hasMercadoPago && (
                   <div className="flex items-center gap-1.5 text-xs sm:text-sm text-muted-foreground">
                     <FileText className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                     <span>Boleto</span>
