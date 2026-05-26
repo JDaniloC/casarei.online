@@ -7,8 +7,7 @@
 
 @layer base {
   :root,
-  :root[],
-  [] {
+  :root[data-layout="classic"] {
     /* Romantic Wedding Palette */
     --background: 40 33% 98%;
     --foreground: 25 30% 20%;
@@ -77,8 +76,7 @@
   }
 
   /* Modern Layout */
-  :root[],
-  [] {
+  :root[data-layout="modern"] {
     --background: 220 14% 96%;
     --foreground: 220 20% 15%;
 
@@ -120,8 +118,7 @@
   }
 
   /* Minimalist Layout */
-  :root[],
-  [] {
+  :root[data-layout="minimalist"] {
     --background: 0 0% 99%;
     --foreground: 0 0% 12%;
 
@@ -163,8 +160,7 @@
   }
 
   /* Editorial Layout */
-  :root[],
-  [] {
+  :root[data-layout="editorial"] {
     --background: 0 0% 99%;
     --foreground: 0 0% 15%;
     --card: 0 0% 100%;
@@ -228,8 +224,7 @@
   }
 
   /* Custom Color Palettes */
-  :root[],
-  [] {
+  :root[data-theme-color="terracotta"] {
     --primary: 15 60% 50%;
     --primary-foreground: 0 0% 100%;
     --accent: 15 35% 85%;
@@ -239,8 +234,7 @@
     --gold-light: 15 45% 75%;
   }
 
-  :root[],
-  [] {
+  :root[data-theme-color="sage"] {
     --primary: 120 15% 42%;
     --primary-foreground: 0 0% 100%;
     --accent: 120 15% 92%;
@@ -250,8 +244,7 @@
     --gold-light: 120 10% 75%;
   }
 
-  :root[],
-  [] {
+  :root[data-theme-color="rose"] {
     --primary: 345 35% 58%;
     --primary-foreground: 0 0% 100%;
     --accent: 345 30% 94%;
@@ -261,8 +254,7 @@
     --gold-light: 345 25% 80%;
   }
 
-  :root[],
-  [] {
+  :root[data-theme-color="blue"] {
     --primary: 210 35% 50%;
     --primary-foreground: 0 0% 100%;
     --accent: 210 25% 93%;
@@ -272,8 +264,7 @@
     --gold-light: 210 20% 75%;
   }
 
-  :root[],
-  [] {
+  :root[data-theme-color="gold"] {
     --primary: 38 45% 48%;
     --primary-foreground: 0 0% 100%;
     --accent: 35 25% 94%;
@@ -283,8 +274,7 @@
     --gold-light: 38 35% 75%;
   }
 
-  :root[],
-  [] {
+  :root[data-theme-color="lavender"] {
     --primary: 270 30% 60%;
     --primary-foreground: 0 0% 100%;
     --accent: 270 20% 95%;
@@ -294,8 +284,7 @@
     --gold-light: 270 20% 80%;
   }
 
-  :root[],
-  [] {
+  :root[data-theme-color="emerald"] {
     --primary: 150 40% 30%;
     --primary-foreground: 0 0% 100%;
     --accent: 150 20% 95%;
@@ -305,8 +294,7 @@
     --gold-light: 150 20% 50%;
   }
 
-  :root[],
-  [] {
+  :root[data-theme-color="navy"] {
     --primary: 220 50% 20%;
     --primary-foreground: 0 0% 100%;
     --accent: 220 20% 95%;
@@ -317,20 +305,17 @@
   }
 
   /* Custom Typography Pairs */
-  :root[],
-  [] {
+  :root[data-theme-font="serif"] {
     --font-serif: "Playfair Display", Georgia, serif;
     --font-sans: "Cormorant Garamond", Georgia, serif;
   }
 
-  :root[],
-  [] {
+  :root[data-theme-font="sans"] {
     --font-serif: "Outfit", system-ui, sans-serif;
     --font-sans: "DM Sans", system-ui, sans-serif;
   }
 
-  :root[],
-  [] {
+  :root[data-theme-font="elegant"] {
     --font-serif: "Pinyon Script", cursive;
     --font-sans: "Outfit", system-ui, sans-serif;
   }
