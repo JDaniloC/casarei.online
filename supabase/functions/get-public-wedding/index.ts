@@ -54,7 +54,7 @@ serve(async (req) => {
 
     const { data: gifts } = await supabase
       .from("gifts")
-      .select("id, name, category, price, image_url, external_link")
+      .select("id, name, category, price, image_url, external_link, total_quotas, stock, is_open_price, is_vaquinha, raised_amount")
       .eq("wedding_id", wedding.id);
 
     const { data: galleryImages } = await supabase

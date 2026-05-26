@@ -56,6 +56,11 @@ interface GiftData {
   price: number;
   image_url: string | null;
   external_link: string | null;
+  total_quotas: number | null;
+  stock: number | null;
+  is_open_price: boolean;
+  is_vaquinha: boolean;
+  raised_amount: number | null;
 }
 
 interface GalleryImageData {
@@ -119,6 +124,11 @@ const WeddingContent = ({
       price: Number(g.price),
       image: g.image_url || "",
       externalLink: g.external_link || "",
+      totalQuotas: g.total_quotas !== null && g.total_quotas !== undefined ? Number(g.total_quotas) : null,
+      stock: g.stock !== null && g.stock !== undefined ? Number(g.stock) : null,
+      isOpenPrice: g.is_open_price || false,
+      isVaquinha: g.is_vaquinha || false,
+      raisedAmount: Number(g.raised_amount) || 0,
     })),
     galleryImages: [],
   };

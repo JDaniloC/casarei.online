@@ -55,13 +55,20 @@ const PublicLandingContent = ({
   const { config } = useWedding();
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
 
-  // Apply layout theme to root element
+  // Apply layout theme and visual customizations to root element
   useEffect(() => {
     document.documentElement.setAttribute('data-layout', config.layout || 'classic');
+    document.documentElement.setAttribute('data-theme-color', config.themeColor || 'terracotta');
+    document.documentElement.setAttribute('data-theme-font', config.themeFont || 'serif');
+    document.documentElement.setAttribute('data-theme-decorations', String(config.themeDecorations ?? true));
+    
     return () => {
       document.documentElement.removeAttribute('data-layout');
+      document.documentElement.removeAttribute('data-theme-color');
+      document.documentElement.removeAttribute('data-theme-font');
+      document.documentElement.removeAttribute('data-theme-decorations');
     };
-  }, [config.layout]);
+  }, [config.layout, config.themeColor, config.themeFont, config.themeDecorations]);
 
   const sections = {
     ...config.sections,

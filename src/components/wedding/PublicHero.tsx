@@ -137,11 +137,28 @@ const PublicHero = () => {
           </motion.p>
         )}
 
+        {config.themeDecorations !== false && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.8, delay: 0.7 }}
+            className="flex justify-center my-6 text-gold-light"
+          >
+            <svg className="w-16 h-16 opacity-85" viewBox="0 0 100 100" fill="currentColor">
+              <path d="M50 15 C45 35, 25 35, 10 40 C30 45, 45 40, 50 15 Z" />
+              <path d="M50 15 C55 35, 75 35, 90 40 C70 45, 55 40, 50 15 Z" />
+              <path d="M50 15 C50 45, 50 70, 50 85" stroke="currentColor" strokeWidth="1.5" fill="none" />
+              <path d="M50 40 C35 50, 30 65, 20 70 C35 68, 45 60, 50 40 Z" />
+              <path d="M50 50 C65 60, 70 75, 80 80 C65 78, 55 70, 50 50 Z" />
+            </svg>
+          </motion.div>
+        )}
+
         <motion.div
           initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8, delay: 0.8 }}
-          className="mb-12"
+          className="mb-8"
         >
           <p className="text-gold-light text-2xl sm:text-3xl font-serif tracking-wide capitalize">
             {formattedDate}

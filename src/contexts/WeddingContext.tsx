@@ -64,6 +64,11 @@ export interface WeddingConfig {
   dressCodeText: string;
   colorsToAvoid: string;
   additionalInfo: string;
+
+  // Theme Customizations
+  themeColor: string;
+  themeFont: string;
+  themeDecorations: boolean;
 }
 
 interface WeddingContextType {
@@ -81,6 +86,9 @@ const defaultConfig: WeddingConfig = {
   tagline: "Estamos ansiosos para celebrar esse dia com você",
   
   layout: "classic",
+  themeColor: "terracotta",
+  themeFont: "serif",
+  themeDecorations: true,
   
   sections: {
     about: true,

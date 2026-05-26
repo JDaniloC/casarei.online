@@ -170,7 +170,8 @@ const Dashboard = () => {
           payment_credit_card, payment_pix, payment_boleto, max_installments,
           manual_pix_type, manual_pix_key, manual_pix_qr_image_url,
           story_photo_1, story_photo_2, story_photo_3,
-          whatsapp_number
+          whatsapp_number,
+          theme_color, theme_font, theme_decorations
         `)
         .eq("user_id", user.id)
         .single();
@@ -226,6 +227,9 @@ const Dashboard = () => {
             (wedding as Record<string, unknown>).story_photo_3 as string,
           ].filter(Boolean) as string[],
           whatsappNumber: (wedding as Record<string, unknown>).whatsapp_number as string || "",
+          themeColor: (wedding as any).theme_color as string || "terracotta",
+          themeFont: (wedding as any).theme_font as string || "serif",
+          themeDecorations: (wedding as any).theme_decorations as boolean ?? true,
         });
 
         // Load gifts
@@ -407,6 +411,9 @@ const Dashboard = () => {
         story_photo_2: storyPhoto2 || null,
         story_photo_3: storyPhoto3 || null,
         whatsapp_number: whatsappNumber || null,
+        theme_color: config.themeColor || "terracotta",
+        theme_font: config.themeFont || "serif",
+        theme_decorations: config.themeDecorations ?? true,
       };
 
       let weddingId: string;
@@ -903,304 +910,497 @@ const Dashboard = () => {
         </div>
 
         {settingsSubTab === "appearance" && (
-          <div className="space-y-8 animate-fade-in">
-            {/* Section 1: Couple Info */}
-            <motion.section
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="bg-card rounded-xl p-6 shadow-soft border border-border"
-            >
-              <div className="flex items-center gap-3 mb-6">
-                <Heart className="w-5 h-5 text-gold" />
-                <h2 className="font-serif text-xl text-foreground">Informações do Casal</h2>
-              </div>
-              
-              <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                <div className="space-y-2">
-                  <Label htmlFor="coupleName">Nome do Casal *</Label>
-                  <Input
-                    id="coupleName"
-                    value={config.coupleName}
-                    onChange={(e) => updateConfig({ coupleName: e.target.value })}
-                    placeholder="Ex: Maria & João"
-                    className="bg-background"
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Será usado na URL: /{generateSlug(config.coupleName) || "nome-do-casal"}
-                  </p>
+          <div className="grid lg:grid-cols-12 gap-8 items-start animate-fade-in">
+            {/* Left Column: Controls */}
+            <div className="lg:col-span-7 space-y-8">
+              {/* Section 1: Couple Info */}
+              <motion.section
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="bg-card rounded-xl p-6 shadow-soft border border-border"
+              >
+                <div className="flex items-center gap-3 mb-6">
+                  <Heart className="w-5 h-5 text-gold" />
+                  <h2 className="font-serif text-xl text-foreground">Informações do Casal</h2>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="weddingDate">Data do Casamento</Label>
-                  <Input
-                    id="weddingDate"
-                    type="date"
-                    value={config.weddingDate}
-                    onChange={(e) => updateConfig({ weddingDate: e.target.value })}
-                    className="bg-background"
-                  />
-                </div>
-                <div className="space-y-2 sm:col-span-2 lg:col-span-1">
-                  <Label htmlFor="tagline">Frase de Destaque</Label>
-                  <Input
-                    id="tagline"
-                    value={config.tagline}
-                    onChange={(e) => updateConfig({ tagline: e.target.value })}
-                    placeholder="Uma frase especial..."
-                    className="bg-background"
-                  />
-                </div>
-                <div className="space-y-2 sm:col-span-2 lg:col-span-1">
-                  <Label htmlFor="whatsappNumber">WhatsApp para Contato/Dúvidas (Opcional)</Label>
-                  <Input
-                    id="whatsappNumber"
-                    value={whatsappNumber}
-                    onChange={(e) => {
-                      setWhatsappNumber(e.target.value);
-                      updateConfig({ whatsappNumber: e.target.value });
-                    }}
-                    placeholder="Ex: 11999999999"
-                    className="bg-background"
-                  />
-                </div>
-              </div>
-            </motion.section>
-
-            {/* Section 2: Layout Selection */}
-            <motion.section
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.1 }}
-              className="bg-card rounded-xl p-6 shadow-soft border border-border"
-            >
-              <div className="flex items-center gap-3 mb-6">
-                <Image className="w-5 h-5 text-gold" />
-                <h2 className="font-serif text-xl text-foreground">Escolha do Layout</h2>
-              </div>
-              
-              <div className="grid sm:grid-cols-3 gap-4">
-                {layoutOptions.map((layout) => (
-                  <button
-                    key={layout.id}
-                    onClick={() => updateConfig({ layout: layout.id })}
-                    className={`p-4 rounded-xl border-2 transition-all text-left ${
-                      config.layout === layout.id
-                        ? "border-gold bg-gold/5"
-                        : "border-border hover:border-gold/50"
-                    }`}
-                  >
-                    {layout.id === "classic" && (
-                      <div className="h-28 rounded-lg mb-3 bg-[#FAF8F5] border border-[#EBE6DD] flex flex-col items-center justify-between p-3 relative overflow-hidden font-serif select-none">
-                        <div className="absolute inset-1 border border-[#D4AF37]/20 rounded pointer-events-none" />
-                        <div className="flex justify-between w-full text-[6px] text-[#8C7A6B] font-sans px-1 tracking-wider uppercase opacity-80">
-                          <span>Home</span>
-                          <span>História</span>
-                          <span>Presentes</span>
-                        </div>
-                        <div className="flex flex-col items-center justify-center my-auto">
-                          <span className="text-[11px] font-bold text-[#B38F4D] tracking-widest leading-none mb-0.5">M & J</span>
-                          <span className="text-[5px] text-[#8C7A6B] font-sans italic opacity-75">15 de Agosto de 2025</span>
-                          <div className="w-8 h-[0.5px] bg-[#D4AF37] my-1 opacity-60" />
-                          <span className="text-[4px] text-[#8C7A6B] font-sans tracking-wide">SALVEM A DATA</span>
-                        </div>
-                        <div className="flex gap-1 justify-center items-center w-full">
-                          <div className="w-1 h-1 rounded-full bg-[#D4AF37]/40" />
-                          <div className="w-[3px] h-[3px] rounded-full bg-[#D4AF37]/30" />
-                          <div className="w-1 h-1 rounded-full bg-[#D4AF37]/40" />
-                        </div>
-                      </div>
-                    )}
-
-                    {layout.id === "modern" && (
-                      <div className="h-28 rounded-lg mb-3 bg-[#F1F3F5] border border-[#E2E8F0] flex flex-col justify-between p-3 relative overflow-hidden font-sans select-none">
-                        <div className="flex justify-between items-center w-full text-[6px] text-[#475569] font-medium border-b border-[#E2E8F0] pb-1 px-1">
-                          <span className="font-bold text-primary">m+j</span>
-                          <div className="flex gap-2 text-[4px] opacity-75">
-                            <span>Gifts</span>
-                            <span className="bg-primary text-white px-1 py-0.5 rounded-full">RSVP</span>
-                          </div>
-                        </div>
-                        <div className="grid grid-cols-2 gap-2 my-auto items-center">
-                          <div className="flex flex-col text-left">
-                            <span className="text-[8px] font-bold text-[#1E293B] leading-none mb-0.5">Maria + João</span>
-                            <span className="text-[4px] text-[#64748B] font-semibold tracking-wider uppercase mb-1">15.08.2025</span>
-                            <div className="h-2.5 w-10 bg-primary rounded-sm flex items-center justify-center">
-                              <span className="text-[4px] text-white font-bold">Confirmar</span>
-                            </div>
-                          </div>
-                          <div className="w-full h-8 bg-[#CBD5E1] rounded-md relative overflow-hidden flex items-center justify-center">
-                            <div className="w-4 h-4 rounded-full bg-[#94A3B8]/40" />
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
-                    {layout.id === "minimalist" && (
-                      <div className="h-28 rounded-lg mb-3 bg-white border border-[#E5E7EB] flex flex-col justify-between p-3 relative overflow-hidden font-light select-none tracking-wide text-neutral-800">
-                        <div className="flex justify-start gap-3 w-full text-[5px] text-neutral-400 font-sans tracking-widest uppercase">
-                          <span>M | J</span>
-                          <span className="ml-auto">Info</span>
-                          <span>RSVP</span>
-                        </div>
-                        <div className="flex flex-col items-start text-left my-auto font-serif pl-1">
-                          <span className="text-[9px] font-light tracking-tight text-neutral-900 leading-none mb-1">
-                            Maria <span className="font-sans text-[7px] font-thin text-neutral-400">|</span> João
-                          </span>
-                          <span className="text-[4px] font-sans tracking-widest text-neutral-400 uppercase">AUGUST 15, 2025</span>
-                        </div>
-                        <div className="border-t border-[#F3F4F6] pt-1 flex justify-between items-center w-full">
-                          <span className="text-[4px] text-neutral-400 tracking-wider">#MARIAEJOAO</span>
-                          <span className="text-[4px] font-sans uppercase tracking-widest text-neutral-900 border-b border-neutral-900 pb-0.5 font-medium">VER DETALHES</span>
-                        </div>
-                      </div>
-                    )}
-                    <h3 className="font-medium text-foreground">{layout.name}</h3>
-                    <p className="text-sm text-muted-foreground mt-1">{layout.description}</p>
-                  </button>
-                ))}
-              </div>
-            </motion.section>
-
-            {/* Section 3: Toggle Sections */}
-            <motion.section
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.2 }}
-              className="bg-card rounded-xl p-6 shadow-soft border border-border"
-            >
-              <div className="flex items-center gap-3 mb-6">
-                <Settings className="w-5 h-5 text-gold" />
-                <h2 className="font-serif text-xl text-foreground">Seções do Site</h2>
-              </div>
-              
-              <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                {sectionOptions.map(({ key, label, icon: Icon }) => (
-                  <div
-                    key={key}
-                    className="flex items-center justify-between p-4 rounded-lg bg-muted/50 border border-border"
-                  >
-                    <div className="flex items-center gap-3">
-                      <Icon className="w-4 h-4 text-gold" />
-                      <span className="text-sm font-medium text-foreground">{label}</span>
-                    </div>
-                    <Switch
-                      checked={config.sections[key]}
-                      onCheckedChange={() => toggleSection(key)}
+                
+                <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                  <div className="space-y-2">
+                    <Label htmlFor="coupleName">Nome do Casal *</Label>
+                    <Input
+                      id="coupleName"
+                      value={config.coupleName}
+                      onChange={(e) => updateConfig({ coupleName: e.target.value })}
+                      placeholder="Ex: Maria & João"
+                      className="bg-background"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Será usado na URL: /{generateSlug(config.coupleName) || "nome-do-casal"}
+                    </p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="weddingDate">Data do Casamento</Label>
+                    <Input
+                      id="weddingDate"
+                      type="date"
+                      value={config.weddingDate}
+                      onChange={(e) => updateConfig({ weddingDate: e.target.value })}
+                      className="bg-background"
                     />
                   </div>
-                ))}
-              </div>
-
-              {/* UX Tip Banner */}
-              <div className="mt-6 flex gap-3 p-4 bg-gold/5 rounded-lg border border-gold/20 text-sm text-gold items-start">
-                <Info className="w-5 h-5 flex-shrink-0 mt-0.5 text-gold" />
-                <div>
-                  <p className="font-semibold mb-1">Dica de UX</p>
-                  <p className="text-xs text-muted-foreground leading-relaxed">
-                    Ao desativar uma seção acima, o painel de configurações correspondente ficará oculto temporariamente para simplificar sua navegação. Não se preocupe: você pode reativar qualquer seção a qualquer momento sem perder os dados já preenchidos!
-                  </p>
-                </div>
-              </div>
-            </motion.section>
-
-            {/* Section 4: Media with dimensions */}
-            <motion.section
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.3 }}
-              className="bg-card rounded-xl p-6 shadow-soft border border-border"
-            >
-              <div className="flex items-center gap-3 mb-6">
-                <Camera className="w-5 h-5 text-gold" />
-                <h2 className="font-serif text-xl text-foreground">Mídia (Opcional)</h2>
-              </div>
-              
-              <div className={`grid gap-6 ${config.sections.video ? 'sm:grid-cols-2' : 'grid-cols-1'}`}>
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    <Label htmlFor="heroImage">URL da Foto Principal (Hero)</Label>
-                    <Tooltip>
-                      <TooltipTrigger>
-                        <Info className="w-4 h-4 text-muted-foreground" />
-                      </TooltipTrigger>
-                      <TooltipContent className="max-w-xs">
-                        <p className="font-medium mb-1">Dimensões recomendadas:</p>
-                        <p className="text-sm">1920 x 1080 pixels (16:9)</p>
-                        <p className="text-sm">ou 1920 x 1280 pixels (3:2)</p>
-                        <p className="text-sm text-muted-foreground mt-1">Formato: JPG ou PNG</p>
-                      </TooltipContent>
-                    </Tooltip>
+                  <div className="space-y-2 sm:col-span-2 lg:col-span-1">
+                    <Label htmlFor="tagline">Frase de Destaque</Label>
+                    <Input
+                      id="tagline"
+                      value={config.tagline}
+                      onChange={(e) => updateConfig({ tagline: e.target.value })}
+                      placeholder="Uma frase especial..."
+                      className="bg-background"
+                    />
                   </div>
-                  <Input
-                    id="heroImage"
-                    value={config.heroImage}
-                    onChange={(e) => updateConfig({ heroImage: e.target.value })}
-                    placeholder="https://..."
-                    className="bg-background"
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    📐 Recomendado: 1920x1080px (16:9) ou 1920x1280px (3:2)
-                  </p>
+                  <div className="space-y-2 sm:col-span-2 lg:col-span-1">
+                    <Label htmlFor="whatsappNumber">WhatsApp para Contato/Dúvidas (Opcional)</Label>
+                    <Input
+                      id="whatsappNumber"
+                      value={whatsappNumber}
+                      onChange={(e) => {
+                        setWhatsappNumber(e.target.value);
+                        updateConfig({ whatsappNumber: e.target.value });
+                      }}
+                      placeholder="Ex: 11999999999"
+                      className="bg-background"
+                    />
+                  </div>
                 </div>
-                {config.sections.video && (
+              </motion.section>
+
+              {/* Section 1.5: Identidade Visual em Tempo Real */}
+              <motion.section
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.05 }}
+                className="bg-card rounded-xl p-6 shadow-soft border border-border"
+              >
+                <div className="flex items-center gap-3 mb-6">
+                  <Palette className="w-5 h-5 text-gold" />
+                  <h2 className="font-serif text-xl text-foreground">Identidade Visual Rápida</h2>
+                </div>
+                
+                <div className="space-y-6">
+                  {/* Color Palette Selector */}
+                  <div>
+                    <Label className="text-sm font-medium block mb-3">Paleta de Cores Curada</Label>
+                    <div className="flex flex-wrap gap-4">
+                      {[
+                        { id: "terracotta", name: "Terracotta", color: "bg-[#C2593F]" },
+                        { id: "sage", name: "Sage Green", color: "bg-[#5E7A60]" },
+                        { id: "rose", name: "Dusty Rose", color: "bg-[#B86F7D]" },
+                        { id: "blue", name: "Slate Blue", color: "bg-[#5D7F9B]" },
+                        { id: "gold", name: "Champagne Gold", color: "bg-[#A68A5E]" },
+                      ].map((palette) => (
+                        <button
+                          key={palette.id}
+                          type="button"
+                          onClick={() => updateConfig({ themeColor: palette.id })}
+                          className={`flex items-center gap-2 px-3 py-2 rounded-full border-2 transition-all text-xs font-medium ${
+                            config.themeColor === palette.id
+                              ? "border-primary bg-primary/5 text-primary shadow-sm"
+                              : "border-border hover:border-muted-foreground/30 text-muted-foreground bg-background"
+                          }`}
+                        >
+                          <span className={`w-4 h-4 rounded-full ${palette.color} block shadow-inner`} />
+                          {palette.name}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Typography Selector */}
+                  <div>
+                    <Label className="text-sm font-medium block mb-3">Combinação Tipográfica</Label>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      {[
+                        { id: "serif", title: "Aa", subtitle: "Serifada Clássica", fontClass: "font-serif" },
+                        { id: "sans", title: "Aa", subtitle: "Moderna Limpa", fontClass: "font-sans font-bold" },
+                        { id: "elegant", title: "Aa", subtitle: "Caligráfica Delicada", fontClass: "font-serif italic" },
+                      ].map((fontOption) => (
+                        <button
+                          key={fontOption.id}
+                          type="button"
+                          onClick={() => updateConfig({ themeFont: fontOption.id })}
+                          className={`p-4 rounded-xl border-2 transition-all text-left flex flex-col justify-between ${
+                            config.themeFont === fontOption.id
+                              ? "border-primary bg-primary/5 shadow-sm"
+                              : "border-border hover:border-muted-foreground/30 bg-background"
+                          }`}
+                        >
+                          <span className={`text-2xl mb-1 text-foreground ${fontOption.fontClass}`}>
+                            {fontOption.id === "elegant" ? "Aa" : fontOption.title}
+                          </span>
+                          <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider block mt-2">
+                            {fontOption.subtitle}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Decorative Elements Switch */}
+                  <div className="flex items-center justify-between p-4 rounded-xl bg-muted/30 border border-border mt-4">
+                    <div className="space-y-0.5">
+                      <Label className="text-sm font-medium text-foreground flex items-center gap-2">
+                        <Wand2 className="w-4 h-4 text-gold" />
+                        Elementos Decorativos Florais
+                      </Label>
+                      <p className="text-xs text-muted-foreground leading-normal">
+                        Exibe ilustrações delicadas de folhagens e ramos botânicos no site.
+                      </p>
+                    </div>
+                    <Switch
+                      checked={config.themeDecorations ?? true}
+                      onCheckedChange={(checked) => updateConfig({ themeDecorations: checked })}
+                    />
+                  </div>
+                </div>
+              </motion.section>
+
+              {/* Section 2: Layout Selection */}
+              <motion.section
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.1 }}
+                className="bg-card rounded-xl p-6 shadow-soft border border-border"
+              >
+                <div className="flex items-center gap-3 mb-6">
+                  <Image className="w-5 h-5 text-gold" />
+                  <h2 className="font-serif text-xl text-foreground">Escolha do Layout</h2>
+                </div>
+                
+                <div className="grid sm:grid-cols-3 gap-4">
+                  {layoutOptions.map((layout) => (
+                    <button
+                      key={layout.id}
+                      onClick={() => updateConfig({ layout: layout.id })}
+                      className={`p-4 rounded-xl border-2 transition-all text-left ${
+                        config.layout === layout.id
+                          ? "border-gold bg-gold/5"
+                          : "border-border hover:border-gold/50"
+                      }`}
+                    >
+                      {layout.id === "classic" && (
+                        <div className="h-28 rounded-lg mb-3 bg-[#FAF8F5] border border-[#EBE6DD] flex flex-col items-center justify-between p-3 relative overflow-hidden font-serif select-none">
+                          <div className="absolute inset-1 border border-[#D4AF37]/20 rounded pointer-events-none" />
+                          <div className="flex justify-between w-full text-[6px] text-[#8C7A6B] font-sans px-1 tracking-wider uppercase opacity-80">
+                            <span>Home</span>
+                            <span>História</span>
+                            <span>Presentes</span>
+                          </div>
+                          <div className="flex flex-col items-center justify-center my-auto">
+                            <span className="text-[11px] font-bold text-[#B38F4D] tracking-widest leading-none mb-0.5">M & J</span>
+                            <span className="text-[5px] text-[#8C7A6B] font-sans italic opacity-75">15 de Agosto de 2025</span>
+                            <div className="w-8 h-[0.5px] bg-[#D4AF37] my-1 opacity-60" />
+                            <span className="text-[4px] text-[#8C7A6B] font-sans tracking-wide">SALVEM A DATA</span>
+                          </div>
+                          <div className="flex gap-1 justify-center items-center w-full">
+                            <div className="w-1 h-1 rounded-full bg-[#D4AF37]/40" />
+                            <div className="w-[3px] h-[3px] rounded-full bg-[#D4AF37]/30" />
+                            <div className="w-1 h-1 rounded-full bg-[#D4AF37]/40" />
+                          </div>
+                        </div>
+                      )}
+
+                      {layout.id === "modern" && (
+                        <div className="h-28 rounded-lg mb-3 bg-[#F1F3F5] border border-[#E2E8F0] flex flex-col justify-between p-3 relative overflow-hidden font-sans select-none">
+                          <div className="flex justify-between items-center w-full text-[6px] text-[#475569] font-medium border-b border-[#E2E8F0] pb-1 px-1">
+                            <span className="font-bold text-primary">m+j</span>
+                            <div className="flex gap-2 text-[4px] opacity-75">
+                              <span>Gifts</span>
+                              <span className="bg-primary text-white px-1 py-0.5 rounded-full">RSVP</span>
+                            </div>
+                          </div>
+                          <div className="grid grid-cols-2 gap-2 my-auto items-center">
+                            <div className="flex flex-col text-left">
+                              <span className="text-[8px] font-bold text-[#1E293B] leading-none mb-0.5">Maria + João</span>
+                              <span className="text-[4px] text-[#64748B] font-semibold tracking-wider uppercase mb-1">15.08.2025</span>
+                              <div className="h-2.5 w-10 bg-primary rounded-sm flex items-center justify-center">
+                                <span className="text-[4px] text-white font-bold">Confirmar</span>
+                              </div>
+                            </div>
+                            <div className="w-full h-8 bg-[#CBD5E1] rounded-md relative overflow-hidden flex items-center justify-center">
+                              <div className="w-4 h-4 rounded-full bg-[#94A3B8]/40" />
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {layout.id === "minimalist" && (
+                        <div className="h-28 rounded-lg mb-3 bg-white border border-[#E5E7EB] flex flex-col justify-between p-3 relative overflow-hidden font-light select-none tracking-wide text-neutral-800">
+                          <div className="flex justify-start gap-3 w-full text-[5px] text-neutral-400 font-sans tracking-widest uppercase">
+                            <span>M | J</span>
+                            <span className="ml-auto">Info</span>
+                            <span>RSVP</span>
+                          </div>
+                          <div className="flex flex-col items-start text-left my-auto font-serif pl-1">
+                            <span className="text-[9px] font-light tracking-tight text-neutral-900 leading-none mb-1">
+                              Maria <span className="font-sans text-[7px] font-thin text-neutral-400">|</span> João
+                            </span>
+                            <span className="text-[4px] font-sans tracking-widest text-neutral-400 uppercase">AUGUST 15, 2025</span>
+                          </div>
+                          <div className="border-t border-[#F3F4F6] pt-1 flex justify-between items-center w-full">
+                            <span className="text-[4px] text-neutral-400 tracking-wider">#MARIAEJOAO</span>
+                            <span className="text-[4px] font-sans uppercase tracking-widest text-neutral-900 border-b border-neutral-900 pb-0.5 font-medium">VER DETALHES</span>
+                          </div>
+                        </div>
+                      )}
+                      <h3 className="font-medium text-foreground">{layout.name}</h3>
+                      <p className="text-sm text-muted-foreground mt-1">{layout.description}</p>
+                    </button>
+                  ))}
+                </div>
+              </motion.section>
+
+              {/* Section 3: Toggle Sections */}
+              <motion.section
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.2 }}
+                className="bg-card rounded-xl p-6 shadow-soft border border-border"
+              >
+                <div className="flex items-center gap-3 mb-6">
+                  <Settings className="w-5 h-5 text-gold" />
+                  <h2 className="font-serif text-xl text-foreground">Seções do Site</h2>
+                </div>
+                
+                <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                  {sectionOptions.map(({ key, label, icon: Icon }) => (
+                    <div
+                      key={key}
+                      className="flex items-center justify-between p-4 rounded-lg bg-muted/50 border border-border"
+                    >
+                      <div className="flex items-center gap-3">
+                        <Icon className="w-4 h-4 text-gold" />
+                        <span className="text-sm font-medium text-foreground">{label}</span>
+                      </div>
+                      <Switch
+                        checked={config.sections[key]}
+                        onCheckedChange={() => toggleSection(key)}
+                      />
+                    </div>
+                  ))}
+                </div>
+
+                {/* UX Tip Banner */}
+                <div className="mt-6 flex gap-3 p-4 bg-gold/5 rounded-lg border border-gold/20 text-sm text-gold items-start">
+                  <Info className="w-5 h-5 flex-shrink-0 mt-0.5 text-gold" />
+                  <div>
+                    <p className="font-semibold mb-1">Dica de UX</p>
+                    <p className="text-xs text-muted-foreground leading-relaxed">
+                      Ao desativar uma seção acima, o painel de configurações correspondente ficará oculto temporariamente para simplificar sua navegação. Não se preocupe: você pode reativar qualquer seção a qualquer momento sem perder os dados já preenchidos!
+                    </p>
+                  </div>
+                </div>
+              </motion.section>
+
+              {/* Section 4: Media with dimensions */}
+              <motion.section
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.3 }}
+                className="bg-card rounded-xl p-6 shadow-soft border border-border"
+              >
+                <div className="flex items-center gap-3 mb-6">
+                  <Camera className="w-5 h-5 text-gold" />
+                  <h2 className="font-serif text-xl text-foreground">Mídia (Opcional)</h2>
+                </div>
+                
+                <div className={`grid gap-6 ${config.sections.video ? 'sm:grid-cols-2' : 'grid-cols-1'}`}>
                   <div className="space-y-2">
                     <div className="flex items-center gap-2">
-                      <Label htmlFor="videoUrl">Link do Vídeo (YouTube/Vimeo)</Label>
+                      <Label htmlFor="heroImage">URL da Foto Principal (Hero)</Label>
                       <Tooltip>
                         <TooltipTrigger>
                           <Info className="w-4 h-4 text-muted-foreground" />
                         </TooltipTrigger>
                         <TooltipContent className="max-w-xs">
-                          <p className="font-medium mb-1">Formatos aceitos:</p>
-                          <p className="text-sm">youtube.com/watch?v=...</p>
-                          <p className="text-sm">vimeo.com/...</p>
-                          <p className="text-sm text-muted-foreground mt-1">Proporção 16:9 recomendada</p>
+                          <p className="font-medium mb-1">Dimensões recomendadas:</p>
+                          <p className="text-sm">1920 x 1080 pixels (16:9)</p>
+                          <p className="text-sm">ou 1920 x 1280 pixels (3:2)</p>
+                          <p className="text-sm text-muted-foreground mt-1">Formato: JPG ou PNG</p>
                         </TooltipContent>
                       </Tooltip>
                     </div>
                     <Input
-                      id="videoUrl"
-                      value={config.videoUrl}
-                      onChange={(e) => updateConfig({ videoUrl: e.target.value })}
-                      placeholder="https://youtube.com/watch?v=..."
+                      id="heroImage"
+                      value={config.heroImage}
+                      onChange={(e) => updateConfig({ heroImage: e.target.value })}
+                      placeholder="https://..."
                       className="bg-background"
                     />
                     <p className="text-xs text-muted-foreground">
-                      🎬 Proporção recomendada: 16:9
+                      📐 Recomendado: 1920x1080px (16:9) ou 1920x1280px (3:2)
                     </p>
                   </div>
+                  {config.sections.video && (
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <Label htmlFor="videoUrl">Link do Vídeo (YouTube/Vimeo)</Label>
+                        <Tooltip>
+                          <TooltipTrigger>
+                            <Info className="w-4 h-4 text-muted-foreground" />
+                          </TooltipTrigger>
+                          <TooltipContent className="max-w-xs">
+                            <p className="font-medium mb-1">Formatos aceitos:</p>
+                            <p className="text-sm">youtube.com/watch?v=...</p>
+                            <p className="text-sm">vimeo.com/...</p>
+                            <p className="text-sm text-muted-foreground mt-1">Proporção 16:9 recomendada</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </div>
+                      <Input
+                        id="videoUrl"
+                        value={config.videoUrl}
+                        onChange={(e) => updateConfig({ videoUrl: e.target.value })}
+                        placeholder="https://youtube.com/watch?v=..."
+                        className="bg-background"
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        🎬 Proporção recomendada: 16:9
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Gallery dimensions note */}
+                {(config.sections.about || config.sections.gallery || config.sections.gifts) && (
+                  <div className="mt-6 p-4 bg-muted/50 rounded-lg border border-border">
+                    <h4 className="font-medium text-foreground mb-2 flex items-center gap-2">
+                      <Camera className="w-4 h-4 text-gold" />
+                      Dimensões Recomendadas
+                    </h4>
+                    <div className="grid sm:grid-cols-3 gap-4 text-sm text-muted-foreground">
+                      {config.sections.about && (
+                        <div>
+                          <p className="font-medium text-foreground">Fotos da História</p>
+                          <p>800 x 600px (4:3)</p>
+                        </div>
+                      )}
+                      {config.sections.gallery && (
+                        <div>
+                          <p className="font-medium text-foreground">Galeria Geral</p>
+                          <p>800 x 800px (1:1) ou 800 x 600px</p>
+                        </div>
+                      )}
+                      {config.sections.gifts && (
+                        <div>
+                          <p className="font-medium text-foreground">Imagem de Presente</p>
+                          <p>400 h 400px (1:1)</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 )}
+              </motion.section>
+            </div>
+
+            {/* Right Column: Simulated Mobile Frame Preview */}
+            <div className="lg:col-span-5 lg:sticky lg:top-8 flex flex-col items-center justify-center space-y-4">
+              <div className="text-center">
+                <span className="text-xs font-semibold text-primary uppercase tracking-widest">Prévia em Tempo Real</span>
+                <h3 className="font-serif text-lg text-foreground mt-1">Como os convidados verão</h3>
               </div>
 
-              {/* Gallery dimensions note */}
-              {(config.sections.about || config.sections.gallery || config.sections.gifts) && (
-                <div className="mt-6 p-4 bg-muted/50 rounded-lg border border-border">
-                  <h4 className="font-medium text-foreground mb-2 flex items-center gap-2">
-                    <Camera className="w-4 h-4 text-gold" />
-                    Dimensões Recomendadas
-                  </h4>
-                  <div className="grid sm:grid-cols-3 gap-4 text-sm text-muted-foreground">
-                    {config.sections.about && (
-                      <div>
-                        <p className="font-medium text-foreground">Fotos da História</p>
-                        <p>800 x 600px (4:3)</p>
+              <div className="relative w-full max-w-[280px] aspect-[9/18.5] bg-neutral-900 rounded-[38px] p-2.5 shadow-elevated border-[5px] border-neutral-800 ring-1 ring-neutral-700/50 overflow-hidden flex flex-col">
+                {/* Notch / Dynamic Island */}
+                <div className="absolute top-3.5 left-1/2 -translate-x-1/2 w-20 h-4 bg-black rounded-full z-30 flex items-center justify-between px-2 text-[8px] text-white">
+                  <div className="w-1.5 h-1.5 rounded-full bg-neutral-800" />
+                  <div className="w-1 h-1 rounded-full bg-green-500/80" />
+                </div>
+                
+                {/* Simulated Viewport Screen */}
+                <div 
+                  className="w-full h-full rounded-[30px] bg-background border border-neutral-800 overflow-hidden relative flex flex-col justify-between py-6 px-4 select-none animate-fade-in"
+                  data-theme-color={config.themeColor || "terracotta"}
+                  data-theme-font={config.themeFont || "serif"}
+                >
+                  {/* Top Bar Sim */}
+                  <div className="flex justify-between items-center w-full text-[5px] text-muted-foreground font-semibold tracking-widest uppercase mb-2">
+                    <span>{config.coupleName ? config.coupleName.split("&")[0].trim()[0] + " | " + (config.coupleName.split("&")[1] || "").trim()[0] : "C | R"}</span>
+                    <span>RSVP</span>
+                  </div>
+
+                  {/* Main Wedding Card Mockup */}
+                  <div className="my-auto flex flex-col items-center text-center space-y-4">
+                    {/* Leaf Decoration SVG */}
+                    {config.themeDecorations !== false && (
+                      <div className="w-10 h-10 text-primary flex items-center justify-center opacity-80 animate-fade-in">
+                        <svg className="w-full h-full" viewBox="0 0 100 100" fill="currentColor">
+                          <path d="M50 15 C45 35, 25 35, 10 40 C30 45, 45 40, 50 15 Z" />
+                          <path d="M50 15 C55 35, 75 35, 90 40 C70 45, 55 40, 50 15 Z" />
+                          <path d="M50 15 C50 45, 50 70, 50 85" stroke="currentColor" strokeWidth="1.5" fill="none" />
+                          <path d="M50 40 C35 50, 30 65, 20 70 C35 68, 45 60, 50 40 Z" />
+                          <path d="M50 50 C65 60, 70 75, 80 80 C65 78, 55 70, 50 50 Z" />
+                        </svg>
                       </div>
                     )}
-                    {config.sections.gallery && (
-                      <div>
-                        <p className="font-medium text-foreground">Galeria Geral</p>
-                        <p>800 x 800px (1:1) ou 800 x 600px</p>
+
+                    <div className="space-y-1">
+                      <p className="text-[6px] tracking-[0.25em] uppercase text-muted-foreground font-medium">
+                        Salvem a Data
+                      </p>
+                      <h2 className="font-serif text-lg text-foreground font-medium leading-tight">
+                        {config.coupleName || "Camila & Rafael"}
+                      </h2>
+                    </div>
+
+                    <div className="w-10 h-[0.5px] bg-primary/40" />
+
+                    <p className="text-[6px] uppercase tracking-wider text-primary font-semibold">
+                      {config.weddingDate ? (() => {
+                        const [year, month, day] = config.weddingDate.split('-').map(Number);
+                        const date = new Date(year, month - 1, day);
+                        return date.toLocaleDateString("pt-BR", {
+                          day: "numeric",
+                          month: "long",
+                          year: "numeric",
+                        });
+                      })() : "15 de Agosto de 2025"}
+                    </p>
+
+                    {/* Countdown Mockup */}
+                    <div className="grid grid-cols-4 gap-1.5 w-full max-w-[200px] mt-2">
+                      {[
+                        { value: "60", label: "Dias" },
+                        { value: "08", label: "Horas" },
+                        { value: "12", label: "Min" },
+                        { value: "54", label: "Seg" }
+                      ].map((item) => (
+                        <div key={item.label} className="bg-primary/5 rounded-md p-1.5 border border-primary/10 flex flex-col items-center justify-center">
+                          <span className="text-[10px] font-serif text-primary font-bold leading-none">{item.value}</span>
+                          <span className="text-[4px] uppercase tracking-wider text-muted-foreground mt-1">{item.label}</span>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Welcome card details */}
+                    <p className="text-[6px] text-muted-foreground max-w-[180px] leading-normal font-sans pt-1">
+                      Criamos este site para compartilhar com vocês os detalhes da organização do nosso casamento. Estamos muito felizes!
+                    </p>
+
+                    {/* CTA Button Sim */}
+                    <div className="w-full max-w-[180px] pt-1">
+                      <div className="w-full bg-primary text-primary-foreground py-1.5 rounded-md text-[5px] uppercase tracking-widest font-bold flex items-center justify-center shadow-soft">
+                        Confirmar Presença
                       </div>
-                    )}
-                    {config.sections.gifts && (
-                      <div>
-                        <p className="font-medium text-foreground">Imagem de Presente</p>
-                        <p>400 h 400px (1:1)</p>
-                      </div>
-                    )}
+                    </div>
+                  </div>
+
+                  {/* Bottom Footer Sim */}
+                  <div className="text-center text-[4px] text-muted-foreground tracking-wide mt-2">
+                    casarei.online
                   </div>
                 </div>
-              )}
-            </motion.section>
+              </div>
+            </div>
           </div>
         )}
 

@@ -75,7 +75,7 @@ test.describe('Full Flow E2E', () => {
 
     // Extrair o URL público gerado no Dashboard
     // O Dashboard renderiza <a href={publicUrl} target="_blank"...>
-    const publicUrl = await page.getAttribute('a[target="_blank"]', 'href');
+    const publicUrl = await page.getAttribute('a[href*="casal-"]', 'href');
     if (!publicUrl) {
       throw new Error("Não foi possível encontrar a URL pública gerada no Dashboard");
     }

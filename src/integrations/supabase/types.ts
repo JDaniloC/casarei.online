@@ -494,6 +494,9 @@ export type Database = {
           user_id: string
           video_url: string | null
           wedding_date: string | null
+          theme_color: string
+          theme_font: string
+          theme_decorations: boolean
         }
         Insert: {
           about_text?: string | null
@@ -542,6 +545,9 @@ export type Database = {
           user_id: string
           video_url?: string | null
           wedding_date?: string | null
+          theme_color?: string
+          theme_font?: string
+          theme_decorations?: boolean
         }
         Update: {
           about_text?: string | null
@@ -590,6 +596,9 @@ export type Database = {
           user_id?: string
           video_url?: string | null
           wedding_date?: string | null
+          theme_color?: string
+          theme_font?: string
+          theme_decorations?: boolean
         }
         Relationships: []
       }
@@ -635,6 +644,9 @@ export type Database = {
           tagline: string | null
           video_url: string | null
           wedding_date: string | null
+          theme_color: string | null
+          theme_font: string | null
+          theme_decorations: boolean | null
         }
         Insert: {
           about_text?: string | null
@@ -675,6 +687,9 @@ export type Database = {
           tagline?: string | null
           video_url?: string | null
           wedding_date?: string | null
+          theme_color?: string | null
+          theme_font?: string | null
+          theme_decorations?: boolean | null
         }
         Update: {
           about_text?: string | null
@@ -715,6 +730,9 @@ export type Database = {
           tagline?: string | null
           video_url?: string | null
           wedding_date?: string | null
+          theme_color?: string | null
+          theme_font?: string | null
+          theme_decorations?: boolean | null
         }
         Relationships: []
       }
@@ -761,6 +779,9 @@ export type Database = {
           user_id: string | null
           video_url: string | null
           wedding_date: string | null
+          theme_color: string | null
+          theme_font: string | null
+          theme_decorations: boolean | null
         }
         Insert: {
           about_text?: string | null
@@ -804,6 +825,9 @@ export type Database = {
           user_id?: string | null
           video_url?: string | null
           wedding_date?: string | null
+          theme_color?: string | null
+          theme_font?: string | null
+          theme_decorations?: boolean | null
         }
         Update: {
           about_text?: string | null
@@ -847,6 +871,9 @@ export type Database = {
           user_id?: string | null
           video_url?: string | null
           wedding_date?: string | null
+          theme_color?: string | null
+          theme_font?: string | null
+          theme_decorations?: boolean | null
         }
         Relationships: []
       }
