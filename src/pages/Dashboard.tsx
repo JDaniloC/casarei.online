@@ -1161,6 +1161,22 @@ const Dashboard = () => {
                           </div>
                         </div>
                       )}
+
+                      {layout.id === "editorial" && (
+                        <div className="h-28 rounded-lg mb-3 bg-white border border-border flex flex-col relative overflow-hidden font-serif select-none">
+                          <div className="h-1/2 w-full bg-slate-200 relative overflow-hidden">
+                            <div className="absolute inset-0 bg-black/10" />
+                            <div className="absolute bottom-1 right-1 w-3 h-3 border border-white/50 rounded-full flex items-center justify-center">
+                              <div className="w-1.5 h-1.5 bg-white/70 rounded-full" />
+                            </div>
+                          </div>
+                          <div className="h-1/2 w-full flex flex-col items-center justify-center bg-white p-2">
+                            <span className="text-[4px] font-sans tracking-widest uppercase text-muted-foreground mb-1">Vamos nos casar</span>
+                            <span className="text-[10px] font-normal tracking-tight text-primary leading-none">M & J</span>
+                            <span className="text-[4px] font-sans mt-1 bg-primary text-white px-1.5 py-0.5 rounded-sm uppercase tracking-wider">RSVP</span>
+                          </div>
+                        </div>
+                      )}
                       <h3 className="font-medium text-foreground">{layout.name}</h3>
                       <p className="text-sm text-muted-foreground mt-1">{layout.description}</p>
                     </button>
@@ -1184,16 +1200,18 @@ const Dashboard = () => {
                   {sectionOptions.map(({ key, label, icon: Icon }) => (
                     <div
                       key={key}
-                      className="flex items-center justify-between p-4 rounded-lg bg-muted/50 border border-border"
+                      className="flex items-center justify-between p-4 rounded-lg bg-muted/50 border border-border gap-4"
                     >
-                      <div className="flex items-center gap-3">
-                        <Icon className="w-4 h-4 text-gold" />
-                        <span className="text-sm font-medium text-foreground">{label}</span>
+                      <div className="flex items-center gap-3 min-w-0 flex-1">
+                        <Icon className="w-4 h-4 text-gold shrink-0" />
+                        <span className="text-sm font-medium text-foreground leading-tight break-words">{label}</span>
                       </div>
-                      <Switch
-                        checked={config.sections[key]}
-                        onCheckedChange={() => toggleSection(key)}
-                      />
+                      <div className="shrink-0">
+                        <Switch
+                          checked={config.sections[key]}
+                          onCheckedChange={() => toggleSection(key)}
+                        />
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -1330,6 +1348,7 @@ const Dashboard = () => {
                   className="w-full h-full rounded-[30px] bg-background border border-neutral-800 overflow-hidden relative flex flex-col justify-between py-6 px-4 select-none animate-fade-in"
                   data-theme-color={config.themeColor || "terracotta"}
                   data-theme-font={config.themeFont || "serif"}
+                  data-layout={config.layout || "classic"}
                 >
                   {/* Top Bar Sim */}
                   <div className="flex justify-between items-center w-full text-[5px] text-muted-foreground font-semibold tracking-widest uppercase mb-2">
