@@ -369,7 +369,7 @@ const Dashboard = () => {
           .from("weddings")
           .select("slug, id")
           .eq("slug", newSlug)
-          .single();
+          .maybeSingle();
 
         if (slugCheck && slugCheck.id !== existingWedding?.id) {
           slug = `${newSlug}-${Date.now().toString(36)}`;
