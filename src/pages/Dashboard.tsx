@@ -1200,13 +1200,13 @@ const Dashboard = () => {
                   {sectionOptions.map(({ key, label, icon: Icon }) => (
                     <div
                       key={key}
-                      className="flex items-center justify-between p-4 rounded-lg bg-muted/50 border border-border gap-4"
+                      className="flex items-center p-4 rounded-lg bg-muted/50 border border-border relative h-full min-h-[5rem]"
                     >
-                      <div className="flex items-center gap-3 min-w-0 flex-1">
-                        <Icon className="w-4 h-4 text-gold shrink-0" />
-                        <span className="text-sm font-medium text-foreground leading-tight break-words">{label}</span>
+                      <div className="flex items-start gap-3 w-full pr-14">
+                        <Icon className="w-5 h-5 text-gold shrink-0 mt-0.5" />
+                        <span className="text-sm font-medium text-foreground leading-snug">{label}</span>
                       </div>
-                      <div className="shrink-0">
+                      <div className="absolute right-4 top-1/2 -translate-y-1/2">
                         <Switch
                           checked={config.sections[key]}
                           onCheckedChange={() => toggleSection(key)}
@@ -1357,70 +1357,166 @@ const Dashboard = () => {
                   </div>
 
                   {/* Main Wedding Card Mockup */}
-                  <div className="my-auto flex flex-col items-center text-center space-y-4">
-                    {/* Leaf Decoration SVG */}
-                    {config.themeDecorations !== false && (
-                      <div className="w-10 h-10 text-primary flex items-center justify-center opacity-80 animate-fade-in">
-                        <svg className="w-full h-full" viewBox="0 0 100 100" fill="currentColor">
-                          <path d="M50 15 C45 35, 25 35, 10 40 C30 45, 45 40, 50 15 Z" />
-                          <path d="M50 15 C55 35, 75 35, 90 40 C70 45, 55 40, 50 15 Z" />
-                          <path d="M50 15 C50 45, 50 70, 50 85" stroke="currentColor" strokeWidth="1.5" fill="none" />
-                          <path d="M50 40 C35 50, 30 65, 20 70 C35 68, 45 60, 50 40 Z" />
-                          <path d="M50 50 C65 60, 70 75, 80 80 C65 78, 55 70, 50 50 Z" />
-                        </svg>
-                      </div>
-                    )}
-
-                    <div className="space-y-1">
-                      <p className="text-[6px] tracking-[0.25em] uppercase text-muted-foreground font-medium">
-                        Salvem a Data
-                      </p>
-                      <h2 className="font-serif text-lg text-foreground font-medium leading-tight">
-                        {config.coupleName || "Camila & Rafael"}
-                      </h2>
-                    </div>
-
-                    <div className="w-10 h-[0.5px] bg-primary/40" />
-
-                    <p className="text-[6px] uppercase tracking-wider text-primary font-semibold">
-                      {config.weddingDate ? (() => {
-                        const [year, month, day] = config.weddingDate.split('-').map(Number);
-                        const date = new Date(year, month - 1, day);
-                        return date.toLocaleDateString("pt-BR", {
-                          day: "numeric",
-                          month: "long",
-                          year: "numeric",
-                        });
-                      })() : "15 de Agosto de 2025"}
-                    </p>
-
-                    {/* Countdown Mockup */}
-                    <div className="grid grid-cols-4 gap-1.5 w-full max-w-[200px] mt-2">
-                      {[
-                        { value: "60", label: "Dias" },
-                        { value: "08", label: "Horas" },
-                        { value: "12", label: "Min" },
-                        { value: "54", label: "Seg" }
-                      ].map((item) => (
-                        <div key={item.label} className="bg-primary/5 rounded-md p-1.5 border border-primary/10 flex flex-col items-center justify-center">
-                          <span className="text-[10px] font-serif text-primary font-bold leading-none">{item.value}</span>
-                          <span className="text-[4px] uppercase tracking-wider text-muted-foreground mt-1">{item.label}</span>
+                  {(!config.layout || config.layout === "classic") && (
+                    <div className="my-auto flex flex-col items-center text-center space-y-4">
+                      {/* Leaf Decoration SVG */}
+                      {config.themeDecorations !== false && (
+                        <div className="w-10 h-10 text-primary flex items-center justify-center opacity-80 animate-fade-in">
+                          <svg className="w-full h-full" viewBox="0 0 100 100" fill="currentColor">
+                            <path d="M50 15 C45 35, 25 35, 10 40 C30 45, 45 40, 50 15 Z" />
+                            <path d="M50 15 C55 35, 75 35, 90 40 C70 45, 55 40, 50 15 Z" />
+                            <path d="M50 15 C50 45, 50 70, 50 85" stroke="currentColor" strokeWidth="1.5" fill="none" />
+                            <path d="M50 40 C35 50, 30 65, 20 70 C35 68, 45 60, 50 40 Z" />
+                            <path d="M50 50 C65 60, 70 75, 80 80 C65 78, 55 70, 50 50 Z" />
+                          </svg>
                         </div>
-                      ))}
-                    </div>
+                      )}
 
-                    {/* Welcome card details */}
-                    <p className="text-[6px] text-muted-foreground max-w-[180px] leading-normal font-sans pt-1">
-                      Criamos este site para compartilhar com vocês os detalhes da organização do nosso casamento. Estamos muito felizes!
-                    </p>
+                      <div className="space-y-1">
+                        <p className="text-[6px] tracking-[0.25em] uppercase text-muted-foreground font-medium">
+                          Salvem a Data
+                        </p>
+                        <h2 className="font-serif text-lg text-foreground font-medium leading-tight">
+                          {config.coupleName || "Camila & Rafael"}
+                        </h2>
+                      </div>
 
-                    {/* CTA Button Sim */}
-                    <div className="w-full max-w-[180px] pt-1">
-                      <div className="w-full bg-primary text-primary-foreground py-1.5 rounded-md text-[5px] uppercase tracking-widest font-bold flex items-center justify-center shadow-soft">
-                        Confirmar Presença
+                      <div className="w-10 h-[0.5px] bg-primary/40" />
+
+                      <p className="text-[6px] uppercase tracking-wider text-primary font-semibold">
+                        {config.weddingDate ? (() => {
+                          const [year, month, day] = config.weddingDate.split('-').map(Number);
+                          const date = new Date(year, month - 1, day);
+                          return date.toLocaleDateString("pt-BR", {
+                            day: "numeric",
+                            month: "long",
+                            year: "numeric",
+                          });
+                        })() : "15 de Agosto de 2025"}
+                      </p>
+
+                      {/* Countdown Mockup */}
+                      <div className="grid grid-cols-4 gap-1.5 w-full max-w-[200px] mt-2">
+                        {[
+                          { value: "60", label: "Dias" },
+                          { value: "08", label: "Horas" },
+                          { value: "12", label: "Min" },
+                          { value: "54", label: "Seg" }
+                        ].map((item) => (
+                          <div key={item.label} className="bg-primary/5 rounded-md p-1.5 border border-primary/10 flex flex-col items-center justify-center">
+                            <span className="text-[10px] font-serif text-primary font-bold leading-none">{item.value}</span>
+                            <span className="text-[4px] uppercase tracking-wider text-muted-foreground mt-1">{item.label}</span>
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* Welcome card details */}
+                      <p className="text-[6px] text-muted-foreground max-w-[180px] leading-normal font-sans pt-1">
+                        Criamos este site para compartilhar com vocês os detalhes da organização do nosso casamento. Estamos muito felizes!
+                      </p>
+
+                      {/* CTA Button Sim */}
+                      <div className="w-full max-w-[180px] pt-1">
+                        <div className="w-full bg-primary text-primary-foreground py-1.5 rounded-md text-[5px] uppercase tracking-widest font-bold flex items-center justify-center shadow-soft">
+                          Confirmar Presença
+                        </div>
                       </div>
                     </div>
-                  </div>
+                  )}
+
+                  {config.layout === "modern" && (
+                    <div className="my-auto flex flex-col items-start text-left space-y-4 px-2">
+                      <div className="w-full flex justify-between items-end mb-2">
+                        <h2 className="font-serif text-xl text-foreground font-bold leading-none w-2/3">
+                          {config.coupleName ? (
+                            <>
+                              {config.coupleName.split('&')[0].trim()} <br />
+                              <span className="text-primary">+</span> {config.coupleName.split('&')[1]?.trim() || ''}
+                            </>
+                          ) : (
+                            <>Camila <br/><span className="text-primary">+</span> Rafael</>
+                          )}
+                        </h2>
+                        <div className="text-right">
+                           <p className="text-[6px] tracking-widest uppercase text-muted-foreground font-semibold mb-1">
+                            {config.weddingDate ? config.weddingDate.split('-').reverse().join('.') : "15.08.2025"}
+                          </p>
+                        </div>
+                      </div>
+                      
+                      <div className="w-full h-24 bg-neutral-200 rounded-lg relative overflow-hidden">
+                        <div className="absolute inset-0 bg-black/5" />
+                      </div>
+
+                      <div className="w-full flex gap-2">
+                        <div className="flex-1 bg-primary text-primary-foreground py-2 rounded-md text-[6px] uppercase tracking-widest font-bold flex items-center justify-center shadow-soft">
+                          RSVP
+                        </div>
+                        <div className="flex-1 bg-white border border-border text-foreground py-2 rounded-md text-[6px] uppercase tracking-widest font-bold flex items-center justify-center">
+                          Presentes
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {config.layout === "minimalist" && (
+                    <div className="my-auto flex flex-col items-start text-left space-y-6 px-2">
+                      <div className="space-y-2">
+                        <p className="text-[5px] tracking-[0.3em] uppercase text-muted-foreground">
+                          {config.weddingDate ? (() => {
+                            const [year, month, day] = config.weddingDate.split('-').map(Number);
+                            const date = new Date(year, month - 1, day);
+                            return date.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }).toUpperCase();
+                          })() : "AUGUST 15, 2025"}
+                        </p>
+                        <h2 className="font-serif text-2xl text-foreground font-light leading-tight tracking-tight">
+                          {config.coupleName ? (
+                            <>
+                              {config.coupleName.split('&')[0].trim()}
+                              <span className="font-sans text-[12px] text-muted-foreground mx-1 font-thin">|</span>
+                              {config.coupleName.split('&')[1]?.trim() || ''}
+                            </>
+                          ) : (
+                            <>Camila <span className="font-sans text-[12px] text-muted-foreground mx-1 font-thin">|</span> Rafael</>
+                          )}
+                        </h2>
+                      </div>
+                      
+                      <p className="text-[7px] text-foreground font-light max-w-[160px] leading-relaxed">
+                        We invite you to celebrate our wedding.
+                      </p>
+
+                      <div className="w-full border-t border-border pt-4 mt-4 flex justify-between items-center">
+                        <span className="text-[5px] tracking-widest text-muted-foreground">#CAMILARAFA</span>
+                        <span className="text-[5px] uppercase tracking-[0.2em] font-medium border-b border-foreground pb-0.5">VER DETALHES</span>
+                      </div>
+                    </div>
+                  )}
+
+                  {config.layout === "editorial" && (
+                    <div className="absolute inset-0 flex flex-col font-serif bg-white pointer-events-none">
+                      <div className="h-[55%] w-full bg-neutral-200 relative overflow-hidden">
+                        <div className="absolute inset-0 bg-black/10" />
+                        <div className="absolute top-4 left-4 right-4 flex justify-between items-center text-[5px] text-white font-sans uppercase tracking-widest opacity-80">
+                          <span>{config.coupleName ? config.coupleName.split('&')[0].trim()[0] + ' | ' + (config.coupleName.split('&')[1] || '').trim()[0] : 'C | R'}</span>
+                          <span>RSVP</span>
+                        </div>
+                      </div>
+                      <div className="h-[45%] w-full flex flex-col items-center justify-center p-6 text-center space-y-3 z-10 bg-background">
+                        <p className="text-[5px] font-sans tracking-[0.2em] uppercase text-muted-foreground">
+                          Vamos nos casar
+                        </p>
+                        <h2 className="font-serif text-2xl text-primary font-normal leading-none tracking-tight">
+                          {config.coupleName ? config.coupleName.replace(' & ', ' e ') : 'Camila e Rafael'}
+                        </h2>
+                        <div className="mt-2">
+                          <div className="bg-primary text-white px-4 py-1.5 rounded-sm text-[5px] uppercase tracking-widest font-sans">
+                            RSVP
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Bottom Footer Sim */}
                   <div className="text-center text-[4px] text-muted-foreground tracking-wide mt-2">
