@@ -7,10 +7,12 @@ import {
   Plus, Trash2, Edit2, Save, ChevronRight, LogOut,
   CreditCard, Link2, Copy, Check, ExternalLink, Info,
   Loader2, CheckCircle2, XCircle, AlertCircle, MapPin,
-  History, QrCode, FileText, Wand2, Upload, Download,
+  History, Home, QrCode, FileText, Wand2, Upload, Download,
   Palette, LayoutDashboard
 } from "lucide-react";
 import DashboardHistory from "@/components/wedding/DashboardHistory";
+import DashboardVirtualHouse from "@/components/wedding/DashboardVirtualHouse";
+import HouseCatalogSettings from "@/components/wedding/HouseCatalogSettings";
 import { useWedding, Gift as GiftType } from "@/contexts/WeddingContext";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
@@ -81,6 +83,7 @@ const sectionOptions = [
   { key: "messageWall" as const, label: "Mural de Mensagens", icon: MessageSquare },
   { key: "gallery" as const, label: "Galeria de Fotos", icon: Camera },
   { key: "video" as const, label: "Vídeo", icon: Video },
+  { key: "virtualHouse" as const, label: "Casa dos Sonhos (2D)", icon: Home },
 ];
 
 const categories = ["Cozinha", "Quarto", "Sala", "Banheiro", "Casa", "Eletrônicos", "Experiências", "Outros"];
@@ -127,111 +130,190 @@ const Dashboard = () => {
   const [dashboardTab, setDashboardTab] = useState<"settings" | "history">(() => {
     return (location.state as any)?.activeTab || "history";
   });
-  const [settingsSubTab, setSettingsSubTab] = useState<"appearance" | "story" | "event" | "gifts">("appearance");
+  const [settingsSubTab, setSettingsSubTab] = useState<"appearance" | "story" | "event" | "gifts" | "virtualHouse">("appearance");
   const [houseActiveView, setHouseActiveView] = useState<"blueprint" | "catalog">("blueprint");
+  const [weddingId, setWeddingId] = useState<string>("");
+  const loadingWeddingRef = useRef(false);
 
   // Load existing wedding data - only once on mount
   useEffect(() => {
     const loadWeddingData = async () => {
-      if (!user || config.isLoaded) return;
+      if (!user || config.isLoaded || loadingWeddingRef.current) return;
+      loadingWeddingRef.current = true;
 
-      const { data: wedding } = await supabase
-        .from("weddings")
-        .select(`
-          id, slug, couple_name, wedding_date, tagline, layout,
-          section_about, section_wedding_info, section_gifts, section_rsvp,
-          section_message_wall, section_gallery, section_video, section_dress_code, section_virtual_house,
-          hero_image_url, video_url,
-          ceremony_date, ceremony_time, ceremony_location, ceremony_address,
-          reception_location, reception_address, reception_time, same_location,
-          about_text, dress_code_text, colors_to_avoid, additional_info,
-          mercado_pago_public_key,
-          payment_credit_card, payment_pix, payment_boleto, max_installments,
-          manual_pix_type, manual_pix_key, manual_pix_qr_image_url,
-          story_photo_1, story_photo_2, story_photo_3,
-          whatsapp_number,
-          theme_color, theme_font, theme_decorations
-        `)
-        .eq("user_id", user.id)
-        .single();
+      try {
+        let { data: wedding } = await supabase
+          .from("weddings")
+          .select(`
+            id, slug, couple_name, wedding_date, tagline, layout,
+            section_about, section_wedding_info, section_gifts, section_rsvp,
+            section_message_wall, section_gallery, section_video, section_dress_code, section_virtual_house,
+            hero_image_url, video_url,
+            ceremony_date, ceremony_time, ceremony_location, ceremony_address,
+            reception_location, reception_address, reception_time, same_location,
+            about_text, dress_code_text, colors_to_avoid, additional_info,
+            mercado_pago_public_key,
+            payment_credit_card, payment_pix, payment_boleto, max_installments,
+            manual_pix_type, manual_pix_key, manual_pix_qr_image_url,
+            story_photo_1, story_photo_2, story_photo_3,
+            whatsapp_number,
+            theme_color, theme_font, theme_decorations
+          `)
+          .eq("user_id", user.id)
+          .maybeSingle();
 
-      if (wedding) {
-        setWeddingSlug(wedding.slug);
-        
-        // Update context with saved data
-        updateConfig({
-          coupleName: wedding.couple_name,
-          weddingDate: wedding.wedding_date || "",
-          tagline: wedding.tagline || "",
-          layout: wedding.layout as "classic" | "modern" | "minimalist" | "editorial",
-          sections: {
-            about: wedding.section_about,
-            weddingInfo: wedding.section_wedding_info,
-            gifts: wedding.section_gifts,
-            rsvp: wedding.section_rsvp,
-            messageWall: wedding.section_message_wall,
-            gallery: wedding.section_gallery,
-            video: wedding.section_video,
-            dressCode: wedding.section_dress_code,
-            virtualHouse: wedding.section_virtual_house || false,
-          },
-          heroImage: wedding.hero_image_url || "",
-          videoUrl: wedding.video_url || "",
-          ceremonyDate: wedding.ceremony_date || "",
-          ceremonyTime: wedding.ceremony_time || "",
-          ceremonyLocation: wedding.ceremony_location || "",
-          ceremonyAddress: wedding.ceremony_address || "",
-          receptionLocation: wedding.reception_location || "",
-          receptionAddress: wedding.reception_address || "",
-          receptionTime: wedding.reception_time || "",
-          sameLocation: (wedding as Record<string, unknown>).same_location as boolean || false,
-          aboutText: wedding.about_text || "",
-          dressCodeText: wedding.dress_code_text || "",
-          colorsToAvoid: wedding.colors_to_avoid || "",
-          additionalInfo: wedding.additional_info || "",
-          storyPhotos: [
-            (wedding as Record<string, unknown>).story_photo_1 as string,
-            (wedding as Record<string, unknown>).story_photo_2 as string,
-            (wedding as Record<string, unknown>).story_photo_3 as string,
-          ].filter(Boolean) as string[],
-          whatsappNumber: (wedding as Record<string, unknown>).whatsapp_number as string || "",
-          themeColor: (wedding as any).theme_color as string || "terracotta",
-          themeFont: (wedding as any).theme_font as string || "serif",
-          themeDecorations: (wedding as any).theme_decorations ?? true,
-          mercadoPagoPublicKey: wedding.mercado_pago_public_key || "",
-          paymentCreditCard: (wedding as any).payment_credit_card ?? true,
-          paymentPix: (wedding as any).payment_pix ?? true,
-          paymentBoleto: (wedding as any).payment_boleto ?? true,
-          maxInstallments: (wedding as any).max_installments ?? 12,
-          manualPixType: (wedding as any).manual_pix_type || "cpf",
-          manualPixKey: (wedding as any).manual_pix_key || "",
-          manualPixQrImageUrl: (wedding as any).manual_pix_qr_image_url || "",
-          isLoaded: true,
-        });
+        if (!wedding) {
+          // Auto-create a wedding draft for new couples
+          const randomString = Math.random().toString(36).substring(2, 8);
+          const defaultSlug = `casal-${randomString}`;
+          
+          const { data: newWedding, error: createError } = await supabase
+            .from("weddings")
+            .insert({
+              user_id: user.id,
+              couple_name: "Camila & Rafael",
+              slug: defaultSlug,
+              layout: "classic",
+              section_about: true,
+              section_wedding_info: true,
+              section_gifts: true,
+              section_rsvp: true,
+              section_message_wall: true,
+              section_gallery: true,
+              section_video: false,
+              section_dress_code: true,
+              section_virtual_house: false,
+            })
+            .select(`
+              id, slug, couple_name, wedding_date, tagline, layout,
+              section_about, section_wedding_info, section_gifts, section_rsvp,
+              section_message_wall, section_gallery, section_video, section_dress_code, section_virtual_house,
+              hero_image_url, video_url,
+              ceremony_date, ceremony_time, ceremony_location, ceremony_address,
+              reception_location, reception_address, reception_time, same_location,
+              about_text, dress_code_text, colors_to_avoid, additional_info,
+              mercado_pago_public_key,
+              payment_credit_card, payment_pix, payment_boleto, max_installments,
+              manual_pix_type, manual_pix_key, manual_pix_qr_image_url,
+              story_photo_1, story_photo_2, story_photo_3,
+              whatsapp_number,
+              theme_color, theme_font, theme_decorations
+            `)
+            .single();
 
-        // Load gifts
-        const { data: gifts } = await supabase
-          .from("gifts")
-          .select("*")
-          .eq("wedding_id", wedding.id);
-
-        if (gifts && gifts.length > 0) {
-          const formattedGifts = gifts.map(g => ({
-            id: g.id,
-            name: g.name,
-            category: g.category,
-            price: Number(g.price),
-            image: g.image_url || "",
-            externalLink: g.external_link || "",
-            isOpenPrice: g.is_open_price || false,
-            isVaquinha: g.is_vaquinha || false,
-            raisedAmount: Number(g.raised_amount) || 0,
-            stock: g.stock !== null && g.stock !== undefined ? Number(g.stock) : null,
-            totalQuotas: g.total_quotas !== null && g.total_quotas !== undefined ? Number(g.total_quotas) : null,
-          }));
-          updateConfig({ gifts: formattedGifts });
+          if (createError) {
+            if ((createError as any).code === "23505") {
+              const { data: retryWedding, error: retryError } = await supabase
+                .from("weddings")
+                .select(`
+                  id, slug, couple_name, wedding_date, tagline, layout,
+                  section_about, section_wedding_info, section_gifts, section_rsvp,
+                  section_message_wall, section_gallery, section_video, section_dress_code, section_virtual_house,
+                  hero_image_url, video_url,
+                  ceremony_date, ceremony_time, ceremony_location, ceremony_address,
+                  reception_location, reception_address, reception_time, same_location,
+                  about_text, dress_code_text, colors_to_avoid, additional_info,
+                  mercado_pago_public_key,
+                  payment_credit_card, payment_pix, payment_boleto, max_installments,
+                  manual_pix_type, manual_pix_key, manual_pix_qr_image_url,
+                  story_photo_1, story_photo_2, story_photo_3,
+                  whatsapp_number,
+                  theme_color, theme_font, theme_decorations
+                `)
+                .eq("user_id", user.id)
+                .single();
+              if (retryError) throw retryError;
+              wedding = retryWedding;
+            } else {
+              throw createError;
+            }
+          } else {
+            wedding = newWedding;
+          }
         }
 
+        if (wedding) {
+          setWeddingSlug(wedding.slug);
+          setWeddingId(wedding.id);
+          
+          // Update context with saved data
+          updateConfig({
+            coupleName: wedding.couple_name,
+            weddingDate: wedding.wedding_date || "",
+            tagline: wedding.tagline || "",
+            layout: wedding.layout as "classic" | "modern" | "minimalist" | "editorial",
+            sections: {
+              about: wedding.section_about,
+              weddingInfo: wedding.section_wedding_info,
+              gifts: wedding.section_gifts,
+              rsvp: wedding.section_rsvp,
+              messageWall: wedding.section_message_wall,
+              gallery: wedding.section_gallery,
+              video: wedding.section_video,
+              dressCode: wedding.section_dress_code,
+              virtualHouse: wedding.section_virtual_house || false,
+            },
+            heroImage: wedding.hero_image_url || "",
+            videoUrl: wedding.video_url || "",
+            ceremonyDate: wedding.ceremony_date || "",
+            ceremonyTime: wedding.ceremony_time || "",
+            ceremonyLocation: wedding.ceremony_location || "",
+            ceremonyAddress: wedding.ceremony_address || "",
+            receptionLocation: wedding.reception_location || "",
+            receptionAddress: wedding.reception_address || "",
+            receptionTime: wedding.reception_time || "",
+            sameLocation: (wedding as Record<string, unknown>).same_location as boolean || false,
+            aboutText: wedding.about_text || "",
+            dressCodeText: wedding.dress_code_text || "",
+            colorsToAvoid: wedding.colors_to_avoid || "",
+            additionalInfo: wedding.additional_info || "",
+            storyPhotos: [
+              (wedding as Record<string, unknown>).story_photo_1 as string,
+              (wedding as Record<string, unknown>).story_photo_2 as string,
+              (wedding as Record<string, unknown>).story_photo_3 as string,
+            ].filter(Boolean) as string[],
+            whatsappNumber: (wedding as Record<string, unknown>).whatsapp_number as string || "",
+            themeColor: (wedding as any).theme_color as string || "terracotta",
+            themeFont: (wedding as any).theme_font as string || "serif",
+            themeDecorations: (wedding as any).theme_decorations ?? true,
+            mercadoPagoPublicKey: wedding.mercado_pago_public_key || "",
+            paymentCreditCard: (wedding as any).payment_credit_card ?? true,
+            paymentPix: (wedding as any).payment_pix ?? true,
+            paymentBoleto: (wedding as any).payment_boleto ?? true,
+            maxInstallments: (wedding as any).max_installments ?? 12,
+            manualPixType: (wedding as any).manual_pix_type || "cpf",
+            manualPixKey: (wedding as any).manual_pix_key || "",
+            manualPixQrImageUrl: (wedding as any).manual_pix_qr_image_url || "",
+            isLoaded: true,
+          });
+
+          // Load gifts
+          const { data: gifts } = await supabase
+            .from("gifts")
+            .select("*")
+            .eq("wedding_id", wedding.id);
+
+          if (gifts && gifts.length > 0) {
+            const formattedGifts = gifts.map(g => ({
+              id: g.id,
+              name: g.name,
+              category: g.category,
+              price: Number(g.price),
+              image: g.image_url || "",
+              externalLink: g.external_link || "",
+              isOpenPrice: g.is_open_price || false,
+              isVaquinha: g.is_vaquinha || false,
+              raisedAmount: Number(g.raised_amount) || 0,
+              stock: g.stock !== null && g.stock !== undefined ? Number(g.stock) : null,
+              totalQuotas: g.total_quotas !== null && g.total_quotas !== undefined ? Number(g.total_quotas) : null,
+            }));
+            updateConfig({ gifts: formattedGifts });
+          }
+        }
+      } catch (err) {
+        console.error("Error loading wedding data:", err);
+      } finally {
+        loadingWeddingRef.current = false;
       }
     };
 
@@ -360,6 +442,7 @@ const Dashboard = () => {
         section_gallery: config.sections.gallery,
         section_video: config.sections.video,
         section_dress_code: config.sections.dressCode,
+        section_virtual_house: config.sections.virtualHouse || false,
         hero_image_url: config.heroImage || null,
         video_url: config.videoUrl || null,
         ceremony_date: config.ceremonyDate || null,
@@ -489,6 +572,7 @@ const Dashboard = () => {
       }
 
       setWeddingSlug(slug);
+      setWeddingId(weddingId);
       
       // Save MP credentials via edge function (encrypted server-side)
       if (mercadoPagoAccessToken && weddingId) {
@@ -499,7 +583,7 @@ const Dashboard = () => {
             body: {
               wedding_id: weddingId,
               access_token: mercadoPagoAccessToken,
-              public_key: mercadoPagoPublicKey,
+              public_key: config.mercadoPagoPublicKey || "",
             },
           });
 
@@ -516,7 +600,7 @@ const Dashboard = () => {
 
       // Update story photos in context
       updateConfig({
-        storyPhotos: [storyPhoto1, storyPhoto2, storyPhoto3].filter(Boolean),
+        storyPhotos: [config.storyPhotos[0] || "", config.storyPhotos[1] || "", config.storyPhotos[2] || ""].filter(Boolean),
       });
       
       toast({
@@ -868,6 +952,7 @@ const Dashboard = () => {
             { key: "story" as const, label: "Nossa História", icon: Heart },
             { key: "event" as const, label: "Evento & Estilo", icon: MapPin },
             { key: "gifts" as const, label: "Presentes & Pix", icon: Gift },
+            { key: "virtualHouse" as const, label: "Casa Virtual", icon: Home },
           ].map(({ key, label, icon: Icon }) => (
             <button
               key={key}
@@ -937,9 +1022,8 @@ const Dashboard = () => {
                     <Label htmlFor="whatsappNumber">WhatsApp para Contato/Dúvidas (Opcional)</Label>
                     <Input
                       id="whatsappNumber"
-                      value={whatsappNumber}
+                      value={config.whatsappNumber || ""}
                       onChange={(e) => {
-                        setWhatsappNumber(e.target.value);
                         updateConfig({ whatsappNumber: e.target.value });
                       }}
                       placeholder="Ex: 11999999999"
@@ -1173,7 +1257,13 @@ const Dashboard = () => {
                     >
                       <div className="flex items-start gap-3 w-full pr-14">
                         <Icon className="w-5 h-5 text-gold shrink-0 mt-0.5" />
-                        <span className="text-sm font-medium text-foreground leading-snug">{label}</span>
+                        <button
+                          type="button"
+                          onClick={() => toggleSection(key)}
+                          className="text-sm font-medium text-foreground leading-snug text-left hover:text-gold transition-colors focus:outline-none"
+                        >
+                          {label}
+                        </button>
                       </div>
                       <div className="absolute right-4 top-1/2 -translate-y-1/2">
                         <Switch
@@ -1566,42 +1656,42 @@ const Dashboard = () => {
                     <div className="space-y-2">
                       <Label>Foto Principal (grande)</Label>
                       <Input
-                        value={storyPhoto1}
-                        onChange={(e) => setStoryPhoto1(e.target.value)}
+                        value={config.storyPhotos[0] || ""}
+                        onChange={(e) => updateConfig({ storyPhotos: [e.target.value, config.storyPhotos[1] || "", config.storyPhotos[2] || ""] })}
                         placeholder="URL da foto 1"
                         className="bg-background"
                       />
-                      {storyPhoto1 && (
+                      {config.storyPhotos[0] && (
                         <div className="aspect-video rounded-lg overflow-hidden bg-muted">
-                          <img src={storyPhoto1} alt="Preview 1" className="w-full h-full object-cover" />
+                          <img src={config.storyPhotos[0]} alt="Preview 1" className="w-full h-full object-cover" />
                         </div>
                       )}
                     </div>
                     <div className="space-y-2">
                       <Label>Foto 2</Label>
                       <Input
-                        value={storyPhoto2}
-                        onChange={(e) => setStoryPhoto2(e.target.value)}
+                        value={config.storyPhotos[1] || ""}
+                        onChange={(e) => updateConfig({ storyPhotos: [config.storyPhotos[0] || "", e.target.value, config.storyPhotos[2] || ""] })}
                         placeholder="URL da foto 2"
                         className="bg-background"
                       />
-                      {storyPhoto2 && (
+                      {config.storyPhotos[1] && (
                         <div className="aspect-video rounded-lg overflow-hidden bg-muted">
-                          <img src={storyPhoto2} alt="Preview 2" className="w-full h-full object-cover" />
+                          <img src={config.storyPhotos[1]} alt="Preview 2" className="w-full h-full object-cover" />
                         </div>
                       )}
                     </div>
                     <div className="space-y-2">
                       <Label>Foto 3</Label>
                       <Input
-                        value={storyPhoto3}
-                        onChange={(e) => setStoryPhoto3(e.target.value)}
+                        value={config.storyPhotos[2] || ""}
+                        onChange={(e) => updateConfig({ storyPhotos: [config.storyPhotos[0] || "", config.storyPhotos[1] || "", e.target.value] })}
                         placeholder="URL da foto 3"
                         className="bg-background"
                       />
-                      {storyPhoto3 && (
+                      {config.storyPhotos[2] && (
                         <div className="aspect-video rounded-lg overflow-hidden bg-muted">
-                          <img src={storyPhoto3} alt="Preview 3" className="w-full h-full object-cover" />
+                          <img src={config.storyPhotos[2]} alt="Preview 3" className="w-full h-full object-cover" />
                         </div>
                       )}
                     </div>
@@ -1925,7 +2015,7 @@ const Dashboard = () => {
                       <Label htmlFor="mpPublicKey">Public Key</Label>
                       <Input
                         id="mpPublicKey"
-                        value={mercadoPagoPublicKey}
+                        value={config.mercadoPagoPublicKey || ""}
                         onChange={(e) => {
                           setMercadoPagoPublicKey(e.target.value);
                           setMpValidation(null);
@@ -1954,7 +2044,7 @@ const Dashboard = () => {
                     <Button
                       variant="outline"
                       onClick={validateMercadoPago}
-                      disabled={mpValidating || !mercadoPagoPublicKey || !mercadoPagoAccessToken}
+                      disabled={mpValidating || !config.mercadoPagoPublicKey || !mercadoPagoAccessToken}
                     >
                       {mpValidating ? (
                         <Loader2 className="w-4 h-4 mr-2 animate-spin" />
@@ -1985,7 +2075,7 @@ const Dashboard = () => {
                           <span className="text-sm font-medium text-foreground">Cartão de Crédito</span>
                         </div>
                         <Switch
-                          checked={paymentCreditCard}
+                          checked={config.paymentCreditCard ?? true}
                           onCheckedChange={setPaymentCreditCard}
                         />
                       </div>
@@ -1995,7 +2085,7 @@ const Dashboard = () => {
                           <span className="text-sm font-medium text-foreground">Pix</span>
                         </div>
                         <Switch
-                          checked={paymentPix}
+                          checked={config.paymentPix ?? true}
                           onCheckedChange={setPaymentPix}
                         />
                       </div>
@@ -2005,22 +2095,22 @@ const Dashboard = () => {
                           <span className="text-sm font-medium text-foreground">Boleto</span>
                         </div>
                         <Switch
-                          checked={paymentBoleto}
+                          checked={config.paymentBoleto ?? true}
                           onCheckedChange={setPaymentBoleto}
                         />
                       </div>
                     </div>
 
                     {/* Installment Configuration */}
-                    {paymentCreditCard && (
+                    {config.paymentCreditCard && (
                       <div className="p-4 rounded-lg bg-muted/50 border border-border mb-6">
                         <Label htmlFor="maxInstallments" className="flex items-center gap-2 mb-2">
                           <CreditCard className="w-4 h-4 text-gold" />
                           Máximo de Parcelas
                         </Label>
                         <Select
-                          value={maxInstallments.toString()}
-                          onValueChange={(val) => setMaxInstallments(parseInt(val))}
+                          value={(config.maxInstallments ?? 12).toString()}
+                          onValueChange={(val) => updateConfig({ maxInstallments: parseInt(val) })}
                         >
                           <SelectTrigger className="w-full sm:w-48 bg-background">
                             <SelectValue />
@@ -2052,7 +2142,7 @@ const Dashboard = () => {
                         <div className="space-y-2">
                           <Label htmlFor="manualPixType">Tipo de Chave</Label>
                           <Select
-                            value={manualPixType}
+                            value={config.manualPixType || "cpf"}
                             onValueChange={setManualPixType}
                           >
                             <SelectTrigger className="w-full bg-background">
@@ -2071,8 +2161,8 @@ const Dashboard = () => {
                           <Label htmlFor="manualPixKey">Chave PIX</Label>
                           <Input
                             id="manualPixKey"
-                            value={manualPixKey}
-                            onChange={(e) => setManualPixKey(e.target.value)}
+                            value={config.manualPixKey || ""}
+                            onChange={(e) => updateConfig({ manualPixKey: e.target.value })}
                             placeholder="Ex: 123.456.789-00"
                             className="bg-background"
                           />
@@ -2106,7 +2196,7 @@ const Dashboard = () => {
                                     .from('wedding-assets')
                                     .getPublicUrl(fileName);
                                     
-                                  setManualPixQrImageUrl(publicUrl);
+                                  updateConfig({ manualPixQrImageUrl: publicUrl });
                                   toast({ title: "Imagem do QR Code enviada com sucesso!" });
                                 } catch (error) {
                                   console.error("Error uploading QR code:", error);
@@ -2122,10 +2212,10 @@ const Dashboard = () => {
                             </p>
                           </div>
                           
-                          {manualPixQrImageUrl && (
+                          {config.manualPixQrImageUrl && (
                             <div className="relative w-24 h-24 rounded-lg overflow-hidden border border-border bg-muted flex-shrink-0 group">
                               <img 
-                                src={manualPixQrImageUrl} 
+                                src={config.manualPixQrImageUrl} 
                                 alt="QR Code PIX" 
                                 className="w-full h-full object-cover"
                               />
@@ -2142,7 +2232,7 @@ const Dashboard = () => {
                       </div>
                     </div>
 
-                    {!paymentCreditCard && !paymentPix && !paymentBoleto && (
+                    {!config.paymentCreditCard && !config.paymentPix && !config.paymentBoleto && (
                       <Alert className="border-destructive bg-destructive/10 mt-4">
                         <AlertDescription className="flex items-center gap-2">
                           <AlertCircle className="w-4 h-4 text-destructive" />
@@ -2606,6 +2696,65 @@ const Dashboard = () => {
                   </Dialog>
                 </motion.section>
               </>
+            )}
+          </div>
+        )}
+
+        {settingsSubTab === "virtualHouse" && (
+          <div className="space-y-8 animate-fade-in">
+            {!config.sections.virtualHouse ? (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="bg-card rounded-xl p-8 border border-border text-center space-y-6 max-w-xl mx-auto shadow-soft my-10"
+              >
+                <div className="mx-auto w-16 h-16 rounded-full bg-gold/10 flex items-center justify-center">
+                  <Home className="w-8 h-8 text-gold" />
+                </div>
+                <div className="space-y-2">
+                  <h3 className="font-serif text-2xl text-foreground">Casa dos Sonhos desativada</h3>
+                  <p className="text-sm text-muted-foreground max-w-md mx-auto leading-relaxed">
+                    Habilite a seção da Casa dos Sonhos (2D) para gamificar sua lista de presentes! Seus convidados poderão ajudar a construir sua casa doando fundações, paredes, telhado e móveis.
+                  </p>
+                </div>
+                <Button 
+                  onClick={() => toggleSection("virtualHouse")}
+                  className="bg-gold hover:bg-gold-light text-background"
+                >
+                  Ativar Seção Casa dos Sonhos
+                </Button>
+              </motion.div>
+            ) : (
+              <div className="space-y-6">
+                <div className="flex justify-between items-center gap-4 flex-wrap border-b border-border pb-4">
+                  <div>
+                    <h2 className="font-serif text-2xl text-foreground">Casa Virtual 2D</h2>
+                    <p className="text-sm text-muted-foreground">Gerencie sua Casa dos Sonhos e posicione os itens no mapa interativo</p>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      variant={houseActiveView === "blueprint" ? "default" : "outline"}
+                      onClick={() => setHouseActiveView("blueprint")}
+                      className={houseActiveView === "blueprint" ? "bg-gold hover:bg-gold-light text-background" : ""}
+                    >
+                      Visualizar Planta Baixa
+                    </Button>
+                    <Button
+                      variant={houseActiveView === "catalog" ? "default" : "outline"}
+                      onClick={() => setHouseActiveView("catalog")}
+                      className={houseActiveView === "catalog" ? "bg-gold hover:bg-gold-light text-background" : "border-gold text-gold hover:bg-gold/5"}
+                    >
+                      Gerenciar Catálogo (Preços)
+                    </Button>
+                  </div>
+                </div>
+
+                {houseActiveView === "blueprint" ? (
+                  <DashboardVirtualHouse weddingId={weddingId} />
+                ) : (
+                  <HouseCatalogSettings weddingId={weddingId} />
+                )}
+              </div>
             )}
           </div>
         )}

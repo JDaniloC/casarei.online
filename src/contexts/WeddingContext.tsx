@@ -193,12 +193,7 @@ const defaultConfig: WeddingConfig = {
       externalLink: "https://www.picpay.com",
     },
   ],
-  
-  paymentCreditCard: true,
-  paymentPix: true,
-  paymentBoleto: true,
-  maxInstallments: 12,
-  manualPixType: "cpf",
+
 
   aboutText: "Nossa história começou de um jeito que nem os melhores roteiristas poderiam imaginar. Era 2019, uma festa de aniversário de um amigo em comum, e nossos olhares se cruzaram do outro lado da sala.\n\nRafael diz que foi amor à primeira vista. Camila confessa que precisou de um pouco mais de convencimento — mas apenas algumas semanas.\n\nDesde então, construímos juntos sonhos, viagens inesquecíveis, e a certeza de que queríamos passar o resto de nossas vidas um ao lado do outro.",
   storyPhotos: [],
