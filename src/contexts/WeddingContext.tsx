@@ -12,9 +12,16 @@ export interface Gift {
   raisedAmount?: number;
   stock?: number | null;
   totalQuotas?: number | null;
+  houseItemType?: string | null;
+  houseRoom?: string | null;
+  housePositionX?: number | null;
+  housePositionY?: number | null;
 }
 
 export interface WeddingConfig {
+  // Loading State
+  isLoaded: boolean;
+  
   // Couple Info
   coupleName: string;
   weddingDate: string;
@@ -36,6 +43,7 @@ export interface WeddingConfig {
     gallery: boolean;
     video: boolean;
     dressCode: boolean;
+    virtualHouse: boolean;
   };
   
   // Media
@@ -69,6 +77,16 @@ export interface WeddingConfig {
   themeColor: string;
   themeFont: string;
   themeDecorations: boolean;
+
+  // Payments & Pix
+  mercadoPagoPublicKey?: string;
+  paymentCreditCard?: boolean;
+  paymentPix?: boolean;
+  paymentBoleto?: boolean;
+  maxInstallments?: number;
+  manualPixType?: string;
+  manualPixKey?: string;
+  manualPixQrImageUrl?: string;
 }
 
 interface WeddingContextType {
@@ -81,6 +99,7 @@ interface WeddingContextType {
 }
 
 const defaultConfig: WeddingConfig = {
+  isLoaded: false,
   coupleName: "Camila & Rafael",
   weddingDate: "2025-08-15",
   tagline: "Estamos ansiosos para celebrar esse dia com você",
@@ -99,6 +118,7 @@ const defaultConfig: WeddingConfig = {
     gallery: true,
     video: false,
     dressCode: true,
+    virtualHouse: false,
   },
   
   heroImage: "",
@@ -165,6 +185,12 @@ const defaultConfig: WeddingConfig = {
     },
   ],
   
+  paymentCreditCard: true,
+  paymentPix: true,
+  paymentBoleto: true,
+  maxInstallments: 12,
+  manualPixType: "cpf",
+
   aboutText: "Nossa história começou de um jeito que nem os melhores roteiristas poderiam imaginar. Era 2019, uma festa de aniversário de um amigo em comum, e nossos olhares se cruzaram do outro lado da sala.\n\nRafael diz que foi amor à primeira vista. Camila confessa que precisou de um pouco mais de convencimento — mas apenas algumas semanas.\n\nDesde então, construímos juntos sonhos, viagens inesquecíveis, e a certeza de que queríamos passar o resto de nossas vidas um ao lado do outro.",
   storyPhotos: [],
   

@@ -128,46 +128,19 @@ const Dashboard = () => {
     return (location.state as any)?.activeTab || "history";
   });
   const [settingsSubTab, setSettingsSubTab] = useState<"appearance" | "story" | "event" | "gifts">("appearance");
-  const [initialLoaded, setInitialLoaded] = useState<boolean>(() => sessionStorage.getItem("dashboard_initial_loaded") === "true");
-
-  // Mercado Pago credentials
-  const [mercadoPagoPublicKey, setMercadoPagoPublicKey] = useState("");
-  const [mercadoPagoAccessToken, setMercadoPagoAccessToken] = useState("");
-  const [mpValidating, setMpValidating] = useState(false);
-  const [mpValidation, setMpValidation] = useState<{
-    valid: boolean;
-    message?: string;
-    error?: string;
-    isTestMode?: boolean;
-  } | null>(null);
-
-  // Payment method toggles
-  const [paymentCreditCard, setPaymentCreditCard] = useState(true);
-  const [paymentPix, setPaymentPix] = useState(true);
-  const [paymentBoleto, setPaymentBoleto] = useState(true);
-  const [maxInstallments, setMaxInstallments] = useState(12);
-
-  // Story photos
-  const [storyPhoto1, setStoryPhoto1] = useState("");
-  const [storyPhoto2, setStoryPhoto2] = useState("");
-  const [storyPhoto3, setStoryPhoto3] = useState("");
-  const [manualPixType, setManualPixType] = useState<string>("cpf");
-  const [manualPixKey, setManualPixKey] = useState<string>("");
-  const [manualPixQrImageUrl, setManualPixQrImageUrl] = useState<string>("");
-  const [uploadingQr, setUploadingQr] = useState(false);
-  const [whatsappNumber, setWhatsappNumber] = useState("");
+  const [houseActiveView, setHouseActiveView] = useState<"blueprint" | "catalog">("blueprint");
 
   // Load existing wedding data - only once on mount
   useEffect(() => {
     const loadWeddingData = async () => {
-      if (!user || initialLoaded) return;
+      if (!user || config.isLoaded) return;
 
       const { data: wedding } = await supabase
         .from("weddings")
         .select(`
           id, slug, couple_name, wedding_date, tagline, layout,
           section_about, section_wedding_info, section_gifts, section_rsvp,
-          section_message_wall, section_gallery, section_video, section_dress_code,
+          section_message_wall, section_gallery, section_video, section_dress_code, section_virtual_house,
           hero_image_url, video_url,
           ceremony_date, ceremony_time, ceremony_location, ceremony_address,
           reception_location, reception_address, reception_time, same_location,
@@ -184,18 +157,6 @@ const Dashboard = () => {
 
       if (wedding) {
         setWeddingSlug(wedding.slug);
-        setMercadoPagoPublicKey(wedding.mercado_pago_public_key || "");
-        setPaymentCreditCard((wedding as Record<string, unknown>).payment_credit_card as boolean ?? true);
-        setPaymentPix((wedding as Record<string, unknown>).payment_pix as boolean ?? true);
-        setPaymentBoleto((wedding as Record<string, unknown>).payment_boleto as boolean ?? true);
-        setMaxInstallments((wedding as Record<string, unknown>).max_installments as number ?? 12);
-        setManualPixType((wedding as Record<string, unknown>).manual_pix_type as string || "cpf");
-        setManualPixKey((wedding as Record<string, unknown>).manual_pix_key as string || "");
-        setManualPixQrImageUrl((wedding as Record<string, unknown>).manual_pix_qr_image_url as string || "");
-        setStoryPhoto1((wedding as Record<string, unknown>).story_photo_1 as string || "");
-        setStoryPhoto2((wedding as Record<string, unknown>).story_photo_2 as string || "");
-        setStoryPhoto3((wedding as Record<string, unknown>).story_photo_3 as string || "");
-        setWhatsappNumber((wedding as Record<string, unknown>).whatsapp_number as string || "");
         
         // Update context with saved data
         updateConfig({
@@ -212,6 +173,7 @@ const Dashboard = () => {
             gallery: wedding.section_gallery,
             video: wedding.section_video,
             dressCode: wedding.section_dress_code,
+            virtualHouse: wedding.section_virtual_house || false,
           },
           heroImage: wedding.hero_image_url || "",
           videoUrl: wedding.video_url || "",
@@ -235,7 +197,16 @@ const Dashboard = () => {
           whatsappNumber: (wedding as Record<string, unknown>).whatsapp_number as string || "",
           themeColor: (wedding as any).theme_color as string || "terracotta",
           themeFont: (wedding as any).theme_font as string || "serif",
-          themeDecorations: (wedding as any).theme_decorations as boolean ?? true,
+          themeDecorations: (wedding as any).theme_decorations ?? true,
+          mercadoPagoPublicKey: wedding.mercado_pago_public_key || "",
+          paymentCreditCard: (wedding as any).payment_credit_card ?? true,
+          paymentPix: (wedding as any).payment_pix ?? true,
+          paymentBoleto: (wedding as any).payment_boleto ?? true,
+          maxInstallments: (wedding as any).max_installments ?? 12,
+          manualPixType: (wedding as any).manual_pix_type || "cpf",
+          manualPixKey: (wedding as any).manual_pix_key || "",
+          manualPixQrImageUrl: (wedding as any).manual_pix_qr_image_url || "",
+          isLoaded: true,
         });
 
         // Load gifts
@@ -261,13 +232,11 @@ const Dashboard = () => {
           updateConfig({ gifts: formattedGifts });
         }
 
-        setInitialLoaded(true);
-        sessionStorage.setItem("dashboard_initial_loaded", "true");
       }
     };
 
     loadWeddingData();
-  }, [user, initialLoaded]);
+  }, [user, config.isLoaded]);
 
   const generateSlug = (coupleName: string): string => {
     return coupleName
@@ -283,7 +252,7 @@ const Dashboard = () => {
   };
 
   const validateMercadoPago = async () => {
-    if (!mercadoPagoPublicKey || !mercadoPagoAccessToken) {
+    if (!config.mercadoPagoPublicKey || !mercadoPagoAccessToken) {
       toast({
         title: "Campos obrigatórios",
         description: "Preencha a Public Key e o Access Token para validar",
@@ -299,7 +268,7 @@ const Dashboard = () => {
       const { data, error } = await supabase.functions.invoke("validate-mercadopago", {
         body: {
           accessToken: mercadoPagoAccessToken,
-          publicKey: mercadoPagoPublicKey,
+          publicKey: config.mercadoPagoPublicKey || "",
         },
       });
 
@@ -337,7 +306,7 @@ const Dashboard = () => {
     if (!user) return;
 
     // Validate Mercado Pago if credentials are provided
-    if (mercadoPagoPublicKey && mercadoPagoAccessToken) {
+    if (config.mercadoPagoPublicKey && mercadoPagoAccessToken) {
       const isValid = await validateMercadoPago();
       if (!isValid) {
         toast({
@@ -405,18 +374,18 @@ const Dashboard = () => {
         dress_code_text: config.dressCodeText || null,
         colors_to_avoid: config.colorsToAvoid || null,
         additional_info: config.additionalInfo || null,
-        mercado_pago_public_key: mercadoPagoPublicKey || null,
-        payment_credit_card: paymentCreditCard,
-        payment_pix: paymentPix,
-        payment_boleto: paymentBoleto,
-        max_installments: maxInstallments,
-        manual_pix_type: manualPixType,
-        manual_pix_key: manualPixKey || null,
-        manual_pix_qr_image_url: manualPixQrImageUrl || null,
-        story_photo_1: storyPhoto1 || null,
-        story_photo_2: storyPhoto2 || null,
-        story_photo_3: storyPhoto3 || null,
-        whatsapp_number: whatsappNumber || null,
+        mercado_pago_public_key: config.mercadoPagoPublicKey || null,
+        payment_credit_card: config.paymentCreditCard ?? true,
+        payment_pix: config.paymentPix ?? true,
+        payment_boleto: config.paymentBoleto ?? true,
+        max_installments: config.maxInstallments ?? 12,
+        manual_pix_type: config.manualPixType || "cpf",
+        manual_pix_key: config.manualPixKey || null,
+        manual_pix_qr_image_url: config.manualPixQrImageUrl || null,
+        story_photo_1: config.storyPhotos[0] || null,
+        story_photo_2: config.storyPhotos[1] || null,
+        story_photo_3: config.storyPhotos[2] || null,
+        whatsapp_number: config.whatsappNumber || null,
         theme_color: config.themeColor || "terracotta",
         theme_font: config.themeFont || "serif",
         theme_decorations: config.themeDecorations ?? true,
