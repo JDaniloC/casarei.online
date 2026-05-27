@@ -141,7 +141,7 @@ const WeddingContent = ({
 
   const location = useLocation();
   const isPreview = location.pathname.startsWith("/preview");
-  const isGuestView = isPreview || location.pathname.endsWith("/convite") || new URLSearchParams(location.search).has("convite");
+  const isGuestView = isPreview || location.pathname.includes("/convite") || new URLSearchParams(location.search).has("convite");
 
   return (
     <WeddingProvider initialConfig={initialConfig}>
