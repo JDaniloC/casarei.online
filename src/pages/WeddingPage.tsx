@@ -50,6 +50,7 @@ interface WeddingData {
   manual_pix_key?: string;
   manual_pix_qr_image_url?: string;
   whatsapp_number?: string;
+  global_passcode?: string | null;
 }
 
 interface GiftData {
@@ -185,7 +186,7 @@ const WeddingPage = () => {
   const [imagesReady, setImagesReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [guest, setGuest] = useState<any>(null);
-  const [isAuthenticated, setIsAuthenticated] = useState(!token);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
 
   useEffect(() => {
     const fetchWedding = async () => {
@@ -234,6 +235,16 @@ const WeddingPage = () => {
         setWedding(weddingData);
         setGifts(publicData.gifts || []);
 
+        // Authentication logic based on weddingData and token
+        if (!token) {
+          const isGenericGuestView = location.pathname.includes("/convite") || new URLSearchParams(location.search).has("convite");
+          if (isGenericGuestView && weddingData.global_passcode) {
+            setIsAuthenticated(false);
+          } else {
+            setIsAuthenticated(true);
+          }
+        }
+
         // Preload critical images (hero + story photos)
         const criticalImages = [
           weddingData.hero_image_url,
@@ -268,7 +279,7 @@ const WeddingPage = () => {
 
     fetchWedding();
     fetchGuest();
-  }, [slug, token]);
+  }, [slug, token, location.pathname, location.search]);
 
   if (loading || (!imagesReady && !error)) {
     return (
@@ -303,12 +314,17 @@ const WeddingPage = () => {
     );
   }
 
+  const isGenericGuestView = isGuestView && !token;
+  const requiresGlobalPasscode = isGenericGuestView && wedding.global_passcode;
+  const requiresGuestPasscode = !!(guest && guest.passcode);
+  const expectedPasscode = requiresGuestPasscode ? guest.passcode : (requiresGlobalPasscode ? wedding.global_passcode : null);
+
   return (
     <>
-      {guest && guest.passcode && (
+      {expectedPasscode && (
         <GuestPasscodeModal 
           open={!isAuthenticated} 
-          expectedPasscode={guest.passcode} 
+          expectedPasscode={expectedPasscode} 
           onSuccess={() => setIsAuthenticated(true)} 
         />
       )}

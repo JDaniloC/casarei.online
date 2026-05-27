@@ -87,6 +87,9 @@ export interface WeddingConfig {
   manualPixType?: string;
   manualPixKey?: string;
   manualPixQrImageUrl?: string;
+  
+  // Security
+  globalPasscode?: string;
 }
 
 interface WeddingContextType {
@@ -112,6 +115,7 @@ const defaultConfig: WeddingConfig = {
   manualPixType: "cpf",
   manualPixKey: "",
   manualPixQrImageUrl: "",
+  globalPasscode: "",
   
   layout: "classic",
   themeColor: "terracotta",

@@ -13,6 +13,7 @@ interface DashboardGuestsProps {
 }
 
 export default function DashboardGuests({ weddingId, weddingSlug }: DashboardGuestsProps) {
+  const { config, updateConfig } = useWedding();
   const [guests, setGuests] = useState<any[]>([]);
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
@@ -71,8 +72,10 @@ export default function DashboardGuests({ weddingId, weddingSlug }: DashboardGue
   };
 
   const copyLink = (token: string) => {
-    navigator.clipboard.writeText(getInviteLink(token));
-    toast.success("Link copiado!");
+    const link = getInviteLink(token);
+    const message = `Você foi convidado para o nosso casamento! Acesse seu convite exclusivo pelo link a seguir:\n\n${link}`;
+    navigator.clipboard.writeText(message);
+    toast.success("Mensagem com link copiada!");
   };
 
   const shareWhatsApp = (phone: string | null, token: string) => {
@@ -86,6 +89,21 @@ export default function DashboardGuests({ weddingId, weddingSlug }: DashboardGue
 
   return (
     <div className="space-y-6">
+      <div className="bg-white rounded-lg border p-6">
+        <h3 className="text-lg font-medium mb-4">Senha Global do Convite</h3>
+        <p className="text-sm text-muted-foreground mb-4">
+          Se você definir uma senha aqui, qualquer pessoa que acessar o link genérico do seu convite precisará digitá-la para ver os detalhes do casamento.
+        </p>
+        <div className="max-w-xs space-y-2">
+          <Input 
+            type="text" 
+            placeholder="Ex: casamentodoano" 
+            value={config?.globalPasscode || ""} 
+            onChange={(e) => updateConfig({ globalPasscode: e.target.value })} 
+          />
+        </div>
+      </div>
+
       <div className="bg-white rounded-lg border p-6">
         <h3 className="text-lg font-medium mb-4">Adicionar Convidado</h3>
         <form onSubmit={handleAddGuest} className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end bg-muted/50 p-4 rounded-lg">
