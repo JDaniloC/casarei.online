@@ -28,6 +28,7 @@ interface PublicLandingProps {
   manualPixKey?: string;
   manualPixQrImageUrl?: string;
   isGuestView?: boolean;
+  guest?: any;
 }
 
 const PublicLandingContent = ({ 
@@ -41,6 +42,7 @@ const PublicLandingContent = ({
   manualPixKey,
   manualPixQrImageUrl,
   isGuestView = true,
+  guest,
 }: {
   weddingId?: string;
   mercadoPagoPublicKey?: string | null;
@@ -52,6 +54,7 @@ const PublicLandingContent = ({
   manualPixKey?: string;
   manualPixQrImageUrl?: string;
   isGuestView?: boolean;
+  guest?: any;
 }) => {
   const { config } = useWedding();
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
@@ -103,7 +106,7 @@ const PublicLandingContent = ({
           />
         )}
         
-        {sections.rsvp && <PublicRSVP weddingId={weddingId} />}
+        {sections.rsvp && <PublicRSVP weddingId={weddingId} guest={guest} />}
         
         {sections.gallery && <PhotoGallery />}
         
@@ -147,6 +150,7 @@ const PublicLanding = ({
   manualPixKey,
   manualPixQrImageUrl,
   isGuestView,
+  guest,
 }: PublicLandingProps) => {
   return (
     <CartProvider>
@@ -161,6 +165,7 @@ const PublicLanding = ({
         manualPixKey={manualPixKey}
         manualPixQrImageUrl={manualPixQrImageUrl}
         isGuestView={isPreview ? true : isGuestView}
+        guest={guest}
       />
     </CartProvider>
   );

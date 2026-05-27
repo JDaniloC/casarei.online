@@ -4,6 +4,8 @@ import { Heart, Loader2, ArrowLeft } from "lucide-react";
 import { WeddingProvider, WeddingConfig } from "@/contexts/WeddingContext";
 import PublicLanding from "@/components/wedding/PublicLanding";
 import { Button } from "@/components/ui/button";
+import GuestPasscodeModal from "@/components/wedding/GuestPasscodeModal";
+import { supabase } from "@/integrations/supabase/client";
 
 interface WeddingData {
   id: string;
@@ -76,12 +78,14 @@ const WeddingContent = ({
   weddingData, 
   gifts,
   weddingId,
-  mercadoPagoPublicKey
+  mercadoPagoPublicKey,
+  guest
 }: { 
   weddingData: WeddingData;
   gifts: GiftData[];
   weddingId: string;
   mercadoPagoPublicKey: string | null;
+  guest?: any;
 }) => {
   const initialConfig: WeddingConfig = {
     coupleName: weddingData.couple_name,
@@ -152,6 +156,7 @@ const WeddingContent = ({
         manualPixKey={weddingData.manual_pix_key}
         manualPixQrImageUrl={weddingData.manual_pix_qr_image_url}
         isGuestView={isGuestView}
+        guest={guest}
       />
     </WeddingProvider>
   );
@@ -173,12 +178,14 @@ const preloadImages = (urls: string[]): Promise<void[]> => {
 };
 
 const WeddingPage = () => {
-  const { slug } = useParams<{ slug: string }>();
+  const { slug, token } = useParams<{ slug: string; token?: string }>();
   const [wedding, setWedding] = useState<WeddingData | null>(null);
   const [gifts, setGifts] = useState<GiftData[]>([]);
   const [loading, setLoading] = useState(true);
   const [imagesReady, setImagesReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [guest, setGuest] = useState<any>(null);
+  const [isAuthenticated, setIsAuthenticated] = useState(!token);
 
   useEffect(() => {
     const fetchWedding = async () => {
@@ -244,8 +251,24 @@ const WeddingPage = () => {
       }
     };
 
+    const fetchGuest = async () => {
+      if (token) {
+        const { data } = await supabase.from("guests").select("*").eq("token", token).single();
+        if (data) {
+          setGuest(data);
+          if (!data.passcode) {
+            setIsAuthenticated(true);
+          }
+        } else {
+          // invalid token, just let them see the public page
+          setIsAuthenticated(true);
+        }
+      }
+    };
+
     fetchWedding();
-  }, [slug]);
+    fetchGuest();
+  }, [slug, token]);
 
   if (loading || (!imagesReady && !error)) {
     return (
@@ -281,12 +304,24 @@ const WeddingPage = () => {
   }
 
   return (
-    <WeddingContent 
-      weddingData={wedding} 
-      gifts={gifts}
-      weddingId={wedding.id}
-      mercadoPagoPublicKey={wedding.mercado_pago_public_key}
-    />
+    <>
+      {guest && guest.passcode && (
+        <GuestPasscodeModal 
+          open={!isAuthenticated} 
+          expectedPasscode={guest.passcode} 
+          onSuccess={() => setIsAuthenticated(true)} 
+        />
+      )}
+      {isAuthenticated && (
+        <WeddingContent 
+          weddingData={wedding} 
+          gifts={gifts}
+          weddingId={wedding.id}
+          mercadoPagoPublicKey={wedding.mercado_pago_public_key}
+          guest={guest}
+        />
+      )}
+    </>
   );
 };
 

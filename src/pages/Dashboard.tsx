@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import DashboardHistory from "@/components/wedding/DashboardHistory";
 import DashboardVirtualHouse from "@/components/wedding/DashboardVirtualHouse";
+import DashboardGuests from "@/components/wedding/DashboardGuests";
 import HouseCatalogSettings from "@/components/wedding/HouseCatalogSettings";
 import { useWedding, Gift as GiftType } from "@/contexts/WeddingContext";
 import { useAuth } from "@/hooks/useAuth";
@@ -127,12 +128,20 @@ const Dashboard = () => {
   });
 
   const location = useLocation();
-  const [dashboardTab, setDashboardTab] = useState<"settings" | "history">(() => {
+  const [dashboardTab, setDashboardTab] = useState<"settings" | "history" | "guests">(() => {
     return (location.state as any)?.activeTab || "history";
   });
   const [settingsSubTab, setSettingsSubTab] = useState<"appearance" | "story" | "event" | "gifts" | "virtualHouse">("appearance");
   const [houseActiveView, setHouseActiveView] = useState<"blueprint" | "catalog">("blueprint");
   const [weddingId, setWeddingId] = useState<string>("");
+  const [mercadoPagoAccessToken, setMercadoPagoAccessToken] = useState("");
+  const [mpValidating, setMpValidating] = useState(false);
+  const [mpValidation, setMpValidation] = useState<{
+    valid: boolean;
+    message?: string;
+    error?: string;
+    isTestMode?: boolean;
+  } | null>(null);
   const loadingWeddingRef = useRef(false);
 
   // Load existing wedding data - only once on mount
@@ -871,6 +880,17 @@ const Dashboard = () => {
               <Settings className="w-4 h-4" />
               Configurar Site
             </button>
+            <button
+              onClick={() => setDashboardTab("guests")}
+              className={`flex items-center gap-2 px-5 py-3 text-sm font-medium border-b-2 transition-colors ${
+                dashboardTab === "guests"
+                  ? "border-gold text-gold"
+                  : "border-transparent text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <Users className="w-4 h-4" />
+              Convidados
+            </button>
           </div>
         </div>
       </header>
@@ -878,6 +898,8 @@ const Dashboard = () => {
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
         {dashboardTab === "history" ? (
           <DashboardHistory />
+        ) : dashboardTab === "guests" ? (
+          <DashboardGuests />
         ) : (
         <>
         {/* Published URL */}
@@ -2017,7 +2039,7 @@ const Dashboard = () => {
                         id="mpPublicKey"
                         value={config.mercadoPagoPublicKey || ""}
                         onChange={(e) => {
-                          setMercadoPagoPublicKey(e.target.value);
+                          updateConfig({ mercadoPagoPublicKey: e.target.value });
                           setMpValidation(null);
                         }}
                         placeholder="APP_USR-... ou TEST-..."

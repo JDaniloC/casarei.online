@@ -53,6 +53,7 @@ const App = () => (
             {/* Public wedding pages with slug */}
             <Route path="/:slug" element={<WeddingPage />} />
             <Route path="/:slug/convite" element={<WeddingPage />} />
+            <Route path="/:slug/convite/:token" element={<WeddingPage />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>

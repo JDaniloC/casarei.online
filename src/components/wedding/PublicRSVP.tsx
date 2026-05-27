@@ -17,18 +17,19 @@ interface RSVPFormData {
 
 interface PublicRSVPProps {
   weddingId?: string;
+  guest?: any;
 }
 
-const PublicRSVP = ({ weddingId }: PublicRSVPProps) => {
+const PublicRSVP = ({ weddingId, guest }: PublicRSVPProps) => {
   const ref = useRef(null);
   const isInView = useInView(ref, { once: true, margin: "-100px" });
   const { config } = useWedding();
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState<RSVPFormData>({
-    name: "",
+    name: guest?.name || "",
     email: "",
-    phone: "",
+    phone: guest?.phone || "",
     guests: 1,
     attending: "",
     companionNames: [],
@@ -64,7 +65,11 @@ const PublicRSVP = ({ weddingId }: PublicRSVPProps) => {
 
   const isFormValid = () => {
     if (!formData.name.trim()) return false;
-    if (!formData.email.trim() || !isValidEmail(formData.email.trim())) return false;
+    if (!guest) {
+      if (!formData.email.trim() || !isValidEmail(formData.email.trim())) return false;
+    } else if (formData.email.trim() && !isValidEmail(formData.email.trim())) {
+      return false;
+    }
     if (!formData.attending) return false;
     if (formData.guests > 1 && formData.attending === "yes") {
       if (formData.companionNames.some(n => !n.trim())) return false;
@@ -95,11 +100,18 @@ const PublicRSVP = ({ weddingId }: PublicRSVPProps) => {
         .map(n => n.trim().replace(/[<>]/g, '').substring(0, 200))
         .filter(Boolean);
 
+      if (guest) {
+        const { error: guestError } = await supabase.from('guests').update({
+          status: formData.attending === "yes" ? "confirmed" : "declined"
+        }).eq('id', guest.id);
+        if (guestError) throw guestError;
+      }
+
       const { data, error } = await supabase.functions.invoke("submit-rsvp", {
         body: {
           wedding_id: weddingId,
           guest_name: sanitizedName,
-          guest_email: sanitizedEmail,
+          guest_email: sanitizedEmail || "convidado@especial.com",
           attending: formData.attending === "yes" ? "confirmed" : "declined",
           guest_count: clampedGuests,
           companion_names: sanitizedCompanions,
@@ -212,7 +224,7 @@ const PublicRSVP = ({ weddingId }: PublicRSVPProps) => {
                 onChange={handleInputChange}
                 className="input-wedding"
                 placeholder="Digite seu nome"
-                disabled={loading}
+                disabled={loading || !!guest}
               />
             </div>
 
@@ -225,13 +237,13 @@ const PublicRSVP = ({ weddingId }: PublicRSVPProps) => {
                 type="email"
                 id="email"
                 name="email"
-                required
                 maxLength={255}
                 value={formData.email}
                 onChange={handleInputChange}
                 className="input-wedding"
                 placeholder="Digite seu e-mail"
                 disabled={loading}
+                required={!guest}
               />
               {formData.email && !isValidEmail(formData.email) && (
                 <p className="text-xs text-destructive mt-1">Formato de e-mail inválido</p>
@@ -252,7 +264,7 @@ const PublicRSVP = ({ weddingId }: PublicRSVPProps) => {
                 onChange={handleInputChange}
                 className="input-wedding"
                 placeholder="(11) 99999-9999"
-                disabled={loading}
+                disabled={loading || !!guest?.phone}
               />
             </div>
 
