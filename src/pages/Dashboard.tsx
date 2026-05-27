@@ -73,6 +73,18 @@ const layoutOptions = [
     description: "Layout dividido, foto no topo e texto embaixo para legibilidade perfeita",
     preview: "bg-gradient-to-b from-primary/10 to-transparent",
   },
+  {
+    id: "magazine" as const,
+    name: "Revista (Magazine)",
+    description: "Layout split sofisticado com foto lateral de grande impacto e tipografia moderna",
+    preview: "bg-gradient-to-r from-neutral-100 to-neutral-200",
+  },
+  {
+    id: "romantic" as const,
+    name: "Romântico (Fine Art)",
+    description: "Bordas duplas luxuosas, caligrafia fina e delicados detalhes floridos em tons suaves",
+    preview: "bg-gradient-to-br from-rose-50 to-pink-100",
+  },
 ];
 
 const sectionOptions = [
@@ -1161,11 +1173,33 @@ const Dashboard = () => {
                   <h2 className="font-serif text-xl text-foreground">Escolha do Layout</h2>
                 </div>
                 
-                <div className="grid sm:grid-cols-3 gap-4">
+                <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
                   {layoutOptions.map((layout) => (
                     <button
                       key={layout.id}
-                      onClick={() => updateConfig({ layout: layout.id })}
+                      onClick={() => {
+                        const updates: Partial<typeof config> = { layout: layout.id };
+                        if (layout.id === "modern") {
+                          updates.themeFont = "sans";
+                          updates.themeColor = "navy";
+                        } else if (layout.id === "minimalist") {
+                          updates.themeFont = "sans";
+                          updates.themeColor = "blue";
+                        } else if (layout.id === "classic") {
+                          updates.themeFont = "serif";
+                          updates.themeColor = "terracotta";
+                        } else if (layout.id === "editorial") {
+                          updates.themeFont = "serif";
+                          updates.themeColor = "terracotta";
+                        } else if (layout.id === "magazine") {
+                          updates.themeFont = "serif";
+                          updates.themeColor = "navy";
+                        } else if (layout.id === "romantic") {
+                          updates.themeFont = "elegant";
+                          updates.themeColor = "rose";
+                        }
+                        updateConfig(updates);
+                      }}
                       className={`p-4 rounded-xl border-2 transition-all text-left ${
                         config.layout === layout.id
                           ? "border-gold bg-gold/5"
@@ -1253,6 +1287,46 @@ const Dashboard = () => {
                           </div>
                         </div>
                       )}
+
+                      {layout.id === "magazine" && (
+                        <div className="h-28 rounded-lg mb-3 bg-white border border-border flex relative overflow-hidden font-serif select-none">
+                          <div className="w-2/5 h-full bg-slate-300 relative overflow-hidden">
+                            <div className="absolute inset-0 bg-black/5" />
+                          </div>
+                          <div className="w-3/5 h-full flex flex-col justify-between p-2 bg-[#FAF9F6]">
+                            <span className="text-[3px] font-sans tracking-[0.2em] uppercase text-muted-foreground">CASAMENTO</span>
+                            <div className="flex flex-col text-left py-1">
+                              <span className="text-[7px] font-serif font-bold text-neutral-800 leading-none mb-0.5">Maria &</span>
+                              <span className="text-[7px] font-serif font-bold text-neutral-800 leading-none">João</span>
+                              <span className="text-[3px] text-muted-foreground font-sans mt-0.5 uppercase tracking-widest">15 . 08 . 2025</span>
+                            </div>
+                            <div className="w-full h-2.5 bg-neutral-900 rounded-sm flex items-center justify-center">
+                              <span className="text-[3px] text-white font-sans uppercase tracking-wider">Ver Convite</span>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {layout.id === "romantic" && (
+                        <div className="h-28 rounded-lg mb-3 bg-[#FCF8F8] border border-rose-100 flex flex-col justify-between p-3 relative overflow-hidden select-none font-serif text-center">
+                          <div className="absolute inset-1 border border-rose-200/50 rounded pointer-events-none" />
+                          <div className="absolute inset-1.5 border border-dashed border-rose-200/30 rounded pointer-events-none" />
+                          <span className="text-[4px] font-sans text-rose-400 uppercase tracking-widest leading-none">Save our Date</span>
+                          <div className="flex flex-col items-center justify-center my-auto">
+                            <span className="text-[12px] font-serif italic text-rose-700 leading-none">M & J</span>
+                            <div className="flex items-center justify-center text-rose-300 gap-0.5 my-0.5">
+                              <Heart className="w-1.5 h-1.5 fill-rose-300 text-rose-300" />
+                            </div>
+                            <span className="text-[4px] font-sans text-rose-500 uppercase tracking-wider">15 de Agosto de 2025</span>
+                          </div>
+                          <div className="flex justify-center">
+                            <div className="h-2.5 px-3 bg-rose-600 text-white rounded-full flex items-center justify-center text-[3px] uppercase tracking-wider font-sans">
+                              Confirmar
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
                       <h3 className="font-medium text-foreground">{layout.name}</h3>
                       <p className="text-sm text-muted-foreground mt-1">{layout.description}</p>
                     </button>
@@ -1276,19 +1350,19 @@ const Dashboard = () => {
                   {sectionOptions.map(({ key, label, icon: Icon }) => (
                     <div
                       key={key}
-                      className="flex items-center p-4 rounded-lg bg-muted/50 border border-border relative h-full min-h-[5rem]"
+                      className="flex flex-col justify-between p-5 rounded-xl bg-muted/40 border border-border/80 hover:border-gold/30 hover:bg-muted/60 transition-all duration-300 min-h-[7.5rem] h-full shadow-sm"
                     >
-                      <div className="flex items-start gap-3 w-full pr-14">
+                      <div className="flex items-start gap-3">
                         <Icon className="w-5 h-5 text-gold shrink-0 mt-0.5" />
                         <button
                           type="button"
                           onClick={() => toggleSection(key)}
-                          className="text-sm font-medium text-foreground leading-snug text-left hover:text-gold transition-colors focus:outline-none"
+                          className="text-sm font-semibold text-foreground leading-normal text-left hover:text-gold transition-colors focus:outline-none"
                         >
                           {label}
                         </button>
                       </div>
-                      <div className="absolute right-4 top-1/2 -translate-y-1/2">
+                      <div className="flex justify-end pt-3 mt-4 border-t border-border/40">
                         <Switch
                           checked={config.sections[key]}
                           onCheckedChange={() => toggleSection(key)}
@@ -1595,6 +1669,65 @@ const Dashboard = () => {
                           <div className="bg-primary text-white px-4 py-1.5 rounded-sm text-[5px] uppercase tracking-widest font-sans">
                             RSVP
                           </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {config.layout === "magazine" && (
+                    <div className="absolute inset-0 flex font-serif bg-[#FAF9F6] pointer-events-none select-none">
+                      <div className="w-[42%] h-full bg-neutral-200 relative overflow-hidden">
+                        <div className="absolute inset-0 bg-black/5" />
+                        <div className="absolute bottom-2 left-2 text-[4px] text-white font-sans uppercase tracking-widest opacity-80">
+                          {config.coupleName ? config.coupleName.split('&')[0].trim()[0] + ' & ' + (config.coupleName.split('&')[1] || '').trim()[0] : 'C & R'}
+                        </div>
+                      </div>
+                      <div className="w-[58%] h-full flex flex-col justify-between p-4 pl-3">
+                        <span className="text-[4px] font-sans tracking-[0.25em] uppercase text-muted-foreground leading-none">Wedding Day</span>
+                        <div className="my-auto py-2 text-left">
+                          <h2 className="text-sm font-bold text-neutral-800 font-serif leading-none tracking-tight">
+                            {config.coupleName ? config.coupleName.split('&')[0].trim() : "Camila"}
+                          </h2>
+                          <span className="text-[8px] font-sans text-primary font-light block my-0.5">&</span>
+                          <h2 className="text-sm font-bold text-neutral-800 font-serif leading-none tracking-tight">
+                            {config.coupleName ? (config.coupleName.split('&')[1] || "").trim() : "Rafael"}
+                          </h2>
+                          <p className="text-[4px] font-sans text-muted-foreground uppercase tracking-widest mt-1.5">
+                            {config.weddingDate ? config.weddingDate.split('-').reverse().join(' . ') : "15.08.2025"}
+                          </p>
+                        </div>
+                        <div className="w-full">
+                          <div className="bg-neutral-900 text-white py-1 text-center rounded-sm text-[4px] uppercase tracking-widest font-sans font-bold">
+                            Ver Convite
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {config.layout === "romantic" && (
+                    <div className="absolute inset-0 flex flex-col justify-between p-4 bg-[#FCF8F8] border border-rose-100 pointer-events-none select-none text-center">
+                      <div className="absolute inset-1.5 border border-rose-200/40 rounded pointer-events-none" />
+                      <div className="absolute inset-2 border border-dashed border-rose-200/20 rounded pointer-events-none" />
+                      <span className="text-[4px] font-sans text-rose-500 uppercase tracking-widest leading-none pt-2">Save our Date</span>
+                      <div className="my-auto flex flex-col items-center">
+                        <h2 className="font-serif italic text-lg text-rose-700 leading-none">
+                          {config.coupleName || "Camila & Rafael"}
+                        </h2>
+                        <div className="flex items-center gap-0.5 text-rose-400 my-1 justify-center">
+                          <Heart className="w-2.5 h-2.5 fill-rose-400 text-rose-400 animate-pulse" />
+                        </div>
+                        <p className="text-[5px] font-sans tracking-wide text-rose-600 uppercase">
+                          {config.weddingDate ? (() => {
+                            const [year, month, day] = config.weddingDate.split('-').map(Number);
+                            const date = new Date(year, month - 1, day);
+                            return date.toLocaleDateString("pt-BR", { day: "numeric", month: "long", year: "numeric" });
+                          })() : "15 de Agosto de 2025"}
+                        </p>
+                      </div>
+                      <div className="flex justify-center pb-2">
+                        <div className="h-3 px-4 bg-rose-600 text-white rounded-full flex items-center justify-center text-[4px] uppercase tracking-wider font-sans font-bold shadow-sm">
+                          Confirmar Presença
                         </div>
                       </div>
                     </div>

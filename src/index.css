@@ -197,6 +197,76 @@
     --heading-weight: 400;
   }
 
+  /* Magazine Layout */
+  :root[data-layout="magazine"],
+  [data-layout="magazine"] {
+    --background: 40 10% 99%;
+    --foreground: 0 0% 12%;
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 12%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 12%;
+    --primary: 0 0% 12%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 0 0% 95%;
+    --secondary-foreground: 0 0% 12%;
+    --muted: 0 0% 96%;
+    --muted-foreground: 0 0% 45%;
+    --accent: 0 0% 92%;
+    --accent-foreground: 0 0% 12%;
+    --border: 0 0% 88%;
+    --input: 0 0% 90%;
+    --ring: 0 0% 12%;
+    --gold: 0 0% 12%;
+    --gold-light: 0 0% 50%;
+    --cream: 0 0% 98%;
+
+    --font-serif: "Playfair Display", Georgia, serif;
+    --font-sans: "Inter", system-ui, sans-serif;
+
+    --shadow-soft: 0 2px 4px hsl(0 0% 0% / 0.05);
+    --shadow-card: 0 6px 16px hsl(0 0% 0% / 0.06);
+    --shadow-elevated: 0 16px 36px hsl(0 0% 0% / 0.1);
+
+    --section-radius: 0rem;
+    --heading-weight: 700;
+  }
+
+  /* Romantic Layout */
+  :root[data-layout="romantic"],
+  [data-layout="romantic"] {
+    --background: 345 35% 99%;
+    --foreground: 345 40% 16%;
+    --card: 345 50% 98%;
+    --card-foreground: 345 40% 16%;
+    --popover: 345 50% 98%;
+    --popover-foreground: 345 40% 16%;
+    --primary: 345 45% 52%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 345 30% 94%;
+    --secondary-foreground: 345 45% 20%;
+    --muted: 345 25% 96%;
+    --muted-foreground: 345 20% 50%;
+    --accent: 345 40% 88%;
+    --accent-foreground: 345 45% 20%;
+    --border: 345 30% 90%;
+    --input: 345 30% 92%;
+    --ring: 345 45% 52%;
+    --gold: 345 45% 52%;
+    --gold-light: 345 35% 75%;
+    --cream: 345 40% 97%;
+
+    --font-serif: "Pinyon Script", cursive, Georgia, serif;
+    --font-sans: "Outfit", system-ui, sans-serif;
+
+    --shadow-soft: 0 4px 15px -2px hsl(345 20% 20% / 0.05);
+    --shadow-card: 0 8px 24px -4px hsl(345 20% 20% / 0.08);
+    --shadow-elevated: 0 20px 40px -8px hsl(345 20% 20% / 0.12);
+
+    --section-radius: 1.5rem;
+    --heading-weight: 400;
+  }
+
   .dark {
     --background: 25 20% 10%;
     --foreground: 40 30% 95%;
