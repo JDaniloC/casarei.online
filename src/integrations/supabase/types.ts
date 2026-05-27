@@ -66,6 +66,47 @@ export type Database = {
           },
         ]
       }
+      guests: {
+        Row: {
+          id: string
+          wedding_id: string
+          name: string
+          phone: string | null
+          passcode: string | null
+          token: string
+          status: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          wedding_id: string
+          name: string
+          phone?: string | null
+          passcode?: string | null
+          token?: string
+          status?: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          wedding_id?: string
+          name?: string
+          phone?: string | null
+          passcode?: string | null
+          token?: string
+          status?: string
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "guests_wedding_id_fkey"
+            columns: ["wedding_id"]
+            isOneToOne: false
+            referencedRelation: "weddings"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
       gallery_images: {
         Row: {
           caption: string | null
@@ -126,6 +167,10 @@ export type Database = {
           price: number
           wedding_id: string
           is_open_price: boolean
+          house_item_type: string | null
+          house_room: string | null
+          house_position_x: number | null
+          house_position_y: number | null
         }
         Insert: {
           category?: string
@@ -137,6 +182,10 @@ export type Database = {
           price: number
           wedding_id: string
           is_open_price?: boolean
+          house_item_type?: string | null
+          house_room?: string | null
+          house_position_x?: number | null
+          house_position_y?: number | null
         }
         Update: {
           category?: string
@@ -148,6 +197,10 @@ export type Database = {
           price?: number
           wedding_id?: string
           is_open_price?: boolean
+          house_item_type?: string | null
+          house_room?: string | null
+          house_position_x?: number | null
+          house_position_y?: number | null
         }
         Relationships: [
           {
@@ -485,6 +538,7 @@ export type Database = {
           section_rsvp: boolean
           section_video: boolean
           section_wedding_info: boolean
+          section_virtual_house: boolean
           slug: string | null
           story_photo_1: string | null
           story_photo_2: string | null
@@ -536,6 +590,7 @@ export type Database = {
           section_rsvp?: boolean
           section_video?: boolean
           section_wedding_info?: boolean
+          section_virtual_house?: boolean
           slug?: string | null
           story_photo_1?: string | null
           story_photo_2?: string | null
@@ -587,6 +642,7 @@ export type Database = {
           section_rsvp?: boolean
           section_video?: boolean
           section_wedding_info?: boolean
+          section_virtual_house?: boolean
           slug?: string | null
           story_photo_1?: string | null
           story_photo_2?: string | null

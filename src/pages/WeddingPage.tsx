@@ -19,6 +19,7 @@ interface WeddingData {
   section_gallery: boolean;
   section_video: boolean;
   section_dress_code: boolean;
+  section_virtual_house: boolean;
   hero_image_url: string | null;
   video_url: string | null;
   ceremony_date: string | null;
@@ -97,6 +98,7 @@ const WeddingContent = ({
       gallery: weddingData.section_gallery,
       video: weddingData.section_video,
       dressCode: weddingData.section_dress_code,
+      virtualHouse: weddingData.section_virtual_house || false,
     },
     heroImage: weddingData.hero_image_url || "",
     videoUrl: weddingData.video_url || "",

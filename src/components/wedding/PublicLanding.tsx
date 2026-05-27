@@ -13,6 +13,7 @@ import PhotoGallery from "./PhotoGallery";
 import PublicFooter from "./PublicFooter";
 import CartButton from "./CartButton";
 import CheckoutModal from "./CheckoutModal";
+import PublicVirtualHouse from "./PublicVirtualHouse";
 
 interface PublicLandingProps {
   isPreview?: boolean;
@@ -94,6 +95,13 @@ const PublicLandingContent = ({
         {sections.dressCode && <PublicDressCode />}
         
         {sections.gifts && <GiftRegistrySection />}
+        
+        {sections.virtualHouse && (
+          <PublicVirtualHouse
+            weddingId={weddingId || ""}
+            onOpenCheckout={() => setIsCheckoutOpen(true)}
+          />
+        )}
         
         {sections.rsvp && <PublicRSVP weddingId={weddingId} />}
         
