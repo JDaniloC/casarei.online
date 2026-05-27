@@ -7,22 +7,26 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { toast } from "sonner";
 import { Copy, MessageCircle, Trash2 } from "lucide-react";
 
-export default function DashboardGuests() {
-  const { wedding } = useWedding();
+interface DashboardGuestsProps {
+  weddingId: string;
+  weddingSlug: string | null;
+}
+
+export default function DashboardGuests({ weddingId, weddingSlug }: DashboardGuestsProps) {
   const [guests, setGuests] = useState<any[]>([]);
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [passcode, setPasscode] = useState("");
 
   useEffect(() => {
-    if (wedding) fetchGuests();
-  }, [wedding]);
+    if (weddingId) fetchGuests();
+  }, [weddingId]);
 
   const fetchGuests = async () => {
     const { data, error } = await supabase
       .from("guests")
       .select("*")
-      .eq("wedding_id", wedding?.id)
+      .eq("wedding_id", weddingId)
       .order("created_at", { ascending: false });
     
     if (data) setGuests(data);
@@ -30,10 +34,10 @@ export default function DashboardGuests() {
 
   const handleAddGuest = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim() || !wedding) return;
+    if (!name.trim() || !weddingId) return;
 
     const { error } = await supabase.from("guests").insert({
-      wedding_id: wedding.id,
+      wedding_id: weddingId,
       name,
       phone: phone || null,
       passcode: passcode || null,
@@ -63,7 +67,7 @@ export default function DashboardGuests() {
   };
 
   const getInviteLink = (token: string) => {
-    return `${window.location.origin}/${wedding?.slug}/convite/${token}`;
+    return `${window.location.origin}/${weddingSlug}/convite/${token}`;
   };
 
   const copyLink = (token: string) => {

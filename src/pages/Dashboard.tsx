@@ -900,7 +900,7 @@ const Dashboard = () => {
         {dashboardTab === "history" ? (
           <DashboardHistory />
         ) : dashboardTab === "guests" ? (
-          <DashboardGuests />
+          <DashboardGuests weddingId={weddingId} weddingSlug={weddingSlug} />
         ) : (
         <>
         {/* Published URL */}
