@@ -216,8 +216,12 @@ export default function PublicVirtualHouse({ weddingId, onOpenCheckout }: Public
 
           {/* Blueprint frame */}
           <div
-            className={`grid grid-cols-12 gap-[2px] w-full aspect-[1.5] relative rounded-xl overflow-hidden border-4 ${
-              foundationPaid ? "border-stone-500 bg-stone-100" : "border-dashed border-white/20 bg-[#425539]"
+            className={`grid grid-cols-12 gap-[2px] w-full aspect-[1.5] relative rounded-xl overflow-hidden border-4 transition-all duration-300 ${
+              foundationPaid
+                ? wallsPaid
+                  ? "border-[6px] border-neutral-800 bg-stone-100 shadow-elevated"
+                  : "border-4 border-stone-400 bg-stone-100"
+                : "border-dashed border-white/20 bg-[#425539]"
             }`}
           >
             {/* Render Grid cells */}
@@ -232,8 +236,8 @@ export default function PublicVirtualHouse({ weddingId, onOpenCheckout }: Public
               // Walls division styling
               let wallBorder = "";
               if (wallsPaid) {
-                if (x === 4 || x === 7) wallBorder += " border-r-4 border-r-stone-700";
-                if (y === 4) wallBorder += " border-b-4 border-b-stone-700";
+                if (x === 4 || x === 7) wallBorder += " border-r-[6px] border-r-neutral-800";
+                if (y === 4) wallBorder += " border-b-[6px] border-b-neutral-800";
               }
 
               return (

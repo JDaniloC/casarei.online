@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { toast } from "sonner";
 import { Loader2, Armchair, Move, Trash2, HelpCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { motion } from "framer-motion";
 
 const supabase = createClient(
   import.meta.env.VITE_SUPABASE_URL,
@@ -235,8 +236,12 @@ export default function DashboardVirtualHouse({ weddingId }: DashboardVirtualHou
         <div className="bg-[#4a5f41] p-4 sm:p-6 rounded-2xl border-4 border-[#3e5036] shadow-card relative overflow-hidden">
           {/* Grid Layout Container */}
           <div
-            className={`grid grid-cols-12 gap-[2px] w-full aspect-[1.5] relative rounded-lg overflow-hidden border-4 ${
-              foundationPaid ? "border-stone-500 bg-stone-100" : "border-dashed border-white/20 bg-[#425539]"
+            className={`grid grid-cols-12 gap-[2px] w-full aspect-[1.5] relative rounded-xl overflow-hidden border-4 transition-all duration-300 ${
+              foundationPaid
+                ? wallsPaid
+                  ? "border-[6px] border-neutral-800 bg-stone-100 shadow-elevated"
+                  : "border-4 border-stone-400 bg-stone-100"
+                : "border-dashed border-white/20 bg-[#425539]"
             }`}
           >
             {/* Grid Cells */}
@@ -249,8 +254,8 @@ export default function DashboardVirtualHouse({ weddingId }: DashboardVirtualHou
               let wallBorder = "";
               if (wallsPaid) {
                 // Room Division walls
-                if (x === 4 || x === 7) wallBorder += " border-r-4 border-r-stone-700";
-                if (y === 4) wallBorder += " border-b-4 border-b-stone-700";
+                if (x === 4 || x === 7) wallBorder += " border-r-[6px] border-r-neutral-800";
+                if (y === 4) wallBorder += " border-b-[6px] border-b-neutral-800";
               }
 
               return (
