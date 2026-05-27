@@ -20,6 +20,7 @@ interface DBGift {
   id: string;
   name: string;
   price: number;
+  stock: number | null;
   house_item_type: string | null;
 }
 
@@ -47,6 +48,7 @@ export default function HouseCatalogSettings({ weddingId }: HouseCatalogSettings
   const [existingGifts, setExistingGifts] = useState<DBGift[]>([]);
   const [enabledItems, setEnabledItems] = useState<Record<string, boolean>>({});
   const [prices, setPrices] = useState<Record<string, number>>({});
+  const [completedItems, setCompletedItems] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     async function loadCatalog() {
@@ -55,7 +57,7 @@ export default function HouseCatalogSettings({ weddingId }: HouseCatalogSettings
         setLoading(true);
         const { data, error } = await supabase
           .from("gifts")
-          .select("id, name, price, house_item_type")
+          .select("id, name, price, stock, house_item_type")
           .eq("wedding_id", weddingId)
           .not("house_item_type", "is", null);
 
@@ -66,15 +68,18 @@ export default function HouseCatalogSettings({ weddingId }: HouseCatalogSettings
 
         const newEnabled: Record<string, boolean> = {};
         const newPrices: Record<string, number> = {};
+        const newCompleted: Record<string, boolean> = {};
 
         CATALOG_ITEMS.forEach((item) => {
           const match = gifts.find((g) => g.house_item_type === item.id);
           newEnabled[item.id] = !!match;
           newPrices[item.id] = match ? match.price : item.defaultPrice;
+          newCompleted[item.id] = match ? match.stock === 0 : false;
         });
 
         setEnabledItems(newEnabled);
         setPrices(newPrices);
+        setCompletedItems(newCompleted);
       } catch (err) {
         console.error("Error loading house catalog:", err);
         toast.error("Erro ao carregar catálogo da casa");
@@ -94,6 +99,10 @@ export default function HouseCatalogSettings({ weddingId }: HouseCatalogSettings
     setPrices((prev) => ({ ...prev, [id]: num }));
   };
 
+  const handleCompletedToggle = (id: string) => {
+    setCompletedItems((prev) => ({ ...prev, [id]: !prev[id] }));
+  };
+
   const handleSave = async () => {
     setSaving(true);
     try {
@@ -101,14 +110,16 @@ export default function HouseCatalogSettings({ weddingId }: HouseCatalogSettings
       for (const item of CATALOG_ITEMS) {
         const isEnabled = enabledItems[item.id];
         const match = existingGifts.find((g) => g.house_item_type === item.id);
-        const price = prices[item.id] || item.defaultPrice;
+        const isCompleted = completedItems[item.id] || false;
+        const stock = isCompleted ? 0 : 1;
+        const price = isCompleted ? 0 : (prices[item.id] || item.defaultPrice);
 
         if (isEnabled) {
           if (match) {
             // Update
             const { error } = await supabase
               .from("gifts")
-              .update({ price })
+              .update({ price, stock })
               .eq("id", match.id);
             if (error) throw error;
           } else {
@@ -122,7 +133,7 @@ export default function HouseCatalogSettings({ weddingId }: HouseCatalogSettings
                 price,
                 house_item_type: item.id,
                 house_room: item.room,
-                stock: 1,
+                stock,
                 image_url: `https://images.unsplash.com/photo-1513694203232-719a280e022f?w=400`, // Default beautiful house texture placeholder
               });
             if (error) throw error;
@@ -140,7 +151,7 @@ export default function HouseCatalogSettings({ weddingId }: HouseCatalogSettings
       // Reload
       const { data } = await supabase
         .from("gifts")
-        .select("id, name, price, house_item_type")
+        .select("id, name, price, stock, house_item_type")
         .eq("wedding_id", weddingId)
         .not("house_item_type", "is", null);
 
@@ -211,30 +222,49 @@ export default function HouseCatalogSettings({ weddingId }: HouseCatalogSettings
             {structuralItems.map((item) => (
               <div
                 key={item.id}
-                className="bg-card rounded-xl p-4 border border-border shadow-soft flex items-center justify-between"
+                className="bg-card rounded-xl p-4 border border-border shadow-soft flex flex-col sm:flex-row sm:items-center justify-between gap-4"
               >
                 <div className="space-y-1">
                   <h4 className="font-medium text-sm text-foreground">{item.name}</h4>
                   <p className="text-xs text-muted-foreground">{item.category}</p>
                 </div>
-                <div className="flex items-center gap-4">
-                  <AnimatePresence>
+                <div className="flex items-center gap-4 justify-between sm:justify-end w-full sm:w-auto">
+                  <AnimatePresence mode="wait">
                     {enabledItems[item.id] && (
                       <motion.div
-                        initial={{ opacity: 0, scale: 0.9, x: 20 }}
-                        animate={{ opacity: 1, scale: 1, x: 0 }}
-                        exit={{ opacity: 0, scale: 0.9, x: 20 }}
-                        className="relative w-28"
+                        key={completedItems[item.id] ? "completed" : "active"}
+                        initial={{ opacity: 0, scale: 0.95 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.95 }}
+                        transition={{ duration: 0.15 }}
+                        className="flex items-center gap-3"
                       >
-                        <DollarSign className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
-                        <Input
-                          type="number"
-                          value={prices[item.id] || ""}
-                          onChange={(e) => handlePriceChange(item.id, e.target.value)}
-                          className="h-8 pl-7 text-xs rounded-md bg-background border-border text-foreground"
-                          placeholder="Preço"
-                          min="1"
-                        />
+                        {completedItems[item.id] ? (
+                          <span className="text-[11px] font-bold px-2.5 py-1 bg-gold/15 text-gold rounded-full border border-gold/30 select-none">
+                            Pronto
+                          </span>
+                        ) : (
+                          <div className="relative w-28">
+                            <DollarSign className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+                            <Input
+                              type="number"
+                              value={prices[item.id] || ""}
+                              onChange={(e) => handlePriceChange(item.id, e.target.value)}
+                              className="h-8 pl-7 text-xs rounded-md bg-background border-border text-foreground"
+                              placeholder="Preço"
+                              min="1"
+                            />
+                          </div>
+                        )}
+
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[10px] text-muted-foreground whitespace-nowrap">Já Concluído?</span>
+                          <Switch
+                            checked={completedItems[item.id] || false}
+                            onCheckedChange={() => handleCompletedToggle(item.id)}
+                            className="scale-75"
+                          />
+                        </div>
                       </motion.div>
                     )}
                   </AnimatePresence>
@@ -264,7 +294,7 @@ export default function HouseCatalogSettings({ weddingId }: HouseCatalogSettings
             {furnitureItems.map((item) => (
               <div
                 key={item.id}
-                className="bg-card rounded-xl p-4 border border-border shadow-soft flex items-center justify-between"
+                className="bg-card rounded-xl p-4 border border-border shadow-soft flex flex-col sm:flex-row sm:items-center justify-between gap-4"
               >
                 <div className="space-y-1">
                   <h4 className="font-medium text-sm text-foreground">{item.name}</h4>
@@ -272,24 +302,43 @@ export default function HouseCatalogSettings({ weddingId }: HouseCatalogSettings
                     {item.category} • {item.room === "kitchen" ? "Cozinha" : item.room === "living_room" ? "Sala" : "Quarto"}
                   </p>
                 </div>
-                <div className="flex items-center gap-4">
-                  <AnimatePresence>
+                <div className="flex items-center gap-4 justify-between sm:justify-end w-full sm:w-auto">
+                  <AnimatePresence mode="wait">
                     {enabledItems[item.id] && (
                       <motion.div
-                        initial={{ opacity: 0, scale: 0.9, x: 20 }}
-                        animate={{ opacity: 1, scale: 1, x: 0 }}
-                        exit={{ opacity: 0, scale: 0.9, x: 20 }}
-                        className="relative w-28"
+                        key={completedItems[item.id] ? "completed" : "active"}
+                        initial={{ opacity: 0, scale: 0.95 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.95 }}
+                        transition={{ duration: 0.15 }}
+                        className="flex items-center gap-3"
                       >
-                        <DollarSign className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
-                        <Input
-                          type="number"
-                          value={prices[item.id] || ""}
-                          onChange={(e) => handlePriceChange(item.id, e.target.value)}
-                          className="h-8 pl-7 text-xs rounded-md bg-background border-border text-foreground"
-                          placeholder="Preço"
-                          min="1"
-                        />
+                        {completedItems[item.id] ? (
+                          <span className="text-[11px] font-bold px-2.5 py-1 bg-gold/15 text-gold rounded-full border border-gold/30 select-none">
+                            Pronto
+                          </span>
+                        ) : (
+                          <div className="relative w-28">
+                            <DollarSign className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+                            <Input
+                              type="number"
+                              value={prices[item.id] || ""}
+                              onChange={(e) => handlePriceChange(item.id, e.target.value)}
+                              className="h-8 pl-7 text-xs rounded-md bg-background border-border text-foreground"
+                              placeholder="Preço"
+                              min="1"
+                            />
+                          </div>
+                        )}
+
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[10px] text-muted-foreground whitespace-nowrap">Já Concluído?</span>
+                          <Switch
+                            checked={completedItems[item.id] || false}
+                            onCheckedChange={() => handleCompletedToggle(item.id)}
+                            className="scale-75"
+                          />
+                        </div>
                       </motion.div>
                     )}
                   </AnimatePresence>
