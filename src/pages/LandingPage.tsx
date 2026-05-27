@@ -6,6 +6,7 @@ import {
   Check, ArrowRight, Sparkles
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useAuth } from "@/hooks/useAuth";
 
 const features = [
   {
@@ -74,6 +75,8 @@ const steps = [
 ];
 
 const LandingPage = () => {
+  const { user, loading } = useAuth();
+  
   return (
     <div className="min-h-screen bg-background">
       {/* Navbar */}
@@ -85,14 +88,26 @@ const LandingPage = () => {
               <span className="font-serif text-xl font-semibold text-foreground">Casarei.online</span>
             </div>
             <div className="flex items-center gap-4">
-              <Link to="/login">
-                <Button variant="ghost">Entrar</Button>
-              </Link>
-              <Link to="/register">
-                <Button className="bg-gold hover:bg-gold-light text-background">
-                  Criar Conta Grátis
-                </Button>
-              </Link>
+              {!loading && (
+                user ? (
+                  <Link to="/dashboard">
+                    <Button className="bg-gold hover:bg-gold-light text-background">
+                      Ir para o Dashboard
+                    </Button>
+                  </Link>
+                ) : (
+                  <>
+                    <Link to="/login">
+                      <Button variant="ghost">Entrar</Button>
+                    </Link>
+                    <Link to="/register">
+                      <Button className="bg-gold hover:bg-gold-light text-background">
+                        Criar Conta Grátis
+                      </Button>
+                    </Link>
+                  </>
+                )
+              )}
             </div>
           </div>
         </div>
