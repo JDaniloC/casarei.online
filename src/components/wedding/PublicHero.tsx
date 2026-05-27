@@ -44,7 +44,10 @@ const PublicHero = () => {
 
   const location = useLocation();
   const isPreview = location.pathname.startsWith("/preview");
-  const isGuestView = isPreview || location.pathname.endsWith("/convite") || new URLSearchParams(location.search).has("convite");
+  const isGuestView =
+    isPreview ||
+    location.pathname.endsWith("/convite") ||
+    new URLSearchParams(location.search).has("convite");
 
   const scrollToInfo = () => {
     const hasWeddingInfo = isGuestView && config.sections.weddingInfo;
@@ -53,9 +56,9 @@ const PublicHero = () => {
   };
 
   // Fix timezone issue by parsing the date correctly
-  const formattedDate = config.weddingDate 
+  const formattedDate = config.weddingDate
     ? (() => {
-        const [year, month, day] = config.weddingDate.split('-').map(Number);
+        const [year, month, day] = config.weddingDate.split("-").map(Number);
         const date = new Date(year, month - 1, day);
         return date.toLocaleDateString("pt-BR", {
           day: "numeric",
@@ -68,24 +71,27 @@ const PublicHero = () => {
   const hasHeroImage = config.heroImage || heroCoupleImage;
 
   // Layout-specific styles
-  const layoutStyles: Record<string, { overlay: string, titleClass: string }> = {
-    classic: {
-      overlay: "bg-gradient-to-b from-black/50 via-black/40 to-black/70",
-      titleClass: "font-serif drop-shadow-md",
-    },
-    modern: {
-      overlay: "bg-gradient-to-b from-slate-900/60 via-slate-900/50 to-slate-900/80",
-      titleClass: "font-sans tracking-tight drop-shadow-lg",
-    },
-    minimalist: {
-      overlay: "bg-gradient-to-b from-stone-900/40 via-stone-900/20 to-stone-900/60",
-      titleClass: "font-serif font-light drop-shadow-sm",
-    },
-    editorial: {
-      overlay: "hidden",
-      titleClass: "font-serif text-primary",
-    }
-  };
+  const layoutStyles: Record<string, { overlay: string; titleClass: string }> =
+    {
+      classic: {
+        overlay: "bg-gradient-to-b from-black/50 via-black/40 to-black/70",
+        titleClass: "font-serif drop-shadow-md",
+      },
+      modern: {
+        overlay:
+          "bg-gradient-to-b from-slate-900/60 via-slate-900/50 to-slate-900/80",
+        titleClass: "font-sans tracking-tight drop-shadow-lg",
+      },
+      minimalist: {
+        overlay:
+          "bg-gradient-to-b from-stone-900/40 via-stone-900/20 to-stone-900/60",
+        titleClass: "font-serif font-light drop-shadow-sm",
+      },
+      editorial: {
+        overlay: "hidden",
+        titleClass: "font-serif text-primary",
+      },
+    };
 
   const currentStyle = layoutStyles[config.layout] || layoutStyles.classic;
 
@@ -146,10 +152,19 @@ const PublicHero = () => {
               transition={{ duration: 0.8, delay: 0.7 }}
               className="flex justify-center my-6 text-gold"
             >
-              <svg className="w-16 h-16 opacity-85" viewBox="0 0 100 100" fill="currentColor">
+              <svg
+                className="w-16 h-16 opacity-85"
+                viewBox="0 0 100 100"
+                fill="currentColor"
+              >
                 <path d="M50 15 C45 35, 25 35, 10 40 C30 45, 45 40, 50 15 Z" />
                 <path d="M50 15 C55 35, 75 35, 90 40 C70 45, 55 40, 50 15 Z" />
-                <path d="M50 15 C50 45, 50 70, 50 85" stroke="currentColor" strokeWidth="1.5" fill="none" />
+                <path
+                  d="M50 15 C50 45, 50 70, 50 85"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  fill="none"
+                />
                 <path d="M50 40 C35 50, 30 65, 20 70 C35 68, 45 60, 50 40 Z" />
                 <path d="M50 50 C65 60, 70 75, 80 80 C65 78, 55 70, 50 50 Z" />
               </svg>
@@ -201,7 +216,9 @@ const PublicHero = () => {
             onClick={scrollToInfo}
             className="btn-wedding group"
           >
-            {isGuestView && config.sections.weddingInfo ? "Ver informações do casamento" : "Ver lista de presentes"}
+            {isGuestView && config.sections.weddingInfo
+              ? "Ver informações do casamento"
+              : "Ver lista de presentes"}
             <ChevronDown className="ml-2 w-5 h-5 group-hover:translate-y-1 transition-transform" />
           </motion.button>
         </div>
@@ -268,10 +285,19 @@ const PublicHero = () => {
             transition={{ duration: 0.8, delay: 0.7 }}
             className="flex justify-center my-6 text-gold-light"
           >
-            <svg className="w-16 h-16 opacity-85" viewBox="0 0 100 100" fill="currentColor">
+            <svg
+              className="w-16 h-16 opacity-85"
+              viewBox="0 0 100 100"
+              fill="currentColor"
+            >
               <path d="M50 15 C45 35, 25 35, 10 40 C30 45, 45 40, 50 15 Z" />
               <path d="M50 15 C55 35, 75 35, 90 40 C70 45, 55 40, 50 15 Z" />
-              <path d="M50 15 C50 45, 50 70, 50 85" stroke="currentColor" strokeWidth="1.5" fill="none" />
+              <path
+                d="M50 15 C50 45, 50 70, 50 85"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                fill="none"
+              />
               <path d="M50 40 C35 50, 30 65, 20 70 C35 68, 45 60, 50 40 Z" />
               <path d="M50 50 C65 60, 70 75, 80 80 C65 78, 55 70, 50 50 Z" />
             </svg>
@@ -323,7 +349,9 @@ const PublicHero = () => {
           onClick={scrollToInfo}
           className="btn-wedding group"
         >
-          {isGuestView && config.sections.weddingInfo ? "Ver informações do casamento" : "Ver lista de presentes"}
+          {isGuestView && config.sections.weddingInfo
+            ? "Ver informações do casamento"
+            : "Ver lista de presentes"}
           <ChevronDown className="ml-2 w-5 h-5 group-hover:translate-y-1 transition-transform" />
         </motion.button>
       </div>
