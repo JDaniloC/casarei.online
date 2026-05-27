@@ -1,0 +1,18 @@
+-- Fix SECURITY DEFINER issue for wedding_config_safe view
+DROP VIEW IF EXISTS wedding_config_safe CASCADE;
+
+CREATE VIEW wedding_config_safe 
+WITH (security_invoker = true)
+AS
+SELECT 
+  id, user_id, couple_name, partner1_name, partner2_name, wedding_date, tagline, slug, layout,
+  section_about, section_wedding_info, section_gifts, section_rsvp, section_message_wall,
+  section_gallery, section_video, section_dress_code, hero_image_url, video_url,
+  ceremony_date, ceremony_time, ceremony_location, ceremony_address,
+  reception_location, reception_address, reception_time, same_location,
+  about_text, dress_code_text, colors_to_avoid, additional_info,
+  mercado_pago_public_key, payment_credit_card, payment_pix, payment_boleto, max_installments,
+  story_photo_1, story_photo_2, story_photo_3, created_at, updated_at,
+  manual_pix_type, manual_pix_key, manual_pix_qr_image_url, whatsapp_number,
+  theme_color, theme_font, theme_decorations, section_virtual_house
+FROM public.weddings;
