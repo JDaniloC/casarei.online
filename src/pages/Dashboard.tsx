@@ -143,7 +143,7 @@ const Dashboard = () => {
   const [dashboardTab, setDashboardTab] = useState<"settings" | "history" | "guests">(() => {
     return (location.state as any)?.activeTab || "history";
   });
-  const [settingsSubTab, setSettingsSubTab] = useState<"appearance" | "story" | "event" | "gifts" | "virtualHouse">("appearance");
+  const [settingsSubTab, setSettingsSubTab] = useState<"appearance" | "story" | "event" | "gifts" | "virtualHouse" | "advanced">("appearance");
   const [houseActiveView, setHouseActiveView] = useState<"blueprint" | "catalog">("blueprint");
   const [weddingId, setWeddingId] = useState<string>("");
   const [mercadoPagoAccessToken, setMercadoPagoAccessToken] = useState("");
@@ -2914,6 +2914,116 @@ const Dashboard = () => {
                 )}
               </div>
             )}
+          </div>
+        )}
+
+        {settingsSubTab === "advanced" && (
+          <div className="space-y-8 animate-fade-in max-w-5xl mx-auto">
+            <div className="bg-destructive/5 rounded-xl border border-destructive/20 p-8 shadow-soft">
+              <div className="flex items-center gap-4 mb-8">
+                <div className="p-4 bg-destructive/10 rounded-full">
+                  <AlertCircle className="w-8 h-8 text-destructive" />
+                </div>
+                <div>
+                  <h2 className="font-serif text-3xl text-foreground mb-2">Área de Perigo (Avançado)</h2>
+                  <p className="text-sm text-muted-foreground text-lg">Ações irreversíveis para limpar dados de teste ou resetar completamente o seu casamento.</p>
+                </div>
+              </div>
+
+              <div className="grid md:grid-cols-2 gap-6">
+                <div className="bg-background rounded-xl p-6 border border-border flex flex-col justify-between space-y-4 shadow-sm hover:border-destructive/30 transition-colors">
+                  <div>
+                    <h3 className="font-medium text-lg flex items-center gap-2 mb-3"><Users className="w-5 h-5 text-destructive" /> Limpar Todos os Convidados</h3>
+                    <p className="text-sm text-muted-foreground leading-relaxed">Exclui todos os convidados adicionados e suas respectivas respostas de RSVP. Ideal para começar do zero após fazer testes de usabilidade no formulário de presença.</p>
+                  </div>
+                  <Button 
+                    variant="destructive" 
+                    className="w-full flex gap-2 font-medium"
+                    onClick={async () => {
+                      if (!confirm("Tem certeza que deseja apagar TODOS os convidados? Esta ação não pode ser desfeita.")) return;
+                      await supabase.from("guests").delete().eq("wedding_id", weddingId);
+                      await supabase.from("rsvp_responses").delete().eq("wedding_id", weddingId);
+                      toast({ title: "Sucesso", description: "Todos os convidados foram apagados do banco de dados." });
+                    }}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    Apagar Todos os Convidados
+                  </Button>
+                </div>
+
+                <div className="bg-background rounded-xl p-6 border border-border flex flex-col justify-between space-y-4 shadow-sm hover:border-destructive/30 transition-colors">
+                  <div>
+                    <h3 className="font-medium text-lg flex items-center gap-2 mb-3"><MessageSquare className="w-5 h-5 text-destructive" /> Limpar Mural de Recados</h3>
+                    <p className="text-sm text-muted-foreground leading-relaxed">Apaga todas as mensagens que foram deixadas no seu mural público de recados na landing page. Ideal para limpar testes antes de enviar o link oficial.</p>
+                  </div>
+                  <Button 
+                    variant="destructive" 
+                    className="w-full flex gap-2 font-medium"
+                    onClick={async () => {
+                      if (!confirm("Tem certeza que deseja apagar TODAS as mensagens do mural? Esta ação não pode ser desfeita.")) return;
+                      await supabase.from("messages").delete().eq("wedding_id", weddingId);
+                      toast({ title: "Sucesso", description: "O mural de recados foi limpo completamente." });
+                    }}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    Apagar Mural de Recados
+                  </Button>
+                </div>
+
+                <div className="bg-background rounded-xl p-6 border border-border flex flex-col justify-between space-y-4 shadow-sm hover:border-destructive/30 transition-colors">
+                  <div>
+                    <h3 className="font-medium text-lg flex items-center gap-2 mb-3"><Gift className="w-5 h-5 text-destructive" /> Limpar Lista de Presentes</h3>
+                    <p className="text-sm text-muted-foreground leading-relaxed">Apaga todos os presentes cadastrados na sua lista (e consequentemente na Casa Virtual 2D). Compras e transações já efetuadas não serão afetadas, mas o catálogo de itens ficará vazio.</p>
+                  </div>
+                  <Button 
+                    variant="destructive" 
+                    className="w-full flex gap-2 font-medium"
+                    onClick={async () => {
+                      if (!confirm("Tem certeza que deseja apagar TODOS os presentes da sua lista? Esta ação não pode ser desfeita.")) return;
+                      await supabase.from("gifts").delete().eq("wedding_id", weddingId);
+                      toast({ title: "Sucesso", description: "Todos os presentes foram apagados. Recarregando a página..." });
+                      setTimeout(() => window.location.reload(), 1500);
+                    }}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    Apagar Todos os Presentes
+                  </Button>
+                </div>
+
+                <div className="bg-background rounded-xl p-6 border-2 border-destructive/80 flex flex-col justify-between space-y-4 shadow-md bg-destructive/5 relative overflow-hidden">
+                  <div className="absolute top-0 right-0 w-32 h-32 bg-destructive/10 rounded-bl-full -mr-4 -mt-4 blur-2xl pointer-events-none"></div>
+                  <div className="relative z-10">
+                    <h3 className="font-medium text-xl flex items-center gap-2 mb-3 text-destructive"><AlertCircle className="w-6 h-6" /> Factory Reset Total</h3>
+                    <p className="text-sm text-destructive/80 font-medium leading-relaxed mb-2">Ação Extremamente Destrutiva!</p>
+                    <p className="text-sm text-muted-foreground leading-relaxed">Apaga COMPLETAMENTE o seu casamento do banco de dados. Convidados, presentes, histórico financeiro, configurações, personalizações de layout... tudo será deletado e voltará ao padrão de fábrica (Camila & Rafael).</p>
+                  </div>
+                  <Button 
+                    variant="destructive" 
+                    size="lg"
+                    className="w-full flex gap-2 bg-destructive hover:bg-destructive/90 text-white font-bold relative z-10"
+                    onClick={async () => {
+                      if (!confirm("ALERTA MÁXIMO!\n\nIsso vai apagar literalmente TUDO que você configurou no seu casamento (presentes, convidados, mensagens, finanças, layout).\n\nTem ABSOLUTA CERTEZA que quer fazer isso?")) return;
+                      if (!confirm("Último aviso: TEM CERTEZA?\n\nNós NÃO poderemos recuperar seus dados depois disso! O site voltará para as configurações padrão 'Camila & Rafael'.")) return;
+                      
+                      toast({ title: "Apagando o banco de dados...", description: "Por favor, aguarde." });
+                      
+                      // Delete the wedding row. ON DELETE CASCADE handles the rest.
+                      const { error } = await supabase.from("weddings").delete().eq("id", weddingId);
+                      
+                      if (error) {
+                        toast({ title: "Erro", description: "Falha ao resetar os dados: " + error.message, variant: "destructive" });
+                      } else {
+                        toast({ title: "Reset Concluído", description: "O seu casamento foi completamente apagado. Reiniciando os dados de fábrica..." });
+                        setTimeout(() => window.location.reload(), 2000);
+                      }
+                    }}
+                  >
+                    <AlertCircle className="w-5 h-5" />
+                    RESETAR MEU CASAMENTO
+                  </Button>
+                </div>
+              </div>
+            </div>
           </div>
         )}
 
