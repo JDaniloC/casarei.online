@@ -142,6 +142,7 @@ const Dashboard = () => {
     error?: string;
     isTestMode?: boolean;
   } | null>(null);
+  const [uploadingQr, setUploadingQr] = useState(false);
   const loadingWeddingRef = useRef(false);
 
   // Load existing wedding data - only once on mount
@@ -2098,7 +2099,7 @@ const Dashboard = () => {
                         </div>
                         <Switch
                           checked={config.paymentCreditCard ?? true}
-                          onCheckedChange={setPaymentCreditCard}
+                          onCheckedChange={(checked) => updateConfig({ paymentCreditCard: checked })}
                         />
                       </div>
                       <div className="flex items-center justify-between p-4 rounded-lg bg-muted/50 border border-border">
@@ -2108,7 +2109,7 @@ const Dashboard = () => {
                         </div>
                         <Switch
                           checked={config.paymentPix ?? true}
-                          onCheckedChange={setPaymentPix}
+                          onCheckedChange={(checked) => updateConfig({ paymentPix: checked })}
                         />
                       </div>
                       <div className="flex items-center justify-between p-4 rounded-lg bg-muted/50 border border-border">
@@ -2118,7 +2119,7 @@ const Dashboard = () => {
                         </div>
                         <Switch
                           checked={config.paymentBoleto ?? true}
-                          onCheckedChange={setPaymentBoleto}
+                          onCheckedChange={(checked) => updateConfig({ paymentBoleto: checked })}
                         />
                       </div>
                     </div>
@@ -2165,7 +2166,7 @@ const Dashboard = () => {
                           <Label htmlFor="manualPixType">Tipo de Chave</Label>
                           <Select
                             value={config.manualPixType || "cpf"}
-                            onValueChange={setManualPixType}
+                            onValueChange={(val) => updateConfig({ manualPixType: val })}
                           >
                             <SelectTrigger className="w-full bg-background">
                               <SelectValue placeholder="Selecione o tipo" />
@@ -2242,7 +2243,7 @@ const Dashboard = () => {
                                 className="w-full h-full object-cover"
                               />
                               <button
-                                onClick={() => setManualPixQrImageUrl("")}
+                                onClick={() => updateConfig({ manualPixQrImageUrl: "" })}
                                 className="absolute inset-0 bg-black/50 text-white opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
                                 title="Remover imagem"
                               >
