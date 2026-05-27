@@ -4,7 +4,7 @@ CREATE TABLE public.guests (
     name TEXT NOT NULL,
     phone TEXT,
     passcode TEXT,
-    token TEXT NOT NULL UNIQUE DEFAULT encode(gen_random_bytes(16), 'hex'),
+    token TEXT NOT NULL UNIQUE DEFAULT md5(gen_random_uuid()::text),
     status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'sent', 'viewed', 'confirmed', 'declined')),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
