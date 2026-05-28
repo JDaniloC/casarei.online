@@ -125,6 +125,21 @@ const PublicHero = () => {
               </p>
             )}
 
+            {config.themeDecorations !== false && (
+              <motion.div
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ duration: 0.8, delay: 0.5 }}
+                className="w-12 h-12 text-primary opacity-80"
+              >
+                <svg className="w-full h-full" viewBox="0 0 100 100" fill="currentColor">
+                  <path d="M50 15 C45 35, 25 35, 10 40 C30 45, 45 40, 50 15 Z" />
+                  <path d="M50 15 C55 35, 75 35, 90 40 C70 45, 55 40, 50 15 Z" />
+                  <path d="M50 15 C50 45, 50 70, 50 85" stroke="currentColor" strokeWidth="1.5" fill="none" />
+                </svg>
+              </motion.div>
+            )}
+
             {/* Countdown in Modern Cards */}
             <div className="grid grid-cols-4 gap-3 w-full max-w-sm pt-4">
               {[
@@ -191,6 +206,20 @@ const PublicHero = () => {
                 return date.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }).toUpperCase();
               })() : "AUGUST 15, 2025"}
             </p>
+            {config.themeDecorations !== false && (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ duration: 0.8, delay: 0.2 }}
+                className="flex justify-center w-full mb-4 text-neutral-600 opacity-60"
+              >
+                <svg className="w-10 h-10" viewBox="0 0 100 100" fill="currentColor">
+                  <path d="M50 15 C45 35, 25 35, 10 40 C30 45, 45 40, 50 15 Z" />
+                  <path d="M50 15 C55 35, 75 35, 90 40 C70 45, 55 40, 50 15 Z" />
+                  <path d="M50 15 C50 45, 50 70, 50 85" stroke="currentColor" strokeWidth="1.5" fill="none" />
+                </svg>
+              </motion.div>
+            )}
             <h1 className="font-serif text-4xl sm:text-6xl text-neutral-950 font-light leading-tight tracking-tight max-w-3xl">
               {config.coupleName ? (
                 <>
@@ -290,6 +319,24 @@ const PublicHero = () => {
           <div className="my-auto space-y-8 text-left py-12">
             <div className="space-y-2">
               <p className="text-[10px] tracking-[0.35em] uppercase text-primary font-bold">Salvem esta data</p>
+              
+              {config.themeDecorations !== false && (
+                <motion.div
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ duration: 0.8, delay: 0.2 }}
+                  className="w-12 h-12 text-primary opacity-80 mb-4"
+                >
+                  <svg className="w-full h-full" viewBox="0 0 100 100" fill="currentColor">
+                    <path d="M50 15 C45 35, 25 35, 10 40 C30 45, 45 40, 50 15 Z" />
+                    <path d="M50 15 C55 35, 75 35, 90 40 C70 45, 55 40, 50 15 Z" />
+                    <path d="M50 15 C50 45, 50 70, 50 85" stroke="currentColor" strokeWidth="1.5" fill="none" />
+                    <path d="M50 40 C35 50, 30 65, 20 70 C35 68, 45 60, 50 40 Z" />
+                    <path d="M50 50 C65 60, 70 75, 80 80 C65 78, 55 70, 50 50 Z" />
+                  </svg>
+                </motion.div>
+              )}
+
               <h1 className="text-4xl sm:text-6xl font-bold tracking-tight text-neutral-800 font-serif leading-none">
                 {config.coupleName ? config.coupleName.split('&')[0].trim() : "Camila"}
               </h1>
@@ -381,6 +428,23 @@ const PublicHero = () => {
               Save our Date
             </span>
           </motion.div>
+
+          {config.themeDecorations !== false && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.8, delay: 0.1 }}
+              className="flex justify-center mb-6 text-rose-400"
+            >
+              <svg className="w-16 h-16 opacity-85" viewBox="0 0 100 100" fill="currentColor">
+                <path d="M50 15 C45 35, 25 35, 10 40 C30 45, 45 40, 50 15 Z" />
+                <path d="M50 15 C55 35, 75 35, 90 40 C70 45, 55 40, 50 15 Z" />
+                <path d="M50 15 C50 45, 50 70, 50 85" stroke="currentColor" strokeWidth="1.5" fill="none" />
+                <path d="M50 40 C35 50, 30 65, 20 70 C35 68, 45 60, 50 40 Z" />
+                <path d="M50 50 C65 60, 70 75, 80 80 C65 78, 55 70, 50 50 Z" />
+              </svg>
+            </motion.div>
+          )}
 
           <motion.h1
             initial={{ opacity: 0, y: 30 }}

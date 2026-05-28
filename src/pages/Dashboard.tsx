@@ -297,6 +297,7 @@ const Dashboard = () => {
             ].filter(Boolean) as string[],
             whatsappNumber: (wedding as Record<string, unknown>).whatsapp_number as string || "",
             themeColor: (wedding as any).theme_color as string || "terracotta",
+            backgroundColor: (wedding as any).background_color as any || "default",
             themeFont: (wedding as any).theme_font as string || "serif",
             themeDecorations: (wedding as any).theme_decorations ?? true,
             globalPasscode: (wedding as any).global_passcode as string || "",
@@ -494,6 +495,7 @@ const Dashboard = () => {
         story_photo_3: config.storyPhotos[2] || null,
         whatsapp_number: config.whatsappNumber || null,
         theme_color: config.themeColor || "terracotta",
+        background_color: config.backgroundColor || "default",
         theme_font: config.themeFont || "serif",
         theme_decorations: config.themeDecorations ?? true,
         global_passcode: config.globalPasscode || null,
@@ -1072,99 +1074,6 @@ const Dashboard = () => {
                 </div>
               </motion.section>
 
-              {/* Section 1.5: Identidade Visual em Tempo Real */}
-              <motion.section
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.05 }}
-                className="bg-card rounded-xl p-6 shadow-soft border border-border"
-              >
-                <div className="flex items-center gap-3 mb-6">
-                  <Palette className="w-5 h-5 text-gold" />
-                  <h2 className="font-serif text-xl text-foreground">Identidade Visual Rápida</h2>
-                </div>
-                
-                <div className="space-y-6">
-                  {/* Color Palette Selector */}
-                  <div>
-                    <Label className="text-sm font-medium block mb-3">Paleta de Cores Curada</Label>
-                    <div className="flex flex-wrap gap-4">
-                      {[
-                        { id: "terracotta", name: "Terracotta", color: "bg-[#C2593F]" },
-                        { id: "sage", name: "Sage Green", color: "bg-[#5E7A60]" },
-                        { id: "rose", name: "Dusty Rose", color: "bg-[#B86F7D]" },
-                        { id: "blue", name: "Slate Blue", color: "bg-[#5D7F9B]" },
-                        { id: "gold", name: "Champagne Gold", color: "bg-[#A68A5E]" },
-                        { id: "lavender", name: "Lavender", color: "bg-[#9b7bbf]" },
-                        { id: "emerald", name: "Emerald", color: "bg-[#2e6b4d]" },
-                        { id: "navy", name: "Midnight Navy", color: "bg-[#1a2f4c]" },
-                      ].map((palette) => (
-                        <button
-                          key={palette.id}
-                          type="button"
-                          onClick={() => updateConfig({ themeColor: palette.id })}
-                          className={`flex items-center gap-2 px-3 py-2 rounded-full border-2 transition-all text-xs font-medium ${
-                            config.themeColor === palette.id
-                              ? "border-primary bg-primary/5 text-primary shadow-sm"
-                              : "border-border hover:border-muted-foreground/30 text-muted-foreground bg-background"
-                          }`}
-                        >
-                          <span className={`w-4 h-4 rounded-full ${palette.color} block shadow-inner`} />
-                          {palette.name}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Typography Selector */}
-                  <div>
-                    <Label className="text-sm font-medium block mb-3">Combinação Tipográfica</Label>
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                      {[
-                        { id: "serif", title: "Aa", subtitle: "Serifada Clássica", fontClass: "font-serif" },
-                        { id: "sans", title: "Aa", subtitle: "Moderna Limpa", fontClass: "font-sans font-bold" },
-                        { id: "elegant", title: "Aa", subtitle: "Caligráfica Delicada", fontClass: "font-serif italic" },
-                      ].map((fontOption) => (
-                        <button
-                          key={fontOption.id}
-                          type="button"
-                          onClick={() => updateConfig({ themeFont: fontOption.id })}
-                          className={`p-4 rounded-xl border-2 transition-all text-left flex flex-col justify-between ${
-                            config.themeFont === fontOption.id
-                              ? "border-primary bg-primary/5 shadow-sm"
-                              : "border-border hover:border-muted-foreground/30 bg-background"
-                          }`}
-                        >
-                          <span className={`text-2xl mb-1 text-foreground ${fontOption.fontClass}`}>
-                            {fontOption.id === "elegant" ? "Aa" : fontOption.title}
-                          </span>
-                          <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider block mt-2">
-                            {fontOption.subtitle}
-                          </span>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Decorative Elements Switch */}
-                  <div className="flex items-center justify-between p-4 rounded-xl bg-muted/30 border border-border mt-4">
-                    <div className="space-y-0.5">
-                      <Label className="text-sm font-medium text-foreground flex items-center gap-2">
-                        <Wand2 className="w-4 h-4 text-gold" />
-                        Elementos Decorativos Florais
-                      </Label>
-                      <p className="text-xs text-muted-foreground leading-normal">
-                        Exibe ilustrações delicadas de folhagens e ramos botânicos no site.
-                      </p>
-                    </div>
-                    <Switch
-                      checked={config.themeDecorations ?? true}
-                      onCheckedChange={(checked) => updateConfig({ themeDecorations: checked })}
-                    />
-                  </div>
-                </div>
-              </motion.section>
-
               {/* Section 2: Layout Selection */}
               <motion.section
                 initial={{ opacity: 0, y: 20 }}
@@ -1338,6 +1247,126 @@ const Dashboard = () => {
                 </div>
               </motion.section>
 
+              {/* Section 1.5: Identidade Visual em Tempo Real */}
+              <motion.section
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.05 }}
+                className="bg-card rounded-xl p-6 shadow-soft border border-border"
+              >
+                <div className="flex items-center gap-3 mb-6">
+                  <Palette className="w-5 h-5 text-gold" />
+                  <h2 className="font-serif text-xl text-foreground">Identidade Visual Rápida</h2>
+                </div>
+                
+                <div className="space-y-6">
+                  {/* Color Palette Selector */}
+                  <div>
+                    <Label className="text-sm font-medium block mb-3">Paleta de Cores Curada</Label>
+                    <div className="flex flex-wrap gap-4">
+                      {[
+                        { id: "terracotta", name: "Terracotta", color: "bg-[#C2593F]" },
+                        { id: "sage", name: "Sage Green", color: "bg-[#5E7A60]" },
+                        { id: "rose", name: "Dusty Rose", color: "bg-[#B86F7D]" },
+                        { id: "blue", name: "Slate Blue", color: "bg-[#5D7F9B]" },
+                        { id: "gold", name: "Champagne Gold", color: "bg-[#A68A5E]" },
+                        { id: "lavender", name: "Lavender", color: "bg-[#9b7bbf]" },
+                        { id: "emerald", name: "Emerald", color: "bg-[#2e6b4d]" },
+                        { id: "navy", name: "Midnight Navy", color: "bg-[#1a2f4c]" },
+                      ].map((palette) => (
+                        <button
+                          key={palette.id}
+                          type="button"
+                          onClick={() => updateConfig({ themeColor: palette.id })}
+                          className={`flex items-center gap-2 px-3 py-2 rounded-full border-2 transition-all text-xs font-medium ${
+                            config.themeColor === palette.id
+                              ? "border-primary bg-primary/5 text-primary shadow-sm"
+                              : "border-border hover:border-muted-foreground/30 text-muted-foreground bg-background"
+                          }`}
+                        >
+                          <span className={`w-4 h-4 rounded-full ${palette.color} block shadow-inner`} />
+                          {palette.name}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Background Selector */}
+                  <div>
+                    <Label className="text-sm font-medium block mb-3">Cor de Fundo</Label>
+                    <div className="flex flex-wrap gap-2">
+                      {[
+                        { id: "default", name: "Padrão do Layout", color: "bg-background border-border" },
+                        { id: "light", name: "Claro (Branco)", color: "bg-white border-gray-200" },
+                        { id: "sand", name: "Areia", color: "bg-[#F5F0E6] border-[#E6D9C3]" },
+                        { id: "dark", name: "Escuro", color: "bg-zinc-900 border-zinc-700 text-white" },
+                      ].map((bg) => (
+                        <button
+                          key={bg.id}
+                          type="button"
+                          onClick={() => updateConfig({ backgroundColor: bg.id as any })}
+                          className={`flex items-center gap-2 px-3 py-2 rounded-full border-2 transition-all text-xs font-medium ${
+                            (config.backgroundColor || "default") === bg.id
+                              ? "border-primary shadow-sm ring-1 ring-primary/20"
+                              : "border-transparent hover:border-border/50 hover:bg-accent/50"
+                          } ${bg.id === 'dark' && config.backgroundColor !== 'dark' ? 'text-zinc-900' : ''}`}
+                        >
+                          <span className={`w-4 h-4 rounded-full border ${bg.color} block shadow-inner`} />
+                          {bg.name}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Typography Selector */}
+                  <div>
+                    <Label className="text-sm font-medium block mb-3">Combinação Tipográfica</Label>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      {[
+                        { id: "serif", title: "Aa", subtitle: "Serifada Clássica", fontClass: "font-serif" },
+                        { id: "sans", title: "Aa", subtitle: "Moderna Limpa", fontClass: "font-sans font-bold" },
+                        { id: "elegant", title: "Aa", subtitle: "Caligráfica Delicada", fontClass: "font-serif italic" },
+                      ].map((fontOption) => (
+                        <button
+                          key={fontOption.id}
+                          type="button"
+                          onClick={() => updateConfig({ themeFont: fontOption.id })}
+                          className={`p-4 rounded-xl border-2 transition-all text-left flex flex-col justify-between ${
+                            config.themeFont === fontOption.id
+                              ? "border-primary bg-primary/5 shadow-sm"
+                              : "border-border hover:border-muted-foreground/30 bg-background"
+                          }`}
+                        >
+                          <span className={`text-2xl mb-1 text-foreground ${fontOption.fontClass}`}>
+                            {fontOption.id === "elegant" ? "Aa" : fontOption.title}
+                          </span>
+                          <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider block mt-2">
+                            {fontOption.subtitle}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Decorative Elements Switch */}
+                  <div className="flex items-center justify-between p-4 rounded-xl bg-muted/30 border border-border mt-4">
+                    <div className="space-y-0.5">
+                      <Label className="text-sm font-medium text-foreground flex items-center gap-2">
+                        <Wand2 className="w-4 h-4 text-gold" />
+                        Elementos Decorativos Florais
+                      </Label>
+                      <p className="text-xs text-muted-foreground leading-normal">
+                        Exibe ilustrações delicadas de folhagens e ramos botânicos no site.
+                      </p>
+                    </div>
+                    <Switch
+                      checked={config.themeDecorations ?? true}
+                      onCheckedChange={(checked) => updateConfig({ themeDecorations: checked })}
+                    />
+                  </div>
+                </div>
+              </motion.section>
+
               {/* Section 3: Toggle Sections */}
               <motion.section
                 initial={{ opacity: 0, y: 20 }}
@@ -1507,6 +1536,7 @@ const Dashboard = () => {
                 <div 
                   className="w-full h-full rounded-[30px] bg-background border border-neutral-800 overflow-hidden relative flex flex-col justify-between py-6 px-4 select-none animate-fade-in"
                   data-theme-color={config.themeColor || "terracotta"}
+                  data-bg={config.backgroundColor || "default"}
                   data-theme-font={config.themeFont || "serif"}
                   data-layout={config.layout || "classic"}
                 >
@@ -1622,6 +1652,15 @@ const Dashboard = () => {
                   {config.layout === "minimalist" && (
                     <div className="my-auto flex flex-col items-start text-left space-y-6 px-2">
                       <div className="space-y-2">
+                        {config.themeDecorations !== false && (
+                          <div className="w-6 h-6 text-foreground flex items-center justify-start opacity-60 mb-2">
+                            <svg className="w-full h-full" viewBox="0 0 100 100" fill="currentColor">
+                              <path d="M50 15 C45 35, 25 35, 10 40 C30 45, 45 40, 50 15 Z" />
+                              <path d="M50 15 C55 35, 75 35, 90 40 C70 45, 55 40, 50 15 Z" />
+                              <path d="M50 15 C50 45, 50 70, 50 85" stroke="currentColor" strokeWidth="1.5" fill="none" />
+                            </svg>
+                          </div>
+                        )}
                         <p className="text-[5px] tracking-[0.3em] uppercase text-muted-foreground">
                           {config.weddingDate ? (() => {
                             const [year, month, day] = config.weddingDate.split('-').map(Number);
@@ -1688,6 +1727,19 @@ const Dashboard = () => {
                       </div>
                       <div className="w-[58%] h-full flex flex-col justify-between p-4 pl-3">
                         <span className="text-[4px] font-sans tracking-[0.25em] uppercase text-muted-foreground leading-none">Wedding Day</span>
+                        
+                        {config.themeDecorations !== false && (
+                          <div className="w-8 h-8 text-primary flex items-center justify-start opacity-80 mb-2">
+                            <svg className="w-full h-full" viewBox="0 0 100 100" fill="currentColor">
+                              <path d="M50 15 C45 35, 25 35, 10 40 C30 45, 45 40, 50 15 Z" />
+                              <path d="M50 15 C55 35, 75 35, 90 40 C70 45, 55 40, 50 15 Z" />
+                              <path d="M50 15 C50 45, 50 70, 50 85" stroke="currentColor" strokeWidth="1.5" fill="none" />
+                              <path d="M50 40 C35 50, 30 65, 20 70 C35 68, 45 60, 50 40 Z" />
+                              <path d="M50 50 C65 60, 70 75, 80 80 C65 78, 55 70, 50 50 Z" />
+                            </svg>
+                          </div>
+                        )}
+                        
                         <div className="my-auto py-2 text-left">
                           <h2 className="text-sm font-bold text-neutral-800 font-serif leading-none tracking-tight">
                             {config.coupleName ? config.coupleName.split('&')[0].trim() : "Camila"}
@@ -1714,7 +1766,20 @@ const Dashboard = () => {
                       <div className="absolute inset-1.5 border border-rose-200/40 rounded pointer-events-none" />
                       <div className="absolute inset-2 border border-dashed border-rose-200/20 rounded pointer-events-none" />
                       <span className="text-[4px] font-sans text-rose-500 uppercase tracking-widest leading-none pt-2">Save our Date</span>
+                      
                       <div className="my-auto flex flex-col items-center">
+                        {config.themeDecorations !== false && (
+                          <div className="w-10 h-10 text-rose-400 flex items-center justify-center opacity-80 mb-3">
+                            <svg className="w-full h-full" viewBox="0 0 100 100" fill="currentColor">
+                              <path d="M50 15 C45 35, 25 35, 10 40 C30 45, 45 40, 50 15 Z" />
+                              <path d="M50 15 C55 35, 75 35, 90 40 C70 45, 55 40, 50 15 Z" />
+                              <path d="M50 15 C50 45, 50 70, 50 85" stroke="currentColor" strokeWidth="1.5" fill="none" />
+                              <path d="M50 40 C35 50, 30 65, 20 70 C35 68, 45 60, 50 40 Z" />
+                              <path d="M50 50 C65 60, 70 75, 80 80 C65 78, 55 70, 50 50 Z" />
+                            </svg>
+                          </div>
+                        )}
+                        
                         <h2 className="font-serif italic text-lg text-rose-700 leading-none">
                           {config.coupleName || "Camila & Rafael"}
                         </h2>
@@ -2943,7 +3008,7 @@ const Dashboard = () => {
                 </div>
               ) : null}
 
-              <GalleryUpload weddingId={wedding.id} />
+              <GalleryUpload weddingId={weddingId} />
             </div>
           </div>
         )}

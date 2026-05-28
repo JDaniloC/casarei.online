@@ -62,6 +62,7 @@ const PublicLandingContent = ({
   // Apply layout theme and visual customizations to root element
   useEffect(() => {
     document.documentElement.setAttribute('data-layout', config.layout || 'classic');
+    document.documentElement.setAttribute('data-bg', config.backgroundColor || 'default');
     document.documentElement.setAttribute('data-theme-color', config.themeColor || 'terracotta');
     document.documentElement.setAttribute('data-theme-font', config.themeFont || 'serif');
     document.documentElement.setAttribute('data-theme-decorations', String(config.themeDecorations ?? true));
@@ -72,7 +73,7 @@ const PublicLandingContent = ({
       document.documentElement.removeAttribute('data-theme-font');
       document.documentElement.removeAttribute('data-theme-decorations');
     };
-  }, [config.layout, config.themeColor, config.themeFont, config.themeDecorations]);
+  }, [config.layout, config.backgroundColor, config.themeColor, config.themeFont, config.themeDecorations]);
 
   const sections = {
     ...config.sections,

@@ -77,6 +77,7 @@ export interface WeddingConfig {
   themeColor: string;
   themeFont: string;
   themeDecorations: boolean;
+  backgroundColor?: "default" | "light" | "sand" | "dark" | "slate";
 
   // Payments & Pix
   mercadoPagoPublicKey?: string;
@@ -121,6 +122,7 @@ const defaultConfig: WeddingConfig = {
   themeColor: "terracotta",
   themeFont: "serif",
   themeDecorations: true,
+  backgroundColor: "default",
   
   sections: {
     about: true,

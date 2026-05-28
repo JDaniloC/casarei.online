@@ -386,6 +386,31 @@
     --gold-light: 220 20% 50%;
   }
 
+  /* Custom Background Colors */
+  :root[data-bg="light"],
+  [data-bg="light"] {
+    --background: 0 0% 100% !important;
+    --foreground: 0 0% 15% !important;
+    --card: 0 0% 100% !important;
+    --card-foreground: 0 0% 15% !important;
+  }
+  
+  :root[data-bg="sand"],
+  [data-bg="sand"] {
+    --background: 40 33% 95% !important;
+    --foreground: 25 30% 20% !important;
+    --card: 40 40% 97% !important;
+    --card-foreground: 25 30% 20% !important;
+  }
+
+  :root[data-bg="dark"],
+  [data-bg="dark"] {
+    --background: 220 20% 10% !important;
+    --foreground: 0 0% 95% !important;
+    --card: 220 20% 12% !important;
+    --card-foreground: 0 0% 95% !important;
+  }
+
   /* Custom Typography Pairs */
   :root[data-theme-font="serif"],
   [data-theme-font="serif"] {
