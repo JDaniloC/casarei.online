@@ -16,6 +16,7 @@ import DashboardGuests from "@/components/wedding/DashboardGuests";
 import HouseCatalogSettings from "@/components/wedding/HouseCatalogSettings";
 import { GalleryUpload } from "@/components/wedding/GalleryUpload";
 import HeroImageUploader from "@/components/wedding/HeroImageUploader";
+import { StoryImageSkeleton } from "@/components/wedding/StoryImageSkeleton";
 import { useWedding, Gift as GiftType } from "@/contexts/WeddingContext";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
@@ -1872,50 +1873,14 @@ const Dashboard = () => {
                     Adicione até 3 fotos do casal para a seção "Nossa História". Essas fotos aparecerão na página pública do seu casamento.
                   </p>
 
-                  <div className="grid sm:grid-cols-3 gap-4">
-                    <div className="space-y-2">
-                      <Label>Foto Principal (grande)</Label>
-                      <Input
-                        value={config.storyPhotos[0] || ""}
-                        onChange={(e) => updateConfig({ storyPhotos: [e.target.value, config.storyPhotos[1] || "", config.storyPhotos[2] || ""] })}
-                        placeholder="URL da foto 1"
-                        className="bg-background"
-                      />
-                      {config.storyPhotos[0] && (
-                        <div className="aspect-video rounded-lg overflow-hidden bg-muted">
-                          <img src={config.storyPhotos[0]} alt="Preview 1" className="w-full h-full object-cover" />
-                        </div>
-                      )}
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Foto 2</Label>
-                      <Input
-                        value={config.storyPhotos[1] || ""}
-                        onChange={(e) => updateConfig({ storyPhotos: [config.storyPhotos[0] || "", e.target.value, config.storyPhotos[2] || ""] })}
-                        placeholder="URL da foto 2"
-                        className="bg-background"
-                      />
-                      {config.storyPhotos[1] && (
-                        <div className="aspect-video rounded-lg overflow-hidden bg-muted">
-                          <img src={config.storyPhotos[1]} alt="Preview 2" className="w-full h-full object-cover" />
-                        </div>
-                      )}
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Foto 3</Label>
-                      <Input
-                        value={config.storyPhotos[2] || ""}
-                        onChange={(e) => updateConfig({ storyPhotos: [config.storyPhotos[0] || "", config.storyPhotos[1] || "", e.target.value] })}
-                        placeholder="URL da foto 3"
-                        className="bg-background"
-                      />
-                      {config.storyPhotos[2] && (
-                        <div className="aspect-video rounded-lg overflow-hidden bg-muted">
-                          <img src={config.storyPhotos[2]} alt="Preview 3" className="w-full h-full object-cover" />
-                        </div>
-                      )}
-                    </div>
-                  </div>
+                  <StoryImageSkeleton 
+                      weddingId={weddingId}
+                      photos={config.storyPhotos}
+                      onChange={(photos) => {
+                        updateConfig({ storyPhotos: photos });
+                      }}
+                  />
+                  
                   <p className="text-xs text-muted-foreground mt-4">
                     📐 Dimensão recomendada: 800x600px (4:3) para melhor visualização
                   </p>

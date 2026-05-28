@@ -15,9 +15,9 @@ const PublicAbout = () => {
   const paragraphs = config.aboutText.split("\n\n").filter(Boolean);
 
   // Use couple's uploaded photos if available, otherwise fallback to defaults
-  const hasStoryPhotos = config.storyPhotos && config.storyPhotos.length > 0;
+  const hasStoryPhotos = config.storyPhotos && config.storyPhotos.filter(Boolean).length > 0;
   const defaultImages = [coupleStory1, coupleStory2, coupleStory3];
-  const images = hasStoryPhotos ? config.storyPhotos : defaultImages;
+  const images = hasStoryPhotos ? config.storyPhotos.filter(Boolean) : defaultImages;
 
   return (
     <section ref={ref} className="py-24 sm:py-32 bg-secondary/50">
@@ -70,38 +70,62 @@ const PublicAbout = () => {
             initial={{ opacity: 0, x: 30 }}
             animate={isInView ? { opacity: 1, x: 0 } : {}}
             transition={{ duration: 0.8, delay: 0.4 }}
-            className="grid grid-cols-2 gap-4"
+            className={`grid gap-4 ${images.length === 1 ? 'grid-cols-1' : 'grid-cols-2'}`}
           >
-            {/* Main photo - spans two columns */}
-            <div className="col-span-2">
-              {images[0] ? (
+            {images.length === 1 && (
+              <div className="col-span-1">
                 <img
                   src={images[0]}
                   alt="Nosso momento"
-                  className="w-full h-64 sm:h-80 object-cover rounded-lg shadow-card"
+                  className="w-full h-64 sm:h-96 object-cover rounded-lg shadow-card"
                 />
-              ) : (
-                <div className="w-full h-64 sm:h-80 bg-muted rounded-lg shadow-card flex items-center justify-center">
-                  <Heart className="w-12 h-12 text-muted-foreground/30" />
-                </div>
-              )}
-            </div>
-            {/* Secondary photos */}
-            {images.slice(1, 3).map((image, index) => (
-              <div key={index}>
-                {image ? (
+              </div>
+            )}
+
+            {images.length === 2 && (
+              <>
+                <div className="col-span-1">
                   <img
-                    src={image}
+                    src={images[0]}
+                    alt="Nosso momento"
+                    className="w-full h-64 sm:h-80 object-cover rounded-lg shadow-card"
+                  />
+                </div>
+                <div className="col-span-1">
+                  <img
+                    src={images[1]}
+                    alt="Nosso momento"
+                    className="w-full h-64 sm:h-80 object-cover rounded-lg shadow-card"
+                  />
+                </div>
+              </>
+            )}
+
+            {images.length === 3 && (
+              <>
+                <div className="col-span-2">
+                  <img
+                    src={images[0]}
+                    alt="Nosso momento"
+                    className="w-full h-64 sm:h-80 object-cover rounded-lg shadow-card"
+                  />
+                </div>
+                <div className="col-span-1">
+                  <img
+                    src={images[1]}
                     alt="Nosso momento"
                     className="w-full h-48 sm:h-56 object-cover rounded-lg shadow-card"
                   />
-                ) : (
-                  <div className="w-full h-48 sm:h-56 bg-muted rounded-lg shadow-card flex items-center justify-center">
-                    <Heart className="w-8 h-8 text-muted-foreground/30" />
-                  </div>
-                )}
-              </div>
-            ))}
+                </div>
+                <div className="col-span-1">
+                  <img
+                    src={images[2]}
+                    alt="Nosso momento"
+                    className="w-full h-48 sm:h-56 object-cover rounded-lg shadow-card"
+                  />
+                </div>
+              </>
+            )}
           </motion.div>
         </div>
       </div>

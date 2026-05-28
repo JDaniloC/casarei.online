@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { Trash2, Upload, Loader2, Image as ImageIcon } from "lucide-react";
+import { Trash2, Upload, Loader2, Image as ImageIcon, Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
 
 interface GalleryUploadProps {
@@ -12,6 +12,7 @@ interface GalleryImage {
   id: string;
   image_url: string;
   display_order: number;
+  is_public_gallery: boolean;
 }
 
 export function GalleryUpload({ weddingId }: GalleryUploadProps) {
@@ -126,13 +127,31 @@ export function GalleryUpload({ weddingId }: GalleryUploadProps) {
     }
   };
 
+  const handleToggleVisibility = async (image: GalleryImage) => {
+    try {
+      const newValue = !image.is_public_gallery;
+      const { error } = await supabase
+        .from("gallery_images")
+        .update({ is_public_gallery: newValue })
+        .eq("id", image.id);
+        
+      if (error) throw error;
+      
+      setImages(images.map(img => img.id === image.id ? { ...img, is_public_gallery: newValue } : img));
+      toast.success(newValue ? "Foto ficará visível no site." : "Foto ocultada do site público.");
+    } catch (error) {
+      console.error("Toggle visibility error:", error);
+      toast.error("Erro ao alterar visibilidade da foto.");
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 border rounded-lg bg-card">
         <div>
           <h3 className="font-semibold text-lg flex items-center gap-2">
             <ImageIcon className="w-5 h-5 text-gold" />
-            Adicionar nova foto
+            Adicionar à Biblioteca de Fotos
           </h3>
           <p className="text-sm text-muted-foreground mt-1">
             Você usou {images.length} de {MAX_PHOTOS} fotos. Máximo de 5MB por arquivo.
@@ -180,9 +199,24 @@ export function GalleryUpload({ weddingId }: GalleryUploadProps) {
               <img 
                 src={img.image_url} 
                 alt="Galeria" 
-                className="w-full h-full object-cover transition-transform group-hover:scale-105"
+                className={`w-full h-full object-cover transition-all ${!img.is_public_gallery ? 'opacity-40 grayscale' : 'group-hover:scale-105'}`}
               />
-              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+              
+              {!img.is_public_gallery && (
+                <div className="absolute top-2 left-2 bg-black/60 text-white text-[10px] px-2 py-1 rounded flex items-center gap-1">
+                  <EyeOff className="w-3 h-3" /> Oculta
+                </div>
+              )}
+
+              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                <Button 
+                  variant="secondary" 
+                  size="icon"
+                  onClick={() => handleToggleVisibility(img)}
+                  title={img.is_public_gallery ? "Ocultar da Galeria Pública" : "Mostrar na Galeria Pública"}
+                >
+                  {img.is_public_gallery ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
+                </Button>
                 <Button 
                   variant="destructive" 
                   size="icon"

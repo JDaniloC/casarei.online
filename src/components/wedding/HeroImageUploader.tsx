@@ -1,11 +1,12 @@
 import React, { useState, useRef } from "react";
 import { createClient } from "@supabase/supabase-js";
 import { toast } from "sonner";
-import { Image as ImageIcon, Upload, Link as LinkIcon, Loader2 } from "lucide-react";
+import { Image as ImageIcon, Upload, Link as LinkIcon, Loader2, Library } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import ImageCropperModal from "./ImageCropperModal";
+import { MediaLibraryPicker } from "./MediaLibraryPicker";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 
 const supabase = createClient(
@@ -21,6 +22,7 @@ interface HeroImageUploaderProps {
 
 export default function HeroImageUploader({ weddingId, value, onChange }: HeroImageUploaderProps) {
   const [isOptionsModalOpen, setIsOptionsModalOpen] = useState(false);
+  const [isLibraryOpen, setIsLibraryOpen] = useState(false);
   const [croppingSrc, setCroppingSrc] = useState<string | null>(null);
   const [urlInput, setUrlInput] = useState("");
   const [loadingUrl, setLoadingUrl] = useState(false);
@@ -129,12 +131,15 @@ export default function HeroImageUploader({ weddingId, value, onChange }: HeroIm
           </DialogHeader>
 
           <Tabs defaultValue="upload" className="w-full mt-4">
-            <TabsList className="grid w-full grid-cols-2">
+            <TabsList className="grid w-full grid-cols-3">
               <TabsTrigger value="upload" className="flex gap-2">
-                <Upload className="w-4 h-4" /> Upload
+                <Upload className="w-4 h-4 hidden sm:block" /> Upload
               </TabsTrigger>
               <TabsTrigger value="url" className="flex gap-2">
-                <LinkIcon className="w-4 h-4" /> Usar Link
+                <LinkIcon className="w-4 h-4 hidden sm:block" /> URL
+              </TabsTrigger>
+              <TabsTrigger value="library" className="flex gap-2">
+                <Library className="w-4 h-4 hidden sm:block" /> Biblioteca
               </TabsTrigger>
             </TabsList>
             
@@ -182,9 +187,36 @@ export default function HeroImageUploader({ weddingId, value, onChange }: HeroIm
                 Carregar Imagem
               </Button>
             </TabsContent>
+            
+            <TabsContent value="library" className="space-y-4 mt-4">
+              <div className="text-center p-6 border rounded-lg bg-muted/20">
+                <Library className="w-12 h-12 text-muted-foreground/50 mx-auto mb-3" />
+                <p className="text-sm text-muted-foreground mb-4">
+                  Escolha uma foto que você já enviou para a sua galeria.
+                </p>
+                <Button 
+                  onClick={() => {
+                    setIsOptionsModalOpen(false);
+                    setIsLibraryOpen(true);
+                  }}
+                  className="w-full"
+                >
+                  Abrir Biblioteca
+                </Button>
+              </div>
+            </TabsContent>
           </Tabs>
         </DialogContent>
       </Dialog>
+
+      <MediaLibraryPicker 
+        open={isLibraryOpen}
+        onOpenChange={setIsLibraryOpen}
+        weddingId={weddingId}
+        onSelect={(url) => {
+          setCroppingSrc(url);
+        }}
+      />
 
       {/* Cropper Modal */}
       {croppingSrc && (

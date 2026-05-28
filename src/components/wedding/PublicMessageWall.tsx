@@ -94,7 +94,6 @@ const PublicMessageWall = ({ weddingId }: PublicMessageWallProps) => {
         .insert({
           wedding_id: weddingId,
           guest_name: name.trim().substring(0, 200),
-          guest_email: email.trim().substring(0, 200),
           message: message.trim().substring(0, 1000),
           approved: true,
           show_on_wall: true,

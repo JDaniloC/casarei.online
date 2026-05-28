@@ -61,6 +61,7 @@ serve(async (req) => {
       .from("gallery_images")
       .select("id, image_url, caption, display_order")
       .eq("wedding_id", wedding.id)
+      .eq("is_public_gallery", true)
       .order("display_order");
 
     return new Response(
