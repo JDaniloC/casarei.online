@@ -14,6 +14,7 @@ import DashboardHistory from "@/components/wedding/DashboardHistory";
 import DashboardVirtualHouse from "@/components/wedding/DashboardVirtualHouse";
 import DashboardGuests from "@/components/wedding/DashboardGuests";
 import HouseCatalogSettings from "@/components/wedding/HouseCatalogSettings";
+import { GalleryUpload } from "@/components/wedding/GalleryUpload";
 import { useWedding, Gift as GiftType } from "@/contexts/WeddingContext";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
@@ -143,7 +144,7 @@ const Dashboard = () => {
   const [dashboardTab, setDashboardTab] = useState<"settings" | "history" | "guests">(() => {
     return (location.state as any)?.activeTab || "history";
   });
-  const [settingsSubTab, setSettingsSubTab] = useState<"appearance" | "story" | "event" | "gifts" | "virtualHouse" | "advanced">("appearance");
+  const [settingsSubTab, setSettingsSubTab] = useState<"appearance" | "story" | "event" | "gifts" | "virtualHouse" | "gallery" | "advanced">("appearance");
   const [houseActiveView, setHouseActiveView] = useState<"blueprint" | "catalog">("blueprint");
   const [weddingId, setWeddingId] = useState<string>("");
   const [mercadoPagoAccessToken, setMercadoPagoAccessToken] = useState("");
@@ -990,6 +991,7 @@ const Dashboard = () => {
             { key: "event" as const, label: "Evento & Estilo", icon: MapPin },
             { key: "gifts" as const, label: "Presentes & Pix", icon: Gift },
             { key: "virtualHouse" as const, label: "Casa Virtual", icon: Home },
+            { key: "gallery" as const, label: "Galeria de Fotos", icon: Camera },
           ].map(({ key, label, icon: Icon }) => (
             <button
               key={key}
@@ -2914,6 +2916,35 @@ const Dashboard = () => {
                 )}
               </div>
             )}
+          </div>
+        )}
+
+        {settingsSubTab === "gallery" && (
+          <div className="space-y-8 animate-fade-in">
+            <div className="bg-card rounded-xl p-6 border border-border shadow-sm">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="p-3 bg-gold/10 rounded-full">
+                  <Camera className="w-6 h-6 text-gold" />
+                </div>
+                <div>
+                  <h2 className="font-serif text-2xl text-foreground">Sua Galeria de Fotos</h2>
+                  <p className="text-sm text-muted-foreground">
+                    Gerencie as fotos que aparecem na seção de galeria do seu site.
+                  </p>
+                </div>
+              </div>
+              
+              {!config.sections.gallery ? (
+                <div className="bg-muted p-4 rounded-lg border border-border mb-6">
+                  <p className="text-sm text-muted-foreground flex items-center gap-2">
+                    <Info className="w-4 h-4" />
+                    A seção de galeria está desativada. As fotos que você adicionar só aparecerão no site se você ativar a seção na aba "Aparência & Seções".
+                  </p>
+                </div>
+              ) : null}
+
+              <GalleryUpload weddingId={wedding.id} />
+            </div>
           </div>
         )}
 

@@ -1,7 +1,8 @@
 import { motion } from "framer-motion";
 import { useInView } from "framer-motion";
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect } from "react";
 import { X, Heart } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 import { useWedding } from "@/contexts/WeddingContext";
 import heroCoupleImage from "@/assets/hero-couple.jpg";
 import coupleStory1 from "@/assets/couple-story-1.jpg";
@@ -15,11 +16,39 @@ interface Photo {
   span?: "col" | "row" | "both";
 }
 
-const PhotoGallery = () => {
+const PhotoGallery = ({ weddingId }: { weddingId?: string }) => {
   const ref = useRef(null);
   const isInView = useInView(ref, { once: true, margin: "-100px" });
   const [selectedPhoto, setSelectedPhoto] = useState<string | null>(null);
+  const [fetchedImages, setFetchedImages] = useState<Photo[]>([]);
   const { config } = useWedding();
+
+  useEffect(() => {
+    if (!weddingId) return;
+    
+    const fetchImages = async () => {
+      try {
+        const { data, error } = await supabase
+          .from("gallery_images")
+          .select("image_url")
+          .eq("wedding_id", weddingId)
+          .order("display_order", { ascending: true });
+          
+        if (!error && data && data.length > 0) {
+          const formatted = data.map((img, i) => ({
+            src: img.image_url,
+            alt: `${config.coupleName} - Foto ${i + 1}`,
+            span: i === 0 && data.length % 2 !== 0 ? "both" as const : undefined,
+          }));
+          setFetchedImages(formatted);
+        }
+      } catch (err) {
+        console.error("Error fetching gallery:", err);
+      }
+    };
+    
+    fetchImages();
+  }, [weddingId, config.coupleName]);
 
   // Use couple's uploaded photos if available, otherwise fallback to defaults
   const hasStoryPhotos = config.storyPhotos && config.storyPhotos.length > 0;
@@ -42,7 +71,7 @@ const PhotoGallery = () => {
       ]
     : defaultPhotos;
 
-  const photos = couplePhotos.length > 0 ? couplePhotos : defaultPhotos;
+  const photos = fetchedImages.length > 0 ? fetchedImages : (couplePhotos.length > 0 ? couplePhotos : defaultPhotos);
 
   return (
     <>

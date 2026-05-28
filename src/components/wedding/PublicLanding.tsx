@@ -108,7 +108,7 @@ const PublicLandingContent = ({
         
         {sections.rsvp && <PublicRSVP weddingId={weddingId} guest={guest} />}
         
-        {sections.gallery && <PhotoGallery />}
+        {sections.gallery && <PhotoGallery weddingId={weddingId} />}
         
         {sections.messageWall && <PublicMessageWall weddingId={weddingId} />}
         
