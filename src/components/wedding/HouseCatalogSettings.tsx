@@ -90,8 +90,51 @@ export default function HouseCatalogSettings({ weddingId }: HouseCatalogSettings
     loadCatalog();
   }, [weddingId]);
 
+  const autoSaveItem = async (id: string, isEnabled: boolean, price: number, isCompleted: boolean) => {
+    try {
+      const item = CATALOG_ITEMS.find(i => i.id === id);
+      if (!item) return;
+      
+      const stock = isCompleted ? 0 : 1;
+      const finalPrice = isCompleted ? 0 : price;
+      
+      // Get fresh data to avoid race conditions
+      const { data: matchData } = await supabase
+        .from('gifts')
+        .select('id')
+        .eq('wedding_id', weddingId)
+        .eq('house_item_type', item.id)
+        .maybeSingle();
+
+      if (isEnabled) {
+        if (matchData) {
+          await supabase.from('gifts').update({ price: finalPrice, stock }).eq('id', matchData.id);
+        } else {
+          await supabase.from('gifts').insert({
+            wedding_id: weddingId,
+            name: item.name,
+            category: item.category,
+            price: finalPrice,
+            house_item_type: item.id,
+            house_room: item.room,
+            stock,
+            image_url: 'https://images.unsplash.com/photo-1513694203232-719a280e022f?w=400',
+          });
+        }
+      } else if (matchData) {
+        await supabase.from('gifts').delete().eq('id', matchData.id);
+      }
+    } catch (err) {
+      console.error('Error auto-saving item:', err);
+    }
+  };
+
   const handleToggle = (id: string) => {
-    setEnabledItems((prev) => ({ ...prev, [id]: !prev[id] }));
+    setEnabledItems((prev) => {
+      const newState = { ...prev, [id]: !prev[id] };
+      autoSaveItem(id, newState[id], prices[id] || CATALOG_ITEMS.find(i => i.id === id)?.defaultPrice || 0, completedItems[id] || false);
+      return newState;
+    });
   };
 
   const handlePriceChange = (id: string, val: string) => {
@@ -100,7 +143,11 @@ export default function HouseCatalogSettings({ weddingId }: HouseCatalogSettings
   };
 
   const handleCompletedToggle = (id: string) => {
-    setCompletedItems((prev) => ({ ...prev, [id]: !prev[id] }));
+    setCompletedItems((prev) => {
+      const newState = { ...prev, [id]: !prev[id] };
+      autoSaveItem(id, enabledItems[id] || false, prices[id] || CATALOG_ITEMS.find(i => i.id === id)?.defaultPrice || 0, newState[id]);
+      return newState;
+    });
   };
 
   const handleSave = async () => {
@@ -250,6 +297,7 @@ export default function HouseCatalogSettings({ weddingId }: HouseCatalogSettings
                               type="number"
                               value={prices[item.id] || ""}
                               onChange={(e) => handlePriceChange(item.id, e.target.value)}
+                              onBlur={() => autoSaveItem(item.id, enabledItems[item.id] || false, prices[item.id] || CATALOG_ITEMS.find(i => i.id === item.id)?.defaultPrice || 0, completedItems[item.id] || false)}
                               className="h-8 pl-7 text-xs rounded-md bg-background border-border text-foreground"
                               placeholder="Preço"
                               min="1"
@@ -324,6 +372,7 @@ export default function HouseCatalogSettings({ weddingId }: HouseCatalogSettings
                               type="number"
                               value={prices[item.id] || ""}
                               onChange={(e) => handlePriceChange(item.id, e.target.value)}
+                              onBlur={() => autoSaveItem(item.id, enabledItems[item.id] || false, prices[item.id] || CATALOG_ITEMS.find(i => i.id === item.id)?.defaultPrice || 0, completedItems[item.id] || false)}
                               className="h-8 pl-7 text-xs rounded-md bg-background border-border text-foreground"
                               placeholder="Preço"
                               min="1"

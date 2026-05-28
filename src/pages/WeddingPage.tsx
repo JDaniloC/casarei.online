@@ -187,6 +187,9 @@ const WeddingPage = () => {
   const [error, setError] = useState<string | null>(null);
   const [guest, setGuest] = useState<any>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const location = useLocation();
+  const isPreview = location.pathname.startsWith("/preview");
+  const isGuestView = isPreview || location.pathname.includes("/convite") || new URLSearchParams(location.search).has("convite");
 
   useEffect(() => {
     const fetchWedding = async () => {

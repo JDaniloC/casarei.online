@@ -15,6 +15,7 @@ import DashboardVirtualHouse from "@/components/wedding/DashboardVirtualHouse";
 import DashboardGuests from "@/components/wedding/DashboardGuests";
 import HouseCatalogSettings from "@/components/wedding/HouseCatalogSettings";
 import { GalleryUpload } from "@/components/wedding/GalleryUpload";
+import HeroImageUploader from "@/components/wedding/HeroImageUploader";
 import { useWedding, Gift as GiftType } from "@/contexts/WeddingContext";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
@@ -1432,7 +1433,7 @@ const Dashboard = () => {
                 <div className={`grid gap-6 ${config.sections.video ? 'sm:grid-cols-2' : 'grid-cols-1'}`}>
                   <div className="space-y-2">
                     <div className="flex items-center gap-2">
-                      <Label htmlFor="heroImage">URL da Foto Principal (Hero)</Label>
+                      <Label htmlFor="heroImage">Foto Principal (Hero)</Label>
                       <Tooltip>
                         <TooltipTrigger>
                           <Info className="w-4 h-4 text-muted-foreground" />
@@ -1440,21 +1441,15 @@ const Dashboard = () => {
                         <TooltipContent className="max-w-xs">
                           <p className="font-medium mb-1">Dimensões recomendadas:</p>
                           <p className="text-sm">1920 x 1080 pixels (16:9)</p>
-                          <p className="text-sm">ou 1920 x 1280 pixels (3:2)</p>
-                          <p className="text-sm text-muted-foreground mt-1">Formato: JPG ou PNG</p>
+                          <p className="text-sm text-muted-foreground mt-1">A imagem será recortada automaticamente para 16:9.</p>
                         </TooltipContent>
                       </Tooltip>
                     </div>
-                    <Input
-                      id="heroImage"
+                    <HeroImageUploader 
+                      weddingId={weddingId}
                       value={config.heroImage}
-                      onChange={(e) => updateConfig({ heroImage: e.target.value })}
-                      placeholder="https://..."
-                      className="bg-background"
+                      onChange={(url) => updateConfig({ heroImage: url })}
                     />
-                    <p className="text-xs text-muted-foreground">
-                      📐 Recomendado: 1920x1080px (16:9) ou 1920x1280px (3:2)
-                    </p>
                   </div>
                   {config.sections.video && (
                     <div className="space-y-2">
