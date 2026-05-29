@@ -13,6 +13,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 
 const priceRanges = [
@@ -34,6 +36,7 @@ const GiftRegistrySection = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [selectedPriceRange, setSelectedPriceRange] = useState(0);
+  const [showAvailableOnly, setShowAvailableOnly] = useState(false);
   const [visibleCount, setVisibleCount] = useState(ITEMS_PER_PAGE);
   const [addedItems, setAddedItems] = useState<Set<string>>(new Set());
   const [customAmounts, setCustomAmounts] = useState<Record<string, number>>({});
@@ -49,9 +52,10 @@ const GiftRegistrySection = () => {
       const matchesCategory = selectedCategory === "all" || gift.category === selectedCategory;
       const range = priceRanges[selectedPriceRange];
       const matchesPrice = gift.isOpenPrice || (gift.price >= range.min && gift.price <= range.max);
-      return matchesSearch && matchesCategory && matchesPrice;
+      const matchesAvailability = !showAvailableOnly || gift.stock === null || gift.stock === undefined || gift.stock > 0;
+      return matchesSearch && matchesCategory && matchesPrice && matchesAvailability;
     });
-  }, [config.gifts, searchTerm, selectedCategory, selectedPriceRange]);
+  }, [config.gifts, searchTerm, selectedCategory, selectedPriceRange, showAvailableOnly]);
 
   const visibleGifts = filteredGifts.slice(0, visibleCount);
   const hasMore = visibleCount < filteredGifts.length;
@@ -171,7 +175,24 @@ const GiftRegistrySection = () => {
               ))}
             </SelectContent>
           </Select>
-        </motion.div>
+          </motion.div>
+
+          {/* Toggle Availability Filter */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={isInView ? { opacity: 1, y: 0 } : {}}
+            transition={{ duration: 0.8, delay: 0.3 }}
+            className="flex items-center justify-center gap-3 mb-8"
+          >
+            <Switch
+              id="available-only"
+              checked={showAvailableOnly}
+              onCheckedChange={setShowAvailableOnly}
+            />
+            <Label htmlFor="available-only" className="cursor-pointer text-sm sm:text-base text-muted-foreground">
+              Mostrar apenas itens disponíveis
+            </Label>
+          </motion.div>
 
         {/* Results count */}
         <motion.p

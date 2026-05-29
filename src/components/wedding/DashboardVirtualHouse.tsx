@@ -3,6 +3,12 @@ import { createClient } from "@supabase/supabase-js";
 import { toast } from "sonner";
 import { Loader2, Armchair, Move, Trash2, HelpCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { motion } from "framer-motion";
 
 const supabase = createClient(
@@ -34,12 +40,19 @@ const ROOM_DEFINITIONS = {
 };
 
 const FURNITURE_ICONS: Record<string, string> = {
-  fridge: "❄️",
+  fridge: "🧊",
   stove: "🔥",
-  dining_table: "🪑",
+  dining_table: "🍽️",
   sofa: "🛋️",
   tv: "📺",
   bed: "🛏️",
+  generic: "📦",
+};
+
+const FURNITURE_SIZES: Record<string, { w: number; h: number }> = {
+  bed: { w: 2, h: 2 },
+  dining_table: { w: 2, h: 2 },
+  sofa: { w: 2, h: 1 },
 };
 
 export default function DashboardVirtualHouse({ weddingId }: DashboardVirtualHouseProps) {
@@ -48,6 +61,11 @@ export default function DashboardVirtualHouse({ weddingId }: DashboardVirtualHou
   const [gifts, setGifts] = useState<DBGift[]>([]);
   const [selectedFurniture, setSelectedFurniture] = useState<DBGift | null>(null);
   const [showRoof, setShowRoof] = useState(false);
+
+  const [isLinkModalOpen, setIsLinkModalOpen] = useState(false);
+  const [selectedLinkGift, setSelectedLinkGift] = useState("");
+  const [selectedLinkRoom, setSelectedLinkRoom] = useState("");
+  const [selectedLinkType, setSelectedLinkType] = useState("");
 
   useEffect(() => {
     async function loadHouseData() {
@@ -73,8 +91,10 @@ export default function DashboardVirtualHouse({ weddingId }: DashboardVirtualHou
   }, [weddingId]);
 
   const isGiftPaid = (g: DBGift) => {
-    return g.stock === 0 || (g.raised_amount !== undefined && g.raised_amount >= g.price);
+    return g.stock !== null && g.stock !== undefined && g.stock <= 0;
   };
+
+  const unlinkedPaidGifts = gifts.filter((g) => !g.house_item_type && isGiftPaid(g));
 
   const getPaidStructural = (type: string) => {
     const item = gifts.find((g) => g.house_item_type === type);
@@ -105,7 +125,16 @@ export default function DashboardVirtualHouse({ weddingId }: DashboardVirtualHou
   });
 
   const getFurnitureAt = (x: number, y: number) => {
-    return placedFurniture.find((g) => g.house_position_x === x && g.house_position_y === y);
+    return placedFurniture.find((g) => {
+      if (g.house_position_x === null || g.house_position_y === null) return false;
+      const size = FURNITURE_SIZES[g.house_item_type || ""] || { w: 1, h: 1 };
+      return (
+        x >= g.house_position_x &&
+        x < g.house_position_x + size.w &&
+        y >= g.house_position_y &&
+        y < g.house_position_y + size.h
+      );
+    });
   };
 
   const handleCellClick = async (x: number, y: number) => {
@@ -116,13 +145,25 @@ export default function DashboardVirtualHouse({ weddingId }: DashboardVirtualHou
     const room = ROOM_DEFINITIONS[roomKey];
     if (!room) return;
 
-    if (x < room.minX || x > room.maxX || y < room.minY || y > room.maxY) {
-      toast.error(`Apenas é permitido colocar este item na ${room.name}`);
+    // Validate bounds + size
+    const size = FURNITURE_SIZES[selectedFurniture.house_item_type || ""] || { w: 1, h: 1 };
+    
+    if (x < room.minX || (x + size.w - 1) > room.maxX || y < room.minY || (y + size.h - 1) > room.maxY) {
+      toast.error(`Espaço insuficiente na ${room.name} para este móvel.`);
       return;
     }
 
-    // Check if cell is already occupied
-    if (getFurnitureAt(x, y)) {
+    // Check if ANY of the required cells are already occupied
+    let isOccupied = false;
+    for (let i = 0; i < size.w; i++) {
+      for (let j = 0; j < size.h; j++) {
+        if (getFurnitureAt(x + i, y + j)) {
+          isOccupied = true;
+        }
+      }
+    }
+
+    if (isOccupied) {
       toast.error("Este espaço já está ocupado por outro móvel");
       return;
     }
@@ -151,6 +192,38 @@ export default function DashboardVirtualHouse({ weddingId }: DashboardVirtualHou
     } catch (err) {
       console.error("Error placing furniture:", err);
       toast.error("Erro ao posicionar móvel");
+    } finally {
+      setUpdating(null);
+    }
+  };
+
+  const handleLinkGift = async () => {
+    if (!selectedLinkGift || !selectedLinkRoom || !selectedLinkType) {
+      toast.error("Preencha todos os campos para vincular!");
+      return;
+    }
+    
+    try {
+      setUpdating(selectedLinkGift);
+      const { error } = await supabase
+        .from("gifts")
+        .update({
+          house_item_type: selectedLinkType,
+          house_room: selectedLinkRoom,
+        } as any)
+        .eq("id", selectedLinkGift);
+
+      if (error) throw error;
+
+      setGifts(prev => prev.map(g => g.id === selectedLinkGift ? { ...g, house_item_type: selectedLinkType, house_room: selectedLinkRoom } : g));
+      toast.success("Presente vinculado com sucesso! Agora posicione-o na planta.");
+      setIsLinkModalOpen(false);
+      setSelectedLinkGift("");
+      setSelectedLinkRoom("");
+      setSelectedLinkType("");
+    } catch(err) {
+      console.error(err);
+      toast.error("Erro ao vincular");
     } finally {
       setUpdating(null);
     }
@@ -247,7 +320,6 @@ export default function DashboardVirtualHouse({ weddingId }: DashboardVirtualHou
             {/* Grid Cells */}
             {gridCells.map(({ x, y, roomKey }) => {
               const room = roomKey ? ROOM_DEFINITIONS[roomKey] : null;
-              const furniture = getFurnitureAt(x, y);
               const isSelectedRoom = selectedFurniture && selectedFurniture.house_room === roomKey;
 
               // Structural Walls Styling
@@ -271,37 +343,49 @@ export default function DashboardVirtualHouse({ weddingId }: DashboardVirtualHou
                   }`}
                 >
                   {/* Grid Dots helper */}
-                  {!furniture && (
+                  {!getFurnitureAt(x, y) && (
                     <div className="w-1 h-1 rounded-full bg-foreground/10 absolute top-1/2 left-1/2 -translate-y-1/2 -translate-x-1/2" />
                   )}
+                </div>
+              );
+            })}
 
-                  {/* Render Placed Furniture */}
-                  {furniture && (
-                    <div className="flex flex-col items-center justify-center w-full h-full p-1 animate-fade-in group">
-                      <span className="text-2xl sm:text-3xl select-none">
-                        {FURNITURE_ICONS[furniture.house_item_type || ""] || "🎁"}
-                      </span>
-                      {updating === furniture.id ? (
-                        <div className="absolute inset-0 bg-background/80 rounded-lg flex items-center justify-center">
-                          <Loader2 className="w-4 h-4 animate-spin text-gold" />
-                        </div>
-                      ) : (
-                        <div className="absolute inset-0 opacity-0 hover:opacity-100 bg-background/95 rounded-lg flex flex-col items-center justify-center p-2 text-center transition-opacity border border-border shadow-soft">
-                          <span className="text-[10px] font-bold text-foreground truncate w-full">{furniture.name}</span>
-                          <div className="flex gap-2 mt-2">
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleRemoveFromMap(furniture.id, furniture.name);
-                              }}
-                              className="p-1 bg-destructive/10 hover:bg-destructive text-destructive hover:text-white rounded"
-                              title="Remover"
-                            >
-                              <Trash2 className="w-3 h-3" />
-                            </button>
-                          </div>
-                        </div>
-                      )}
+            {/* Render Placed Furniture Overlays */}
+            {placedFurniture.map((furniture) => {
+              if (furniture.house_position_x === null || furniture.house_position_y === null) return null;
+              const size = FURNITURE_SIZES[furniture.house_item_type || ""] || { w: 1, h: 1 };
+              
+              return (
+                <div
+                  key={`furn-${furniture.id}`}
+                  style={{
+                    gridColumn: `${(furniture.house_position_x || 0) + 1} / span ${size.w}`,
+                    gridRow: `${(furniture.house_position_y || 0) + 1} / span ${size.h}`,
+                  }}
+                  className="flex flex-col items-center justify-center w-full h-full p-1 animate-fade-in group z-10 relative pointer-events-auto"
+                >
+                  <span className="text-3xl sm:text-5xl select-none filter drop-shadow-md">
+                    {FURNITURE_ICONS[furniture.house_item_type || ""] || "📦"}
+                  </span>
+                  {updating === furniture.id ? (
+                    <div className="absolute inset-0 bg-background/80 rounded-lg flex items-center justify-center">
+                      <Loader2 className="w-4 h-4 animate-spin text-gold" />
+                    </div>
+                  ) : (
+                    <div className="absolute inset-0 opacity-0 hover:opacity-100 bg-background/95 rounded-lg flex flex-col items-center justify-center p-2 text-center transition-opacity border border-border shadow-soft z-20 cursor-default">
+                      <span className="text-[10px] font-bold text-foreground truncate w-full">{furniture.name}</span>
+                      <div className="flex gap-2 mt-2">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleRemoveFromMap(furniture.id, furniture.name);
+                          }}
+                          className="p-1 bg-destructive/10 hover:bg-destructive text-destructive hover:text-white rounded"
+                          title="Remover"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -380,9 +464,14 @@ export default function DashboardVirtualHouse({ weddingId }: DashboardVirtualHou
       {/* Right Column: Placed Furniture Drawer Sidebar */}
       <div className="lg:col-span-4 space-y-6">
         <div className="bg-card rounded-xl p-5 border border-border shadow-soft space-y-4">
-          <div className="flex items-center gap-2 pb-3 border-b border-border">
-            <Armchair className="w-5 h-5 text-gold" />
-            <h3 className="font-serif text-base text-foreground">Móveis para Posicionar</h3>
+          <div className="flex items-center justify-between pb-3 border-b border-border">
+            <div className="flex items-center gap-2">
+              <Armchair className="w-5 h-5 text-gold" />
+              <h3 className="font-serif text-base text-foreground">Móveis para Posicionar</h3>
+            </div>
+            <Button onClick={() => setIsLinkModalOpen(true)} variant="outline" size="sm" className="h-8 text-[10px] sm:text-xs">
+              Vincular Presente
+            </Button>
           </div>
 
           {placeableFurniture.length === 0 ? (
@@ -433,6 +522,69 @@ export default function DashboardVirtualHouse({ weddingId }: DashboardVirtualHou
           )}
         </div>
       </div>
+
+      {/* Dialog for Linking existing gift */}
+      <Dialog open={isLinkModalOpen} onOpenChange={setIsLinkModalOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Vincular Presente à Casa</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="flex flex-col gap-2">
+              <label className="text-sm font-medium">1. Escolha o Presente (já pago)</label>
+              <select 
+                className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                value={selectedLinkGift}
+                onChange={e => setSelectedLinkGift(e.target.value)}
+              >
+                <option value="">Selecione...</option>
+                {unlinkedPaidGifts.map(g => (
+                  <option key={g.id} value={g.id}>{g.name}</option>
+                ))}
+              </select>
+              {unlinkedPaidGifts.length === 0 && (
+                <p className="text-[10px] text-muted-foreground mt-1">Nenhum presente pago disponível para vincular.</p>
+              )}
+            </div>
+            
+            <div className="flex flex-col gap-2">
+              <label className="text-sm font-medium">2. Qual o Cômodo?</label>
+              <select 
+                className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                value={selectedLinkRoom}
+                onChange={e => setSelectedLinkRoom(e.target.value)}
+              >
+                <option value="">Selecione...</option>
+                {Object.entries(ROOM_DEFINITIONS).map(([key, room]) => (
+                  <option key={key} value={key}>{room.name}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <label className="text-sm font-medium">3. Tipo de Ícone/Tamanho</label>
+              <select 
+                className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                value={selectedLinkType}
+                onChange={e => setSelectedLinkType(e.target.value)}
+              >
+                <option value="">Selecione...</option>
+                <option value="generic">Caixa/Genérico (1x1)</option>
+                <option value="fridge">Geladeira (1x1)</option>
+                <option value="stove">Fogão (1x1)</option>
+                <option value="tv">Televisão (1x1)</option>
+                <option value="bed">Cama de Casal (2x2)</option>
+                <option value="dining_table">Mesa de Jantar (2x2)</option>
+                <option value="sofa">Sofá (2x1)</option>
+              </select>
+            </div>
+
+            <Button onClick={handleLinkGift} disabled={!selectedLinkGift || !selectedLinkRoom || !selectedLinkType || updating !== null} className="mt-2">
+              {updating === selectedLinkGift ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : "Vincular"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -34,12 +34,12 @@ const CATALOG_ITEMS = [
   { id: "plumbing", name: "Instalação Hidráulica", category: "Construção", defaultPrice: 1000, room: null, isStructural: true },
 
   // Móveis Essenciais
-  { id: "fridge", name: "Geladeira Duplex Inox", category: "Cozinha", defaultPrice: 3500, room: "kitchen", isStructural: false },
-  { id: "stove", name: "Fogão 5 Bocas Inox", category: "Cozinha", defaultPrice: 1500, room: "kitchen", isStructural: false },
-  { id: "dining_table", name: "Mesa de Jantar 6 Cadeiras", category: "Cozinha", defaultPrice: 2000, room: "kitchen", isStructural: false },
-  { id: "sofa", name: "Sofá Retrátil 3 Lugares", category: "Sala", defaultPrice: 2500, room: "living_room", isStructural: false },
-  { id: "tv", name: "Smart TV 55\" 4K", category: "Sala", defaultPrice: 2200, room: "living_room", isStructural: false },
-  { id: "bed", name: "Cama Casal Queen Box", category: "Quarto", defaultPrice: 1800, room: "bedroom", isStructural: false },
+  { id: "fridge", name: "Geladeira", category: "Cozinha", defaultPrice: 3500, room: "kitchen", isStructural: false },
+  { id: "stove", name: "Fogão", category: "Cozinha", defaultPrice: 1500, room: "kitchen", isStructural: false },
+  { id: "dining_table", name: "Mesa de Jantar", category: "Cozinha", defaultPrice: 2000, room: "kitchen", isStructural: false },
+  { id: "sofa", name: "Sofá", category: "Sala", defaultPrice: 2500, room: "living_room", isStructural: false },
+  { id: "tv", name: "Televisão", category: "Sala", defaultPrice: 2200, room: "living_room", isStructural: false },
+  { id: "bed", name: "Cama de Casal", category: "Quarto", defaultPrice: 1800, room: "bedroom", isStructural: false },
 ];
 
 export default function HouseCatalogSettings({ weddingId }: HouseCatalogSettingsProps) {

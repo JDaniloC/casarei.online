@@ -26,6 +26,7 @@ const CreatePaymentSchema = z.object({
   guestName: z.string().min(1).max(100).trim(),
   guestEmail: z.string().email().max(255).optional().or(z.literal("")).transform((val) => val || undefined),
   giftMessage: z.string().max(300).optional().transform((val) => val?.trim() || undefined),
+  isManual: z.boolean().optional(),
 });
 
 const sanitizeString = (str: string): string => {
@@ -101,7 +102,7 @@ serve(async (req) => {
 
     await supabase.from("rate_limit_log").insert({ identifier: ip, action: "create_payment" });
 
-    // Fetch wedding credentials (prefer encrypted)
+    // Fetch wedding credentials
     const { data: wedding, error: weddingError } = await supabase
       .from("weddings")
       .select("mp_access_token_encrypted, mp_access_token_iv, mercado_pago_access_token, couple_name")
@@ -115,17 +116,21 @@ serve(async (req) => {
       );
     }
 
-    // Decrypt access token
-    let accessToken: string;
-    if (wedding.mp_access_token_encrypted && wedding.mp_access_token_iv) {
-      accessToken = await decryptValue(wedding.mp_access_token_encrypted, wedding.mp_access_token_iv, encryptionKey);
-    } else if (wedding.mercado_pago_access_token) {
-      accessToken = wedding.mercado_pago_access_token;
-    } else {
-      return new Response(
-        JSON.stringify({ error: "Mercado Pago not configured for this wedding" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+    const { isManual } = validationResult.data;
+
+    // Decrypt access token ONLY if not manual
+    let accessToken: string | undefined;
+    if (!isManual) {
+      if (wedding.mp_access_token_encrypted && wedding.mp_access_token_iv) {
+        accessToken = await decryptValue(wedding.mp_access_token_encrypted, wedding.mp_access_token_iv, encryptionKey);
+      } else if (wedding.mercado_pago_access_token) {
+        accessToken = wedding.mercado_pago_access_token;
+      } else {
+        return new Response(
+          JSON.stringify({ error: "Mercado Pago not configured for this wedding" }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
     }
 
     // Verify gift prices
@@ -198,6 +203,14 @@ serve(async (req) => {
       };
     });
     await supabase.from("order_items").insert(orderItems);
+
+    if (isManual) {
+      // If manual PIX, return just the order ID without Mercado Pago logic
+      return new Response(
+        JSON.stringify({ orderId: order.id }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
 
     // Validate ALLOWED_ORIGIN for safe payment redirects (PR-S04)
     const allowedOrigin = Deno.env.get("ALLOWED_ORIGIN");

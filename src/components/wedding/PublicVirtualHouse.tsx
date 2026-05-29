@@ -31,12 +31,19 @@ const ROOM_DEFINITIONS = {
 };
 
 const FURNITURE_ICONS: Record<string, string> = {
-  fridge: "❄️",
+  fridge: "🧊",
   stove: "🔥",
-  dining_table: "🪑",
+  dining_table: "🍽️",
   sofa: "🛋️",
   tv: "📺",
   bed: "🛏️",
+  generic: "📦",
+};
+
+const FURNITURE_SIZES: Record<string, { w: number; h: number }> = {
+  bed: { w: 2, h: 2 },
+  dining_table: { w: 2, h: 2 },
+  sofa: { w: 2, h: 1 },
 };
 
 export default function PublicVirtualHouse({ weddingId, onOpenCheckout }: PublicVirtualHouseProps) {
@@ -130,21 +137,27 @@ export default function PublicVirtualHouse({ weddingId, onOpenCheckout }: Public
   });
 
   const getFurnitureAt = (x: number, y: number) => {
-    return placedFurniture.find((g) => g.housePositionX === x && g.housePositionY === y);
+    return placedFurniture.find((g) => {
+      if (g.housePositionX === null || g.housePositionY === null) return false;
+      const size = FURNITURE_SIZES[g.houseItemType || ""] || { w: 1, h: 1 };
+      return (
+        x >= g.housePositionX &&
+        x < g.housePositionX + size.w &&
+        y >= g.housePositionY &&
+        y < g.housePositionY + size.h
+      );
+    });
   };
 
   // Unpurchased placeable silhouettes / Ghost elements
   const getGhostItemAt = (x: number, y: number, roomKey: string) => {
-    // Structural elements don't get individual grid positioning in the same way,
-    // but placeable essential furniture items do!
-    // We check if there's an enabled but unpaid furniture gift for this room.
     return gifts.find((g) => {
       return (
         g.houseItemType &&
         !["foundation", "walls", "doors_windows", "roof", "electric", "plumbing"].includes(g.houseItemType) &&
         g.houseRoom === roomKey &&
         !isGiftPaid(g) &&
-        g.housePositionX === null // Not positioned yet because it is not paid
+        g.housePositionX === x && g.housePositionY === y 
       );
     });
   };
@@ -188,7 +201,6 @@ export default function PublicVirtualHouse({ weddingId, onOpenCheckout }: Public
   return (
     <section className="py-24 bg-cream relative overflow-hidden">
       <div className="max-w-6xl mx-auto px-4">
-        {/* Title */}
         <div className="text-center mb-16">
           <p className="text-gold uppercase tracking-[0.2em] text-sm mb-4 font-sans font-semibold">Nossa Futura Casa</p>
           <h2 className="section-title">Casa dos Sonhos</h2>
@@ -198,9 +210,7 @@ export default function PublicVirtualHouse({ weddingId, onOpenCheckout }: Public
           </p>
         </div>
 
-        {/* Blueprint outer garden */}
         <div className="bg-[#4a5f41] p-4 sm:p-8 rounded-3xl border-[6px] border-[#3e5036] shadow-elevated relative overflow-hidden max-w-4xl mx-auto">
-          {/* Menu top-bar */}
           <div className="absolute top-4 right-4 z-30 flex gap-2">
             {roofPaid && (
               <Button
@@ -214,9 +224,8 @@ export default function PublicVirtualHouse({ weddingId, onOpenCheckout }: Public
             )}
           </div>
 
-          {/* Blueprint frame */}
           <div
-            className={`grid grid-cols-12 gap-[2px] w-full aspect-[1.5] relative rounded-xl overflow-hidden border-4 transition-all duration-300 ${
+            className={`grid grid-cols-12 grid-rows-8 gap-[2px] w-full aspect-[1.5] relative rounded-xl overflow-hidden border-4 transition-all duration-300 ${
               foundationPaid
                 ? wallsPaid
                   ? "border-[6px] border-neutral-800 bg-stone-100 shadow-elevated"
@@ -224,16 +233,10 @@ export default function PublicVirtualHouse({ weddingId, onOpenCheckout }: Public
                 : "border-dashed border-white/20 bg-[#425539]"
             }`}
           >
-            {/* Render Grid cells */}
             {gridCells.map(({ x, y, roomKey }) => {
               const room = roomKey ? ROOM_DEFINITIONS[roomKey] : null;
-              const furniture = getFurnitureAt(x, y);
-
-              // Render ghost placeable if cell matches room and there are unpurchased items
               const ghostItem = roomKey ? getGhostItemAt(x, y, roomKey) : null;
-              const buyerName = furniture ? buyers[furniture.id] : null;
 
-              // Walls division styling
               let wallBorder = "";
               if (wallsPaid) {
                 if (x === 4 || x === 7) wallBorder += " border-r-[6px] border-r-neutral-800";
@@ -253,32 +256,15 @@ export default function PublicVirtualHouse({ weddingId, onOpenCheckout }: Public
                   }`}
                 >
                   {/* Grid dot */}
-                  {!furniture && !ghostItem && (
+                  {!getFurnitureAt(x, y) && !ghostItem && (
                     <div className="w-0.5 h-0.5 rounded-full bg-foreground/10 absolute top-1/2 left-1/2 -translate-y-1/2 -translate-x-1/2" />
                   )}
 
-                  {/* Placed Furniture */}
-                  {furniture && (
-                    <div className="flex flex-col items-center justify-center w-full h-full p-1 animate-fade-in group relative">
-                      <span className="text-2xl sm:text-4xl select-none">
-                        {FURNITURE_ICONS[furniture.houseItemType || ""] || "🎁"}
-                      </span>
-                      {/* Hover Tooltip */}
-                      <div className="absolute bottom-[105%] left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 bg-black/90 text-white text-[9px] sm:text-xs py-1.5 px-3 rounded-lg shadow-soft whitespace-nowrap z-30 transition-all pointer-events-none border border-white/10">
-                        <strong>{furniture.name}</strong> <br />
-                        <span className="text-gold/90 font-light mt-0.5 block">
-                          {buyerName ? `Presenteado por ${buyerName}` : "Presenteado com carinho!"}
-                        </span>
-                        <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-black/90" />
-                      </div>
-                    </div>
-                  )}
-
                   {/* Ghost Furniture Silhouette */}
-                  {!furniture && ghostItem && (
+                  {!getFurnitureAt(x, y) && ghostItem && (
                     <div className="flex flex-col items-center justify-center w-full h-full p-1 opacity-40 hover:opacity-85 transition-opacity relative group">
                       <span className="text-2xl sm:text-4xl select-none filter sepia saturate-200 hue-rotate-[15deg]">
-                        {FURNITURE_ICONS[ghostItem.houseItemType || ""] || "🎁"}
+                        {FURNITURE_ICONS[ghostItem.houseItemType || ""] || "📦"}
                       </span>
                       <div className="absolute inset-0 border border-dashed border-gold/60 rounded-md m-0.5 animate-pulse" />
                       {/* Hover Ghost Tooltip */}
@@ -288,6 +274,36 @@ export default function PublicVirtualHouse({ weddingId, onOpenCheckout }: Public
                       </div>
                     </div>
                   )}
+                </div>
+              );
+            })}
+
+            {/* Render Placed Furniture Overlays */}
+            {placedFurniture.map((furniture) => {
+              if (furniture.housePositionX === null || furniture.housePositionY === null) return null;
+              const size = FURNITURE_SIZES[furniture.houseItemType || ""] || { w: 1, h: 1 };
+              const buyerName = buyers[furniture.id];
+
+              return (
+                <div
+                  key={`furn-${furniture.id}`}
+                  style={{
+                    gridColumn: `${furniture.housePositionX + 1} / span ${size.w}`,
+                    gridRow: `${furniture.housePositionY + 1} / span ${size.h}`,
+                  }}
+                  className="flex flex-col items-center justify-center w-full h-full p-1 animate-fade-in group z-10 relative pointer-events-auto"
+                >
+                  <span className="text-3xl sm:text-5xl select-none filter drop-shadow-md">
+                    {FURNITURE_ICONS[furniture.houseItemType || ""] || "📦"}
+                  </span>
+                  {/* Hover Tooltip */}
+                  <div className="absolute bottom-[105%] left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 bg-black/90 text-white text-[9px] sm:text-xs py-1.5 px-3 rounded-lg shadow-soft whitespace-nowrap z-30 transition-all pointer-events-none border border-white/10">
+                    <strong>{furniture.name}</strong> <br />
+                    <span className="text-gold/90 font-light mt-0.5 block">
+                      {buyerName ? `Presenteado por ${buyerName}` : "Presenteado com carinho!"}
+                    </span>
+                    <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-black/90" />
+                  </div>
                 </div>
               );
             })}
