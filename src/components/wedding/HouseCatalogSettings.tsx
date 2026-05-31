@@ -20,21 +20,46 @@ interface DBGift {
 }
 
 const CATALOG_ITEMS = [
-  // Estrutura
+  // Estruturais (8 itens)
   { id: "foundation", name: "Fundação da Casa", category: "Construção", defaultPrice: 1500, room: null, isStructural: true },
+  { id: "floor_coverings", name: "Pisos e Revestimentos", category: "Construção", defaultPrice: 2000, room: null, isStructural: true },
   { id: "walls", name: "Paredes da Casa", category: "Construção", defaultPrice: 3000, room: null, isStructural: true },
+  { id: "painting", name: "Pintura Externa e Interna", category: "Construção", defaultPrice: 1500, room: null, isStructural: true },
   { id: "doors_windows", name: "Portas e Janelas", category: "Construção", defaultPrice: 1200, room: null, isStructural: true },
   { id: "roof", name: "Telhado da Casa", category: "Construção", defaultPrice: 4000, room: null, isStructural: true },
   { id: "electric", name: "Instalação Elétrica", category: "Construção", defaultPrice: 1000, room: null, isStructural: true },
   { id: "plumbing", name: "Instalação Hidráulica", category: "Construção", defaultPrice: 1000, room: null, isStructural: true },
 
-  // Móveis Essenciais
+  // Cozinha (7 itens)
   { id: "fridge", name: "Geladeira", category: "Cozinha", defaultPrice: 3500, room: "kitchen", isStructural: false },
   { id: "stove", name: "Fogão", category: "Cozinha", defaultPrice: 1500, room: "kitchen", isStructural: false },
+  { id: "microwave", name: "Microondas", category: "Cozinha", defaultPrice: 600, room: "kitchen", isStructural: false },
+  { id: "sink_counter", name: "Pia e Balcão", category: "Cozinha", defaultPrice: 1200, room: "kitchen", isStructural: false },
   { id: "dining_table", name: "Mesa de Jantar", category: "Cozinha", defaultPrice: 2000, room: "kitchen", isStructural: false },
+  { id: "kitchen_cabinet", name: "Armários de Cozinha", category: "Cozinha", defaultPrice: 2500, room: "kitchen", isStructural: false },
+  { id: "dishwasher", name: "Lava-louças", category: "Cozinha", defaultPrice: 2000, room: "kitchen", isStructural: false },
+
+  // Sala de Estar (4 itens)
   { id: "sofa", name: "Sofá", category: "Sala", defaultPrice: 2500, room: "living_room", isStructural: false },
-  { id: "tv", name: "Televisão", category: "Sala", defaultPrice: 2200, room: "living_room", isStructural: false },
+  { id: "tv_rack", name: "TV e Rack", category: "Sala", defaultPrice: 3000, room: "living_room", isStructural: false },
+  { id: "coffee_table", name: "Mesa de Centro", category: "Sala", defaultPrice: 400, room: "living_room", isStructural: false },
+  { id: "armchair", name: "Poltrona", category: "Sala", defaultPrice: 800, room: "living_room", isStructural: false },
+
+  // Quarto (4 itens)
   { id: "bed", name: "Cama de Casal", category: "Quarto", defaultPrice: 1800, room: "bedroom", isStructural: false },
+  { id: "wardrobe", name: "Guarda-roupa", category: "Quarto", defaultPrice: 2500, room: "bedroom", isStructural: false },
+  { id: "dresser", name: "Cômoda", category: "Quarto", defaultPrice: 800, room: "bedroom", isStructural: false },
+  { id: "vanity", name: "Penteadeira", category: "Quarto", defaultPrice: 700, room: "bedroom", isStructural: false },
+
+  // Banheiro (3 itens)
+  { id: "toilet", name: "Vaso Sanitário", category: "Banheiro", defaultPrice: 500, room: "bathroom", isStructural: false },
+  { id: "bathroom_sink", name: "Pia do Banheiro", category: "Banheiro", defaultPrice: 600, room: "bathroom", isStructural: false },
+  { id: "shower", name: "Box e Chuveiro", category: "Banheiro", defaultPrice: 1200, room: "bathroom", isStructural: false },
+
+  // Área de Serviço (3 itens)
+  { id: "washing_machine", name: "Máquina de Lavar", category: "Área de Serviço", defaultPrice: 2500, room: "laundry", isStructural: false },
+  { id: "dryer", name: "Secadora", category: "Área de Serviço", defaultPrice: 2000, room: "laundry", isStructural: false },
+  { id: "laundry_sink", name: "Tanque", category: "Área de Serviço", defaultPrice: 400, room: "laundry", isStructural: false },
 ];
 
 export default function HouseCatalogSettings({ weddingId }: HouseCatalogSettingsProps) {
