@@ -2,9 +2,10 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useCart } from "@/contexts/CartContext";
 import { Gift } from "@/contexts/WeddingContext";
-import { Loader2, Home, Gift as GiftIcon, ShoppingBag, Eye, X, HelpCircle } from "lucide-react";
+import { Loader2, ShoppingBag, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from "framer-motion";
+import { getIsoCoords, TILE_W, TILE_H, ISO_ROOMS } from "@/utils/isometric";
 
 interface PublicVirtualHouseProps {
   weddingId: string;
@@ -18,11 +19,12 @@ interface DBGift extends Gift {
   housePositionY: number | null;
 }
 
-const ROOM_DEFINITIONS = {
-  kitchen: { name: "Cozinha", color: "bg-amber-50/40 border-amber-200/50", labelColor: "text-amber-700", minX: 0, maxX: 4, minY: 0, maxY: 4 },
-  bathroom: { name: "Banheiro", color: "bg-cyan-50/40 border-cyan-200/50", labelColor: "text-cyan-700", minX: 5, maxX: 7, minY: 0, maxY: 4 },
-  bedroom: { name: "Quarto", color: "bg-purple-50/40 border-purple-200/50", labelColor: "text-purple-700", minX: 8, maxX: 11, minY: 0, maxY: 4 },
-  living_room: { name: "Sala", color: "bg-emerald-50/40 border-emerald-200/50", labelColor: "text-emerald-700", minX: 0, maxX: 11, minY: 5, maxY: 7 },
+const ROOM_DISPLAY = {
+  kitchen: { name: "Cozinha", color: "bg-amber-50/40 border-amber-200/50", labelColor: "text-amber-700", ...ISO_ROOMS.kitchen },
+  bathroom: { name: "Banheiro", color: "bg-cyan-50/40 border-cyan-200/50", labelColor: "text-cyan-700", ...ISO_ROOMS.bathroom },
+  bedroom: { name: "Quarto", color: "bg-purple-50/40 border-purple-200/50", labelColor: "text-purple-700", ...ISO_ROOMS.bedroom },
+  laundry: { name: "Área de Serviço", color: "bg-stone-50/40 border-stone-200/50", labelColor: "text-stone-700", ...ISO_ROOMS.laundry },
+  living_room: { name: "Sala", color: "bg-emerald-50/40 border-emerald-200/50", labelColor: "text-emerald-700", ...ISO_ROOMS.living_room },
 };
 
 const FURNITURE_ICONS: Record<string, string> = {
@@ -36,17 +38,38 @@ const FURNITURE_ICONS: Record<string, string> = {
 };
 
 const FURNITURE_SIZES: Record<string, { w: number; h: number }> = {
-  bed: { w: 2, h: 2 },
+  fridge: { w: 1, h: 1 },
+  stove: { w: 1, h: 1 },
+  microwave: { w: 1, h: 1 },
+  sink_counter: { w: 2, h: 1 },
   dining_table: { w: 2, h: 2 },
+  kitchen_cabinet: { w: 2, h: 1 },
+  dishwasher: { w: 1, h: 1 },
   sofa: { w: 2, h: 1 },
+  tv_rack: { w: 2, h: 1 },
+  coffee_table: { w: 1, h: 1 },
+  armchair: { w: 1, h: 1 },
+  bed: { w: 2, h: 2 },
+  wardrobe: { w: 2, h: 1 },
+  dresser: { w: 2, h: 1 },
+  vanity: { w: 1, h: 1 },
+  toilet: { w: 1, h: 1 },
+  bathroom_sink: { w: 1, h: 1 },
+  shower: { w: 1, h: 2 },
+  washing_machine: { w: 1, h: 1 },
+  dryer: { w: 1, h: 1 },
+  laundry_sink: { w: 1, h: 1 },
+  generic: { w: 1, h: 1 },
 };
+
+const STRUCTURAL_ITEMS = ["foundation", "floor_coverings", "walls", "painting", "doors_windows", "roof", "electric", "plumbing"];
 
 export default function PublicVirtualHouse({ weddingId, onOpenCheckout }: PublicVirtualHouseProps) {
   const [loading, setLoading] = useState(true);
   const [gifts, setGifts] = useState<DBGift[]>([]);
   const [buyers, setBuyers] = useState<Record<string, string>>({}); // Mapping from gift_id to buyer guest_name
   const [selectedGhost, setSelectedGhost] = useState<DBGift | null>(null);
-  const [activeCabinet, setActiveCabinet] = useState<keyof typeof ROOM_DEFINITIONS | null>(null);
+  const [activeCabinet, setActiveCabinet] = useState<keyof typeof ROOM_DISPLAY | null>(null);
   const [showRoof, setShowRoof] = useState(false);
 
   const { addItem } = useCart();
@@ -57,7 +80,6 @@ export default function PublicVirtualHouse({ weddingId, onOpenCheckout }: Public
       try {
         setLoading(true);
 
-        // Fetch all gifts that have either a room or an item type
         const { data: giftsData, error: giftsError } = await supabase
           .from("gifts")
           .select("id, name, price, category, stock, image_url, external_link, is_open_price, is_vaquinha, raised_amount, total_quotas, house_item_type, house_room, house_position_x, house_position_y")
@@ -86,7 +108,6 @@ export default function PublicVirtualHouse({ weddingId, onOpenCheckout }: Public
 
         setGifts(formattedGifts);
 
-        // Fetch approved buyers mapping
         const { data: orderItems, error: ordersError } = await supabase
           .from("order_items")
           .select("gift_id, orders(guest_name, status)");
@@ -118,15 +139,15 @@ export default function PublicVirtualHouse({ weddingId, onOpenCheckout }: Public
     return item ? isGiftPaid(item) : false;
   };
 
-  // Structural checks
   const foundationPaid = getPaidStructural("foundation");
+  const floorCoveringsPaid = getPaidStructural("floor_coverings");
   const wallsPaid = getPaidStructural("walls");
+  const paintingPaid = getPaidStructural("painting");
   const doorsWindowsPaid = getPaidStructural("doors_windows");
   const roofPaid = getPaidStructural("roof");
   const electricPaid = getPaidStructural("electric");
   const plumbingPaid = getPaidStructural("plumbing");
 
-  // Core placeables
   const placedFurniture = gifts.filter((g) => {
     return g.houseItemType && g.housePositionX !== null && g.housePositionY !== null;
   });
@@ -144,12 +165,11 @@ export default function PublicVirtualHouse({ weddingId, onOpenCheckout }: Public
     });
   };
 
-  // Unpurchased placeable silhouettes / Ghost elements
   const getGhostItemAt = (x: number, y: number, roomKey: string) => {
     return gifts.find((g) => {
       return (
         g.houseItemType &&
-        !["foundation", "walls", "doors_windows", "roof", "electric", "plumbing"].includes(g.houseItemType) &&
+        !STRUCTURAL_ITEMS.includes(g.houseItemType) &&
         g.houseRoom === roomKey &&
         !isGiftPaid(g) &&
         g.housePositionX === x && g.housePositionY === y 
@@ -177,21 +197,24 @@ export default function PublicVirtualHouse({ weddingId, onOpenCheckout }: Public
     );
   }
 
-  // Draw 12 columns x 8 rows
   const gridCells = [];
-  for (let y = 0; y < 8; y++) {
-    for (let x = 0; x < 12; x++) {
-      let roomKey: keyof typeof ROOM_DEFINITIONS | null = null;
-      if (y >= 0 && y <= 4) {
-        if (x >= 0 && x <= 4) roomKey = "kitchen";
-        else if (x >= 5 && x <= 7) roomKey = "bathroom";
-        else if (x >= 8 && x <= 11) roomKey = "bedroom";
-      } else if (y >= 5 && y <= 7) {
-        roomKey = "living_room";
+  for (let y = 0; y < 7; y++) {
+    for (let x = 0; x < 10; x++) {
+      let roomKey: keyof typeof ROOM_DISPLAY | null = null;
+      for (const [key, room] of Object.entries(ROOM_DISPLAY)) {
+        if (x >= room.minX && x <= room.maxX && y >= room.minY && y <= room.maxY) {
+          roomKey = key as keyof typeof ROOM_DISPLAY;
+          break;
+        }
       }
       gridCells.push({ x, y, roomKey });
     }
   }
+
+  // Calculate container dimensions based on isometric bounds
+  const mapOriginX = (6 * (TILE_W / 2)) + 100;
+  const mapOriginY = 100;
+  const containerHeight = (9 + 6) * (TILE_H / 2) + 200;
 
   return (
     <section className="py-24 bg-cream relative overflow-hidden">
@@ -205,7 +228,7 @@ export default function PublicVirtualHouse({ weddingId, onOpenCheckout }: Public
           </p>
         </div>
 
-        <div className="bg-[#4a5f41] p-4 sm:p-8 rounded-3xl border-[6px] border-[#3e5036] shadow-elevated relative overflow-hidden max-w-4xl mx-auto">
+        <div className="bg-[#4a5f41] p-4 sm:p-8 rounded-3xl border-[6px] border-[#3e5036] shadow-elevated relative overflow-hidden max-w-5xl mx-auto">
           <div className="absolute top-4 right-4 z-30 flex gap-2">
             {roofPaid && (
               <Button
@@ -219,167 +242,169 @@ export default function PublicVirtualHouse({ weddingId, onOpenCheckout }: Public
             )}
           </div>
 
-          <div
-            className={`grid grid-cols-12 grid-rows-8 gap-[2px] w-full aspect-[1.5] relative rounded-xl overflow-hidden border-4 transition-all duration-300 ${
-              foundationPaid
-                ? wallsPaid
-                  ? "border-[6px] border-neutral-800 bg-stone-100 shadow-elevated"
-                  : "border-4 border-stone-400 bg-stone-100"
-                : "border-dashed border-white/20 bg-[#425539]"
-            }`}
-          >
-            {gridCells.map(({ x, y, roomKey }) => {
-              const room = roomKey ? ROOM_DEFINITIONS[roomKey] : null;
-              const ghostItem = roomKey ? getGhostItemAt(x, y, roomKey) : null;
+          <div className="bg-[#1a1c1a] rounded-2xl border border-border shadow-card overflow-hidden w-full overflow-x-auto relative" style={{ minHeight: `${containerHeight}px` }}>
+            <div className="relative mx-auto" style={{ width: '1000px', height: `${containerHeight}px` }}>
+              
+              {/* Grid Foundation & Cells */}
+              {gridCells.map(({ x, y, roomKey }) => {
+                const iso = getIsoCoords(x, y, mapOriginX, mapOriginY);
+                const ghostItem = roomKey ? getGhostItemAt(x, y, roomKey) : null;
+                
+                let tileImg = null;
+                if (floorCoveringsPaid && roomKey) {
+                  if (roomKey === "kitchen") tileImg = "tile_kitchen.png";
+                  if (roomKey === "bathroom") tileImg = "tile_bathroom.png";
+                  if (roomKey === "bedroom") tileImg = "tile_bedroom.png";
+                  if (roomKey === "laundry") tileImg = "tile_laundry.png";
+                  if (roomKey === "living_room") tileImg = "tile_living.png";
+                } else if (foundationPaid) {
+                  tileImg = "tile_foundation.png";
+                }
 
-              let wallBorder = "";
-              if (wallsPaid) {
-                if (x === 4 || x === 7) wallBorder += " border-r-[6px] border-r-neutral-800";
-                if (y === 4) wallBorder += " border-b-[6px] border-b-neutral-800";
-              }
+                return (
+                  <div
+                    key={`cell-${x}-${y}`}
+                    onClick={() => {
+                      if (ghostItem) handleGhostClick(ghostItem);
+                    }}
+                    style={{
+                      position: "absolute",
+                      left: `${iso.x}px`,
+                      top: `${iso.y}px`,
+                      width: `${TILE_W}px`,
+                      height: `${TILE_H}px`,
+                      zIndex: iso.zIndex,
+                      clipPath: "polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)"
+                    }}
+                    className={`transition-all flex items-center justify-center
+                      ${!tileImg ? "border border-white/20" : ""}
+                      ${ghostItem ? "cursor-pointer hover:brightness-125" : ""}
+                    `}
+                  >
+                    {tileImg && (
+                      <img src={`/assets/iso/${tileImg}`} alt="floor" className="w-full h-full object-contain pointer-events-none" />
+                    )}
+                    
+                    {!tileImg && (
+                      <div className="w-1 h-1 rounded-full bg-white/30 absolute pointer-events-none" />
+                    )}
 
-              return (
-                <div
-                  key={`${x}-${y}`}
-                  onClick={() => {
-                    if (ghostItem) handleGhostClick(ghostItem);
-                  }}
-                  className={`relative flex items-center justify-center aspect-square transition-all ${
-                    room ? room.color : "bg-transparent"
-                  } ${wallBorder} ${
-                    ghostItem ? "cursor-pointer hover:bg-gold/10 hover:scale-[1.02]" : ""
-                  }`}
-                >
-                  {/* Grid dot */}
-                  {!getFurnitureAt(x, y) && !ghostItem && (
-                    <div className="w-0.5 h-0.5 rounded-full bg-foreground/10 absolute top-1/2 left-1/2 -translate-y-1/2 -translate-x-1/2" />
-                  )}
-
-                  {/* Ghost Furniture Silhouette */}
-                  {!getFurnitureAt(x, y) && ghostItem && (
-                    <div className="flex flex-col items-center justify-center w-full h-full p-1 opacity-40 hover:opacity-85 transition-opacity relative group">
-                      <span className="text-2xl sm:text-4xl select-none filter sepia saturate-200 hue-rotate-[15deg]">
-                        {FURNITURE_ICONS[ghostItem.houseItemType || ""] || "📦"}
-                      </span>
-                      <div className="absolute inset-0 border border-dashed border-gold/60 rounded-md m-0.5 animate-pulse" />
-                      {/* Hover Ghost Tooltip */}
-                      <div className="absolute bottom-[105%] left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 bg-gold text-background text-[9px] sm:text-xs font-bold py-1 px-2.5 rounded-md shadow-soft whitespace-nowrap z-30 transition-all pointer-events-none uppercase tracking-wide">
-                        Presentear {ghostItem.name}
-                        <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gold" />
+                    {/* Ghost item fallback icon (rendered behind if there's no img yet, or to show hover) */}
+                    {ghostItem && (
+                      <div className="absolute inset-0 flex items-center justify-center bg-gold/20 backdrop-blur-[1px] group z-20 pointer-events-none">
+                         <span className="text-3xl filter sepia saturate-200 drop-shadow-md">
+                           {FURNITURE_ICONS[ghostItem.houseItemType || ""] || "📦"}
+                         </span>
+                         <div className="absolute opacity-0 group-hover:opacity-100 bg-gold text-background text-[10px] font-bold py-1 px-2 rounded -top-8 whitespace-nowrap transition-opacity">
+                           Presentear {ghostItem.name}
+                         </div>
                       </div>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-
-            {/* Render Placed Furniture Overlays */}
-            {placedFurniture.map((furniture) => {
-              if (furniture.housePositionX === null || furniture.housePositionY === null) return null;
-              const size = FURNITURE_SIZES[furniture.houseItemType || ""] || { w: 1, h: 1 };
-              const buyerName = buyers[furniture.id];
-
-              return (
-                <div
-                  key={`furn-${furniture.id}`}
-                  style={{
-                    gridColumn: `${furniture.housePositionX + 1} / span ${size.w}`,
-                    gridRow: `${furniture.housePositionY + 1} / span ${size.h}`,
-                  }}
-                  className="flex flex-col items-center justify-center w-full h-full p-1 animate-fade-in group z-10 relative pointer-events-auto"
-                >
-                  <span className="text-3xl sm:text-5xl select-none filter drop-shadow-md">
-                    {FURNITURE_ICONS[furniture.houseItemType || ""] || "📦"}
-                  </span>
-                  {/* Hover Tooltip */}
-                  <div className="absolute bottom-[105%] left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 bg-black/90 text-white text-[9px] sm:text-xs py-1.5 px-3 rounded-lg shadow-soft whitespace-nowrap z-30 transition-all pointer-events-none border border-white/10">
-                    <strong>{furniture.name}</strong> <br />
-                    <span className="text-gold/90 font-light mt-0.5 block">
-                      {buyerName ? `Presenteado por ${buyerName}` : "Presenteado com carinho!"}
-                    </span>
-                    <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-black/90" />
+                    )}
                   </div>
-                </div>
-              );
-            })}
+                );
+              })}
 
-            {/* Room Labels & Chest Cabinets */}
-            {foundationPaid && (
-              <div className="absolute inset-0 pointer-events-none select-none z-10">
-                {Object.entries(ROOM_DEFINITIONS).map(([key, room]) => {
-                  const left = `${(room.minX / 12) * 100 + 2}%`;
-                  const top = `${(room.minY / 8) * 100 + 2}%`;
-
-                  // Cabinet/Chest click handler
-                  const hasCabinetItems = gifts.some(
-                    (g) => g.houseRoom === key && !g.houseItemType && isGiftPaid(g)
-                  );
-
-                  return (
-                    <div key={room.name} style={{ left, top }} className="absolute flex flex-col gap-2 items-start pointer-events-auto">
-                      <span className={`text-[9px] sm:text-[11px] font-serif font-bold uppercase tracking-widest px-2 py-0.5 rounded bg-white/80 shadow-soft border border-border/40 ${room.labelColor}`}>
-                        {room.name}
+              {/* Placed Furniture */}
+              {placedFurniture.map((furniture) => {
+                if (furniture.housePositionX === null || furniture.housePositionY === null) return null;
+                const iso = getIsoCoords(furniture.housePositionX, furniture.housePositionY, mapOriginX, mapOriginY);
+                const buyerName = buyers[furniture.id];
+                
+                return (
+                  <div
+                    key={`furn-${furniture.id}`}
+                    style={{
+                      position: "absolute",
+                      left: `${iso.x}px`,
+                      top: `${iso.y - TILE_H}px`,
+                      zIndex: iso.zIndex + 10,
+                    }}
+                    className="group"
+                  >
+                    <img 
+                      src={`/assets/iso/furniture_${furniture.houseItemType}.png`} 
+                      alt={furniture.name}
+                      className="w-full h-full object-contain drop-shadow-lg"
+                    />
+                    <div className="absolute bottom-[105%] left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 bg-black/90 text-white text-[9px] sm:text-xs py-1.5 px-3 rounded-lg shadow-soft whitespace-nowrap z-50 pointer-events-none border border-white/10">
+                      <strong>{furniture.name}</strong> <br />
+                      <span className="text-gold/90 font-light mt-0.5 block">
+                        {buyerName ? `Presenteado por ${buyerName}` : "Presenteado com carinho!"}
                       </span>
-                      {/* Cabinet Chest Button */}
-                      <button
-                        onClick={() => setActiveCabinet(key as any)}
-                        className={`p-1.5 sm:p-2 rounded-full border shadow-card transition-all flex items-center justify-center ${
-                          hasCabinetItems
-                            ? "bg-gold text-background hover:bg-gold-light border-gold-light animate-pulse"
-                            : "bg-white/90 text-muted-foreground hover:bg-white border-border"
-                        }`}
-                        title={`Armário de Enxoval da ${room.name}`}
-                      >
-                        <ShoppingBag className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                      </button>
                     </div>
-                  );
-                })}
-              </div>
-            )}
+                  </div>
+                );
+              })}
 
-            {/* Render plumbing if paid */}
-            {plumbingPaid && (
-              <div className="absolute inset-0 pointer-events-none select-none z-5">
-                <span className="absolute top-[5%] left-[2%] text-sm sm:text-base">🚰</span>
-                <span className="absolute top-[5%] left-[45%] text-sm sm:text-base">🚿</span>
-              </div>
-            )}
+              {/* Ghost Unplaced Furniture Assets (Using the same PNG but filtered) */}
+              {gifts.filter(g => g.houseItemType && !STRUCTURAL_ITEMS.includes(g.houseItemType) && !isGiftPaid(g) && g.housePositionX !== null && g.housePositionY !== null).map((furniture) => {
+                const iso = getIsoCoords(furniture.housePositionX!, furniture.housePositionY!, mapOriginX, mapOriginY);
+                return (
+                  <div
+                    key={`ghost-img-${furniture.id}`}
+                    onClick={() => handleGhostClick(furniture)}
+                    style={{
+                      position: "absolute",
+                      left: `${iso.x}px`,
+                      top: `${iso.y - TILE_H}px`,
+                      zIndex: iso.zIndex + 10,
+                    }}
+                    className="group cursor-pointer hover:brightness-125 transition-all"
+                  >
+                    <img 
+                      src={`/assets/iso/furniture_${furniture.houseItemType}.png`} 
+                      alt={furniture.name}
+                      className="w-full h-full object-contain filter sepia saturate-200 hue-rotate-[15deg] opacity-60 drop-shadow-[0_0_8px_rgba(255,215,0,0.5)]"
+                    />
+                    <div className="absolute bottom-[105%] left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 bg-gold text-background text-[10px] font-bold py-1 px-2.5 rounded-md shadow-soft whitespace-nowrap z-50 transition-all pointer-events-none uppercase tracking-wide">
+                      Presentear {furniture.name}
+                    </div>
+                  </div>
+                );
+              })}
 
-            {/* Render electric bulbs if paid */}
-            {electricPaid && (
-              <div className="absolute inset-0 pointer-events-none select-none z-5">
-                <span className="absolute top-[20%] left-[18%] text-xs animate-pulse">💡</span>
-                <span className="absolute top-[20%] left-[53%] text-xs animate-pulse">💡</span>
-                <span className="absolute top-[20%] left-[78%] text-xs animate-pulse">💡</span>
-                <span className="absolute top-[70%] left-[45%] text-xs animate-pulse">💡</span>
-              </div>
-            )}
+              {/* Room Cabinet Buttons */}
+              {foundationPaid && (
+                <div className="absolute inset-0 pointer-events-none select-none z-[60]">
+                  {Object.entries(ROOM_DISPLAY).map(([key, room]) => {
+                    // Place the cabinet button at the room's starting iso coords visually offset
+                    const iso = getIsoCoords(room.minX, room.minY, mapOriginX, mapOriginY);
+                    
+                    const hasCabinetItems = gifts.some(
+                      (g) => g.houseRoom === key && !g.houseItemType && isGiftPaid(g)
+                    );
 
-            {/* Render Doors/Windows if paid */}
-            {doorsWindowsPaid && (
-              <div className="absolute inset-0 pointer-events-none select-none z-5">
-                <span className="absolute bottom-0 left-[45%] translate-y-1/2 text-[8px] sm:text-[10px] bg-stone-800 text-white font-bold px-1.5 py-0.5 rounded border border-border">PORTA</span>
-              </div>
-            )}
-
-            {/* Transparent Roof overlay */}
-            {showRoof && roofPaid && (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                className="absolute inset-0 bg-amber-900/95 flex flex-col items-center justify-center p-6 text-center select-none z-25 border-4 border-amber-950"
-                style={{
-                  backgroundImage: "repeating-linear-gradient(45deg, #78350f, #78350f 10px, #92400e 10px, #92400e 20px)",
-                }}
-              >
-                <div className="bg-amber-950/70 p-4 rounded-xl border border-amber-800 shadow-card">
-                  <span className="text-white text-4xl block">🏠</span>
-                  <h4 className="font-serif text-xl text-amber-100 font-bold mt-2">Nossa Casa dos Sonhos</h4>
-                  <p className="text-xs text-amber-200/80 max-w-sm mt-1">Concluímos a cobertura! Use o botão no canto superior direito para ver os cômodos e móveis por dentro.</p>
+                    return (
+                      <div 
+                        key={room.name} 
+                        style={{ left: `${iso.x + TILE_W/2}px`, top: `${iso.y - 20}px` }} 
+                        className="absolute flex flex-col gap-2 items-center pointer-events-auto transform -translate-x-1/2"
+                      >
+                        <button
+                          onClick={() => setActiveCabinet(key as any)}
+                          className={`p-1.5 sm:p-2 rounded-full border shadow-card transition-all flex items-center justify-center ${
+                            hasCabinetItems
+                              ? "bg-gold text-background hover:bg-gold-light border-gold-light animate-pulse"
+                              : "bg-white/90 text-muted-foreground hover:bg-white border-border"
+                          }`}
+                          title={`Armário de Enxoval da ${room.name}`}
+                        >
+                          <ShoppingBag className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                        </button>
+                      </div>
+                    );
+                  })}
                 </div>
-              </motion.div>
-            )}
+              )}
+
+              {/* Roof Overlay */}
+              {showRoof && roofPaid && (
+                <div className="absolute inset-0 z-[100] pointer-events-none flex items-center justify-center">
+                  <img src="/assets/iso/roof.png" alt="Roof" className="drop-shadow-2xl opacity-95 object-contain" />
+                </div>
+              )}
+
+            </div>
           </div>
         </div>
 
@@ -400,10 +425,12 @@ export default function PublicVirtualHouse({ weddingId, onOpenCheckout }: Public
                   <X className="w-4 h-4" />
                 </button>
 
-                <div className="mx-auto w-16 h-16 rounded-full bg-gold/10 flex items-center justify-center">
-                  <span className="text-4xl select-none">
-                    {FURNITURE_ICONS[selectedGhost.houseItemType || ""] || "🎁"}
-                  </span>
+                <div className="mx-auto w-24 h-24 rounded-xl bg-gold/10 flex items-center justify-center p-2 relative overflow-hidden">
+                   <img 
+                      src={`/assets/iso/furniture_${selectedGhost.houseItemType}.png`} 
+                      alt={selectedGhost.name}
+                      className="w-full h-full object-contain filter sepia saturate-200 hue-rotate-[15deg]"
+                   />
                 </div>
 
                 <div className="space-y-2">
@@ -456,7 +483,7 @@ export default function PublicVirtualHouse({ weddingId, onOpenCheckout }: Public
                 <div className="border-b border-[#3c3c3c] pb-3">
                   <h3 className="text-lg font-bold text-white flex items-center gap-2 font-mono">
                     <ShoppingBag className="w-5 h-5 text-gold" />
-                    Armário de Enxoval: {ROOM_DEFINITIONS[activeCabinet].name}
+                    Armário de Enxoval: {ROOM_DISPLAY[activeCabinet].name}
                   </h3>
                   <p className="text-[10px] text-[#8b8b8b] mt-1 uppercase tracking-wide">Inventário de presentes recebidos</p>
                 </div>
@@ -468,7 +495,6 @@ export default function PublicVirtualHouse({ weddingId, onOpenCheckout }: Public
                       (g) => g.houseRoom === activeCabinet && !g.houseItemType && isGiftPaid(g)
                     );
 
-                    // Render 8 modular slots minimum (similar to RE4 or Minecraft chest grid)
                     const slots = [];
                     for (let i = 0; i < 8; i++) {
                       const item = cabinetItems[i];
@@ -489,7 +515,7 @@ export default function PublicVirtualHouse({ weddingId, onOpenCheckout }: Public
                                 <span className="text-2xl">🎁</span>
                               )}
                               {/* Minecraft Style Slot Hover Card */}
-                              <div className="absolute bottom-[110%] left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 bg-[#0f0f0f] border-2 border-[#3c3c3c] text-white text-[9px] sm:text-xs py-2 px-3 rounded shadow-card whitespace-nowrap z-50 pointer-events-none">
+                              <div className="absolute bottom-[110%] left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 bg-[#0f0f0f] border-2 border-[#3c3c3c] text-white text-[9px] sm:text-xs py-2 px-3 rounded shadow-card whitespace-nowrap z-[100] pointer-events-none">
                                 <span className="text-gold font-bold">{item.name}</span> <br />
                                 <span className="text-white/60 font-light block mt-1">
                                   {buyerName ? `De: ${buyerName}` : "Enxoval conquistado!"}
@@ -507,7 +533,7 @@ export default function PublicVirtualHouse({ weddingId, onOpenCheckout }: Public
                 </div>
 
                 <div className="text-center py-2 text-[10px] text-[#8b8b8b] border-t border-[#3c3c3c]">
-                  Adicione e compre itens da lista da {ROOM_DEFINITIONS[activeCabinet].name} para preencher este armário!
+                  Adicione e compre itens da lista da {ROOM_DISPLAY[activeCabinet].name} para preencher este armário!
                 </div>
               </motion.div>
             </div>
