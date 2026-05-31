@@ -3,13 +3,8 @@ import { useInView } from "framer-motion";
 import { useRef, useState, useEffect } from "react";
 import { Send, MessageCircle, Heart, Loader2 } from "lucide-react";
 import { useWedding } from "@/contexts/WeddingContext";
-import { createClient } from '@supabase/supabase-js';
+import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-
-const supabasePublic = createClient(
-  import.meta.env.VITE_SUPABASE_URL,
-  import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY
-);
 
 interface Message {
   id: string;
@@ -37,7 +32,7 @@ const PublicMessageWall = ({ weddingId }: PublicMessageWallProps) => {
     const loadMessages = async () => {
       if (!weddingId) { setLoadingMessages(false); return; }
       try {
-        const { data, error } = await supabasePublic
+        const { data, error } = await supabase
           .from("messages")
           .select("id, guest_name, message, created_at")
           .eq("wedding_id", weddingId)
@@ -89,7 +84,7 @@ const PublicMessageWall = ({ weddingId }: PublicMessageWallProps) => {
 
     setLoading(true);
     try {
-      const { data, error } = await supabasePublic
+      const { data, error } = await supabase
         .from("messages")
         .insert({
           wedding_id: weddingId,

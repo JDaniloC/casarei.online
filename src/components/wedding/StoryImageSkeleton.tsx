@@ -12,7 +12,7 @@ interface StoryImageSkeletonProps {
 
 export function StoryImageSkeleton({ weddingId, photos, onChange }: StoryImageSkeletonProps) {
   // Pad the photos array to length 3 with empty strings for easier mapping
-  const activePhotos = photos.filter(Boolean);
+  const activePhotos = (photos || []).filter(Boolean);
   const displayPhotos = [
     activePhotos[0] || "",
     activePhotos[1] || "",
@@ -39,9 +39,8 @@ export function StoryImageSkeleton({ weddingId, photos, onChange }: StoryImageSk
   const count = activePhotos.length;
 
   const getGridClass = () => {
-    if (count === 1) return "grid-cols-1";
-    if (count === 2) return "grid-cols-2";
-    return "grid-cols-2"; // 3 photos uses a 2 column grid where the first spans 2 cols
+    if (count <= 1) return "grid-cols-1";
+    return "grid-cols-2"; // 2 or 3 photos uses a 2 column grid where the first spans 2 cols
   };
 
   // Helper function for rendering a slot
@@ -101,9 +100,9 @@ export function StoryImageSkeleton({ weddingId, photos, onChange }: StoryImageSk
       </div>
 
       <div className={`grid gap-4 ${getGridClass()}`}>
-        {renderSlot(0, count === 3 ? "col-span-2 h-64" : (count === 1 ? "h-64 sm:h-80" : "h-48 sm:h-64"))}
-        {count >= 1 && renderSlot(1, count === 3 ? "col-span-1 h-48" : "h-48 sm:h-64")}
-        {count >= 2 && renderSlot(2, count === 3 ? "col-span-1 h-48" : "hidden")}
+        {renderSlot(0, count >= 2 ? "col-span-2 h-64" : "h-64 sm:h-80")}
+        {count >= 1 && renderSlot(1, count >= 2 ? "col-span-1 h-48" : "h-48 sm:h-64")}
+        {count >= 2 && renderSlot(2, "col-span-1 h-48")}
       </div>
 
       <Dialog open={activeSlot !== null} onOpenChange={(open) => !open && setActiveSlot(null)}>

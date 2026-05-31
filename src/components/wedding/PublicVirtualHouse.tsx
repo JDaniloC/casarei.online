@@ -1,15 +1,10 @@
 import { useState, useEffect } from "react";
-import { createClient } from "@supabase/supabase-js";
+import { supabase } from "@/integrations/supabase/client";
 import { useCart } from "@/contexts/CartContext";
 import { Gift } from "@/contexts/WeddingContext";
 import { Loader2, Home, Gift as GiftIcon, ShoppingBag, Eye, X, HelpCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from "framer-motion";
-
-const supabase = createClient(
-  import.meta.env.VITE_SUPABASE_URL,
-  import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY
-);
 
 interface PublicVirtualHouseProps {
   weddingId: string;

@@ -1,5 +1,5 @@
 import React, { useState, useRef } from "react";
-import { createClient } from "@supabase/supabase-js";
+import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Image as ImageIcon, Upload, Link as LinkIcon, Loader2, Library } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -8,11 +8,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import ImageCropperModal from "./ImageCropperModal";
 import { MediaLibraryPicker } from "./MediaLibraryPicker";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-
-const supabase = createClient(
-  import.meta.env.VITE_SUPABASE_URL,
-  import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY
-);
 
 interface HeroImageUploaderProps {
   weddingId: string;

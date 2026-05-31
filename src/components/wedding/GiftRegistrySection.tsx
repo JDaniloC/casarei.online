@@ -47,13 +47,27 @@ const GiftRegistrySection = () => {
   }, [config.gifts]);
 
   const filteredGifts = useMemo(() => {
-    return config.gifts.filter((gift) => {
+    const filtered = config.gifts.filter((gift) => {
       const matchesSearch = gift.name.toLowerCase().includes(searchTerm.toLowerCase());
       const matchesCategory = selectedCategory === "all" || gift.category === selectedCategory;
       const range = priceRanges[selectedPriceRange];
       const matchesPrice = gift.isOpenPrice || (gift.price >= range.min && gift.price <= range.max);
       const matchesAvailability = !showAvailableOnly || gift.stock === null || gift.stock === undefined || gift.stock > 0;
       return matchesSearch && matchesCategory && matchesPrice && matchesAvailability;
+    });
+
+    // Ordena os presentes: disponíveis primeiro (stock null/undefined ou > 0), e depois por menor preço
+    return [...filtered].sort((a, b) => {
+      const isAvailableA = a.stock === null || a.stock === undefined || a.stock > 0;
+      const isAvailableB = b.stock === null || b.stock === undefined || b.stock > 0;
+
+      if (isAvailableA && !isAvailableB) return -1;
+      if (!isAvailableA && isAvailableB) return 1;
+
+      // Ambos disponíveis ou ambos indisponíveis, ordena pelo menor preço
+      const priceA = a.price || 0;
+      const priceB = b.price || 0;
+      return priceA - priceB;
     });
   }, [config.gifts, searchTerm, selectedCategory, selectedPriceRange, showAvailableOnly]);
 
