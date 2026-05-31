@@ -314,6 +314,7 @@ const CheckoutModal = ({
               guestName: guestName.trim(),
               guestEmail: guestEmail.trim(),
               giftMessage: giftMessage?.trim() || undefined,
+              isManual: true,
             },
           });
 

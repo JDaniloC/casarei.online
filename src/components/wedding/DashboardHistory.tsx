@@ -41,6 +41,7 @@ interface Order {
   mercado_pago_payment_id: string | null;
   gift_message?: string | null;
   items?: OrderItem[];
+  receipt_url?: string | null;
 }
 
 interface OrderItem {
@@ -189,6 +190,25 @@ const DashboardHistory = () => {
     } catch (err) {
       console.error("Error updating message:", err);
       toast.error("Erro ao atualizar mensagem");
+    }
+  };
+
+  const handleApproveOrder = async (orderId: string) => {
+    try {
+      const { error } = await supabase
+        .from("orders")
+        .update({ status: "approved" })
+        .eq("id", orderId);
+
+      if (error) throw error;
+
+      setOrders((prev) =>
+        prev.map((o) => (o.id === orderId ? { ...o, status: "approved" } : o))
+      );
+      toast.success("Pagamento confirmado com sucesso!");
+    } catch (err) {
+      console.error("Error approving order:", err);
+      toast.error("Erro ao confirmar pagamento");
     }
   };
 
@@ -405,6 +425,30 @@ const DashboardHistory = () => {
                           ))}
                         </div>
                       )}
+
+                      {/* Ações de Pix Manual */}
+                      <div className="flex flex-wrap gap-2 pt-2">
+                        {order.receipt_url && (
+                          <a
+                            href={order.receipt_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center justify-center rounded-md text-xs font-medium border border-input bg-background hover:bg-accent hover:text-accent-foreground h-8 px-3"
+                          >
+                            Ver Comprovante
+                          </a>
+                        )}
+                        {(order.status === "pending" || order.status === "processing" || order.status === "in_process") && (
+                          <Button
+                            size="sm"
+                            onClick={() => handleApproveOrder(order.id)}
+                            className="bg-green-600 hover:bg-green-700 text-white text-xs h-8 px-3"
+                          >
+                            <CheckCircle2 className="w-3.5 h-3.5 mr-1" />
+                            Confirmar Recebimento
+                          </Button>
+                        )}
+                      </div>
                     </div>
                   )}
                 </div>
