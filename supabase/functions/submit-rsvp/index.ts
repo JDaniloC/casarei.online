@@ -45,7 +45,7 @@ serve(async (req) => {
     await supabase.from("rate_limit_log").insert({ identifier: ip, action: "rsvp" });
 
     const body = await req.json();
-    const { wedding_id, guest_name, guest_email, attending, guest_count, companion_names, phone } = body;
+    const { wedding_id, guest_name, guest_email, attending, guest_count, companion_names, phone, guest_id } = body;
 
     if (!wedding_id || !guest_name || attending === undefined || attending === null || attending === "") {
       return new Response(
@@ -118,6 +118,20 @@ serve(async (req) => {
         JSON.stringify({ error: "Erro ao registrar confirmação" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
+    }
+
+    // Atualiza o status do convidado quando a confirmação vem de um convite
+    // personalizado (link com token). A atualização é feita aqui (service role)
+    // porque um UPDATE anônimo direto na tabela guests é bloqueado pela RLS.
+    if (guest_id) {
+      const { error: guestUpdateError } = await supabase
+        .from("guests")
+        .update({ status: attendanceValue })
+        .eq("id", guest_id)
+        .eq("wedding_id", wedding_id);
+      if (guestUpdateError) {
+        console.error("Guest status update error:", guestUpdateError);
+      }
     }
 
     return new Response(
