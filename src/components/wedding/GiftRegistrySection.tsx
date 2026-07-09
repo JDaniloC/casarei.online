@@ -47,11 +47,20 @@ const GiftRegistrySection = () => {
   }, [config.gifts]);
 
   const filteredGifts = useMemo(() => {
+    // Preço efetivo exibido ao convidado: presentes em cotas são mostrados e
+    // pagos por cota (price / totalQuotas), então o filtro de faixa e a
+    // ordenação devem usar esse valor, não o preço total.
+    const effectivePrice = (gift: (typeof config.gifts)[number]) =>
+      gift.totalQuotas && gift.totalQuotas > 0 && gift.price > 0
+        ? gift.price / gift.totalQuotas
+        : gift.price || 0;
+
     const filtered = config.gifts.filter((gift) => {
       const matchesSearch = gift.name.toLowerCase().includes(searchTerm.toLowerCase());
       const matchesCategory = selectedCategory === "all" || gift.category === selectedCategory;
       const range = priceRanges[selectedPriceRange];
-      const matchesPrice = gift.isOpenPrice || (gift.price >= range.min && gift.price <= range.max);
+      const price = effectivePrice(gift);
+      const matchesPrice = gift.isOpenPrice || (price >= range.min && price <= range.max);
       const matchesAvailability = !showAvailableOnly || gift.stock === null || gift.stock === undefined || gift.stock > 0;
       return matchesSearch && matchesCategory && matchesPrice && matchesAvailability;
     });
@@ -64,10 +73,8 @@ const GiftRegistrySection = () => {
       if (isAvailableA && !isAvailableB) return -1;
       if (!isAvailableA && isAvailableB) return 1;
 
-      // Ambos disponíveis ou ambos indisponíveis, ordena pelo menor preço
-      const priceA = a.price || 0;
-      const priceB = b.price || 0;
-      return priceA - priceB;
+      // Ambos disponíveis ou ambos indisponíveis, ordena pelo menor preço efetivo
+      return effectivePrice(a) - effectivePrice(b);
     });
   }, [config.gifts, searchTerm, selectedCategory, selectedPriceRange, showAvailableOnly]);
 
@@ -294,9 +301,9 @@ const GiftRegistrySection = () => {
                       <span className="text-muted-foreground">Meta: R$ {gift.price.toFixed(2).replace(".", ",")}</span>
                     </div>
                     <div className="w-full bg-secondary h-2.5 rounded-full overflow-hidden border border-border">
-                      <div 
+                      <div
                         className="bg-gold h-full rounded-full transition-all duration-1000 relative overflow-hidden"
-                        style={{ width: `${Math.min(100, ((gift.raisedAmount || 0) / gift.price) * 100)}%` }}
+                        style={{ width: `${gift.price > 0 ? Math.min(100, ((gift.raisedAmount || 0) / gift.price) * 100) : 0}%` }}
                       >
                         <div className="absolute inset-0 bg-white/20 animate-pulse" />
                       </div>

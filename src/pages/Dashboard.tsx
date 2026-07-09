@@ -2997,8 +2997,12 @@ const Dashboard = () => {
                     className="w-full flex gap-2 font-medium"
                     onClick={async () => {
                       if (!confirm("Tem certeza que deseja apagar TODOS os convidados? Esta ação não pode ser desfeita.")) return;
-                      await supabase.from("guests").delete().eq("wedding_id", weddingId);
-                      await supabase.from("rsvp_responses").delete().eq("wedding_id", weddingId);
+                      const { error: guestsError } = await supabase.from("guests").delete().eq("wedding_id", weddingId);
+                      const { error: rsvpError } = await supabase.from("rsvp_responses").delete().eq("wedding_id", weddingId);
+                      if (guestsError || rsvpError) {
+                        toast({ title: "Erro", description: "Não foi possível apagar os convidados. Tente novamente.", variant: "destructive" });
+                        return;
+                      }
                       toast({ title: "Sucesso", description: "Todos os convidados foram apagados do banco de dados." });
                     }}
                   >
@@ -3017,7 +3021,11 @@ const Dashboard = () => {
                     className="w-full flex gap-2 font-medium"
                     onClick={async () => {
                       if (!confirm("Tem certeza que deseja apagar TODAS as mensagens do mural? Esta ação não pode ser desfeita.")) return;
-                      await supabase.from("messages").delete().eq("wedding_id", weddingId);
+                      const { error: messagesError } = await supabase.from("messages").delete().eq("wedding_id", weddingId);
+                      if (messagesError) {
+                        toast({ title: "Erro", description: "Não foi possível limpar o mural. Tente novamente.", variant: "destructive" });
+                        return;
+                      }
                       toast({ title: "Sucesso", description: "O mural de recados foi limpo completamente." });
                     }}
                   >
@@ -3036,7 +3044,11 @@ const Dashboard = () => {
                     className="w-full flex gap-2 font-medium"
                     onClick={async () => {
                       if (!confirm("Tem certeza que deseja apagar TODOS os presentes da sua lista? Esta ação não pode ser desfeita.")) return;
-                      await supabase.from("gifts").delete().eq("wedding_id", weddingId);
+                      const { error: giftsError } = await supabase.from("gifts").delete().eq("wedding_id", weddingId);
+                      if (giftsError) {
+                        toast({ title: "Erro", description: "Não foi possível apagar os presentes. Tente novamente.", variant: "destructive" });
+                        return;
+                      }
                       toast({ title: "Sucesso", description: "Todos os presentes foram apagados. Recarregando a página..." });
                       setTimeout(() => window.location.reload(), 1500);
                     }}

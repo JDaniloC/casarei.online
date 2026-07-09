@@ -181,9 +181,16 @@ export default function DashboardGuests({ weddingId, weddingSlug }: DashboardGue
   const shareWhatsApp = (phone: string | null, token: string) => {
     const link = getInviteLink(token);
     const message = encodeURIComponent(`Você foi convidado para o nosso casamento! Acesse seu convite exclusivo: ${link}`);
-    const url = phone 
-      ? `https://wa.me/${phone.replace(/\D/g, '')}?text=${message}`
-      : `https://wa.me/?text=${message}`;
+    let url = `https://wa.me/?text=${message}`;
+    if (phone) {
+      let digits = phone.replace(/\D/g, "");
+      // wa.me exige o número em formato internacional. Números brasileiros
+      // locais (DDD + número, 10 ou 11 dígitos) recebem o DDI 55.
+      if (digits.length === 10 || digits.length === 11) {
+        digits = `55${digits}`;
+      }
+      url = `https://wa.me/${digits}?text=${message}`;
+    }
     window.open(url, "_blank");
   };
 
