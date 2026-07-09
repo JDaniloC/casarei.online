@@ -253,12 +253,10 @@ const CheckoutModal = ({
     }
 
     if (!hasAnyPaymentMethod) {
-      console.log("handleProceedToPayment ERROR: No payment method configured", { mercadoPagoPublicKey, manualPixKey });
       toast.error("Nenhum método de pagamento configurado. Contate os noivos.");
       return;
     }
 
-    console.log("handleProceedToPayment SUCCESS! Transitioning to payment.", { hasMercadoPago, hasManualPix, manualPixKey });
     setLoading(true);
 
     try {
@@ -501,11 +499,13 @@ const CheckoutModal = ({
         uploadedUrl = publicUrl;
       }
 
-      // Update order with receipt if we have an orderId
-      if (orderId) {
+      // Atualiza o pedido com o comprovante apenas quando houver um arquivo enviado.
+      // A policy de RLS exige receipt_url IS NOT NULL no WITH CHECK, então um update
+      // com receipt_url nulo (comprovante é opcional) seria rejeitado.
+      if (orderId && uploadedUrl) {
         const { error } = await supabase
           .from('orders')
-          .update({ 
+          .update({
             receipt_url: uploadedUrl,
           })
           .eq('id', orderId);

@@ -135,10 +135,14 @@ serve(async (req) => {
 
     // Verify gift prices
     const giftIds = items.filter((i) => !i.id.startsWith("envelope")).map((i) => i.id);
+    // Declarado no escopo externo para ser reutilizado ao montar os order_items
+    let gifts:
+      | Array<{ id: string; price: number; name: string; is_open_price: boolean | null; total_quotas: number | null }>
+      | null = null;
     if (giftIds.length > 0) {
-      const { data: gifts, error: giftsError } = await supabase
+      const { data, error: giftsError } = await supabase
         .from("gifts")
-        .select("id, price, name")
+        .select("id, price, name, is_open_price, total_quotas")
         .in("id", giftIds)
         .eq("wedding_id", weddingId);
 
@@ -149,6 +153,8 @@ serve(async (req) => {
         );
       }
 
+      gifts = data;
+
       for (const item of items) {
         if (item.id.startsWith("envelope")) continue;
         const gift = gifts?.find((g) => g.id === item.id);
@@ -158,7 +164,27 @@ serve(async (req) => {
             { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
           );
         }
-        if (Math.abs(Number(gift.price) - item.unit_price) > 0.01) {
+
+        // A validação de preço depende do tipo de presente:
+        // - Cotas: preço unitário esperado = price / total_quotas
+        // - Preço aberto / vaquinha: o convidado escolhe o valor (qualquer positivo)
+        // - Preço fixo: precisa bater com gift.price
+        if (gift.total_quotas && Number(gift.total_quotas) > 0) {
+          const expectedQuotaPrice = Number(gift.price) / Number(gift.total_quotas);
+          if (Math.abs(expectedQuotaPrice - item.unit_price) > 0.01) {
+            return new Response(
+              JSON.stringify({ error: "Price mismatch detected" }),
+              { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+            );
+          }
+        } else if (gift.is_open_price) {
+          if (!(item.unit_price > 0) || item.unit_price > 1000000) {
+            return new Response(
+              JSON.stringify({ error: "Invalid contribution amount" }),
+              { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+            );
+          }
+        } else if (Math.abs(Number(gift.price) - item.unit_price) > 0.01) {
           return new Response(
             JSON.stringify({ error: "Price mismatch detected" }),
             { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
