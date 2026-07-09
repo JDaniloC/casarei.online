@@ -195,12 +195,15 @@ serve(async (req) => {
         );
       }
 
-      // Checar idempotência
+      // Checar idempotência: a idempotency_key só é gravada em estados FINAIS
+      // (mais abaixo), então isto bloqueia apenas o reprocessamento de um pagamento
+      // já finalizado — e não o payment.updated (approved) que sucede um
+      // payment.created (pending) com o mesmo paymentId.
       const { data: existingProcessed } = await supabase
         .from("orders")
         .select("id")
         .eq("idempotency_key", paymentId)
-        .single();
+        .maybeSingle();
 
       if (existingProcessed) {
         return new Response(JSON.stringify({ received: true, idempotent: true }), {
@@ -216,14 +219,44 @@ serve(async (req) => {
         );
       }
 
+      // Mapeia o status do Mercado Pago para os valores válidos de orders.status
+      // ('pending','approved','rejected','cancelled'). Estados intermediários não
+      // marcam idempotência, para permitir a atualização final posterior.
       let orderStatus = "pending";
-      if (verifiedPayment.status === "approved") orderStatus = "approved";
-      else if (verifiedPayment.status === "rejected" || verifiedPayment.status === "cancelled") orderStatus = "rejected";
+      let isFinalState = false;
+      if (verifiedPayment.status === "approved") {
+        orderStatus = "approved";
+        isFinalState = true;
+      } else if (verifiedPayment.status === "rejected") {
+        orderStatus = "rejected";
+        isFinalState = true;
+      } else if (
+        verifiedPayment.status === "cancelled" ||
+        verifiedPayment.status === "refunded" ||
+        verifiedPayment.status === "charged_back"
+      ) {
+        // Reembolso/estorno devolvem o pedido a "cancelled", revertendo
+        // raised_amount e estoque via triggers.
+        orderStatus = "cancelled";
+        isFinalState = true;
+      }
 
-      await supabase
+      const updatePayload: Record<string, unknown> = {
+        status: orderStatus,
+        mercado_pago_payment_id: paymentId,
+      };
+      if (isFinalState) {
+        updatePayload.idempotency_key = paymentId;
+      }
+
+      const { error: updateError } = await supabase
         .from("orders")
-        .update({ status: orderStatus, mercado_pago_payment_id: paymentId, idempotency_key: paymentId })
+        .update(updatePayload)
         .eq("id", orderId);
+
+      if (updateError) {
+        console.error("Falha ao atualizar pedido no webhook:", updateError, { orderId, orderStatus });
+      }
 
       console.log("Order updated:", { orderId, status: orderStatus, paymentId });
 

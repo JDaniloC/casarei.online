@@ -242,7 +242,10 @@ serve(async (req) => {
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${accessToken}`,
-          "X-Idempotency-Key": `${orderId}-${Date.now()}`,
+          // Chave idempotente estável por tentativa: um retry do mesmo pedido/cartão
+          // (ex.: após timeout de rede) reaproveita o pagamento no MP em vez de criar
+          // uma segunda cobrança. Um novo cartão gera um novo token → nova chave.
+          "X-Idempotency-Key": `${orderId}-${token ?? actualPaymentMethod}`,
         },
         body: JSON.stringify(paymentData),
         signal: controller.signal,
@@ -287,16 +290,25 @@ serve(async (req) => {
       );
     }
 
-    // Update order status
+    // Update order status.
+    // IMPORTANTE: usar apenas valores permitidos pelo CHECK de orders.status
+    // ('pending','approved','rejected','cancelled'). "paid"/"processing" violam a
+    // constraint e faziam o update falhar silenciosamente (pedido ficava "pending"
+    // e o mercado_pago_payment_id não era salvo).
     let status = "pending";
-    if (mpData.status === "approved") status = "paid";
+    if (mpData.status === "approved") status = "approved";
     else if (mpData.status === "rejected") status = "rejected";
-    else if (mpData.status === "in_process") status = "processing";
+    else if (mpData.status === "cancelled") status = "cancelled";
+    // in_process / pending / outros permanecem como "pending"
 
-    await supabase
+    const { error: updateError } = await supabase
       .from("orders")
       .update({ status, mercado_pago_payment_id: mpData.id?.toString() })
       .eq("id", orderId);
+
+    if (updateError) {
+      console.error("Falha ao atualizar pedido após pagamento:", updateError, { orderId, status });
+    }
 
     // Build response — NEVER include access token
     const response: Record<string, unknown> = {
