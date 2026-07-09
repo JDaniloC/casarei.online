@@ -100,22 +100,18 @@ const PublicRSVP = ({ weddingId, guest }: PublicRSVPProps) => {
         .map(n => n.trim().replace(/[<>]/g, '').substring(0, 200))
         .filter(Boolean);
 
-      if (guest) {
-        const { error: guestError } = await supabase.from('guests').update({
-          status: formData.attending === "yes" ? "confirmed" : "declined"
-        }).eq('id', guest.id);
-        if (guestError) throw guestError;
-      }
-
+      // O status do convidado (convite com token) é atualizado dentro da
+      // submit-rsvp (service role), pois um UPDATE anônimo direto é bloqueado pela RLS.
       const { data, error } = await supabase.functions.invoke("submit-rsvp", {
         body: {
           wedding_id: weddingId,
           guest_name: sanitizedName,
-          guest_email: sanitizedEmail || "convidado@especial.com",
+          guest_email: sanitizedEmail || undefined,
           attending: formData.attending === "yes" ? "confirmed" : "declined",
           guest_count: clampedGuests,
           companion_names: sanitizedCompanions,
           phone: formData.phone.trim() || undefined,
+          guest_id: guest?.id || undefined,
         },
       });
 

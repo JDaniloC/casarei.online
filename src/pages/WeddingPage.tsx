@@ -5,7 +5,6 @@ import { WeddingProvider, WeddingConfig } from "@/contexts/WeddingContext";
 import PublicLanding from "@/components/wedding/PublicLanding";
 import { Button } from "@/components/ui/button";
 import GuestPasscodeModal from "@/components/wedding/GuestPasscodeModal";
-import { supabase } from "@/integrations/supabase/client";
 
 interface WeddingData {
   id: string;
@@ -267,14 +266,24 @@ const WeddingPage = () => {
 
     const fetchGuest = async () => {
       if (token) {
-        const { data } = await supabase.from("guests").select("*").eq("token", token).single();
-        if (data) {
-          setGuest(data);
-          if (!data.passcode) {
+        try {
+          const baseUrl = import.meta.env.VITE_SUPABASE_URL;
+          const anonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+          const res = await fetch(
+            `${baseUrl}/functions/v1/get-guest-by-token?token=${encodeURIComponent(token)}`,
+            { headers: { apikey: anonKey, "Content-Type": "application/json" } }
+          );
+          const data = res.ok ? (await res.json()).guest : null;
+          if (data) {
+            setGuest(data);
+            if (!data.passcode) {
+              setIsAuthenticated(true);
+            }
+          } else {
+            // token inválido: deixa ver a página pública
             setIsAuthenticated(true);
           }
-        } else {
-          // invalid token, just let them see the public page
+        } catch {
           setIsAuthenticated(true);
         }
       }

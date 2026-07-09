@@ -15,6 +15,9 @@ verify_jwt = true
 [functions.get-public-wedding]
 verify_jwt = false
 
+[functions.get-guest-by-token]
+verify_jwt = false
+
 [functions.save-mp-credentials]
 verify_jwt = true
 
