@@ -28,10 +28,12 @@ const PhotoGallery = ({ weddingId }: { weddingId?: string }) => {
     
     const fetchImages = async () => {
       try {
-        const { data, error } = await supabase
-          .from("gallery_images")
+        // gallery_images não está nos tipos gerados; o cast evita a inferência
+        // recursiva (TS2589) ao encadear múltiplos filtros.
+        const { data, error } = await (supabase.from("gallery_images" as any) as any)
           .select("image_url")
           .eq("wedding_id", weddingId)
+          .eq("is_public_gallery", true)
           .order("display_order", { ascending: true });
           
         if (!error && data && data.length > 0) {
