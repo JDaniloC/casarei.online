@@ -44,6 +44,10 @@ interface CheckoutModalProps {
   manualPixType?: string;
   manualPixKey?: string;
   manualPixQrImageUrl?: string;
+  /** false em links públicos (não-convite): esconde tudo sobre presença no casamento */
+  isGuestView?: boolean;
+  /** false quando o casal não permite o convidado escolher a quantidade de pessoas */
+  allowGuestCount?: boolean;
 }
 
 type CheckoutStep = "cart" | "info" | "payment" | "success" | "pix" | "boleto" | "manual_pix";
@@ -108,6 +112,8 @@ const CheckoutModal = ({
   manualPixType,
   manualPixKey,
   manualPixQrImageUrl,
+  isGuestView = true,
+  allowGuestCount = true,
 }: CheckoutModalProps) => {
   const { config } = useWedding();
   const {
@@ -229,9 +235,12 @@ const CheckoutModal = ({
     if (!guestName.trim()) return false;
     if (!guestEmail.trim() || !isValidEmail(guestEmail.trim())) return false;
     if (!guestPhone.trim() || guestPhone.replace(/\D/g, "").length < 10) return false;
-    if (!willAttend) return false;
-    if (willAttend === "yes" && attendanceGuests > 1) {
-      if (companionNames.some(n => !n.trim())) return false;
+    // A pergunta de presença só existe no fluxo de convite
+    if (isGuestView) {
+      if (!willAttend) return false;
+      if (willAttend === "yes" && allowGuestCount && attendanceGuests > 1) {
+        if (companionNames.some(n => !n.trim())) return false;
+      }
     }
     return true;
   };
@@ -260,15 +269,17 @@ const CheckoutModal = ({
     setLoading(true);
 
     try {
-      // Submit RSVP if attending
-      if (willAttend === "yes" && weddingId) {
+      // Submit RSVP if attending (apenas no fluxo de convite)
+      if (isGuestView && willAttend === "yes" && weddingId) {
         try {
           const sanitizedName = guestName.trim().replace(/[<>]/g, '').substring(0, 100);
           const sanitizedEmail = guestEmail.trim().replace(/[<>]/g, '').substring(0, 255);
-          const clampedGuests = Math.max(1, Math.min(20, attendanceGuests));
-          const sanitizedCompanions = companionNames
-            .map(n => n.trim().replace(/[<>]/g, '').substring(0, 200))
-            .filter(Boolean);
+          const clampedGuests = allowGuestCount ? Math.max(1, Math.min(20, attendanceGuests)) : 1;
+          const sanitizedCompanions = allowGuestCount
+            ? companionNames
+                .map(n => n.trim().replace(/[<>]/g, '').substring(0, 200))
+                .filter(Boolean)
+            : [];
           await supabase.functions.invoke("submit-rsvp", {
             body: {
               wedding_id: weddingId,
@@ -830,7 +841,8 @@ const CheckoutModal = ({
                   />
                 </div>
 
-                {/* Attendance - Required */}
+                {/* Attendance - apenas no fluxo de convite */}
+                {isGuestView && (
                 <div className="p-3 sm:p-4 bg-gold/5 border border-gold/20 rounded-lg">
                   <Label className="font-medium text-foreground flex items-center gap-2 text-sm sm:text-base mb-3">
                     <Users className="w-4 h-4 text-gold" />
@@ -867,7 +879,7 @@ const CheckoutModal = ({
                     </label>
                   </RadioGroup>
 
-                  {willAttend === "yes" && (
+                  {willAttend === "yes" && allowGuestCount && (
                     <div className="mt-3 space-y-3">
                       <div>
                         <Label htmlFor="attendanceGuests" className="text-sm">
@@ -908,6 +920,7 @@ const CheckoutModal = ({
                     </div>
                   )}
                 </div>
+                )}
               </div>
             )}
 
@@ -1001,9 +1014,11 @@ const CheckoutModal = ({
                 <p className="text-muted-foreground text-sm sm:text-base">
                   Seu presente para {config.coupleName} foi registrado com sucesso.
                 </p>
-                {willAttend === "yes" && (
+                {isGuestView && willAttend === "yes" && (
                   <p className="text-sm text-gold">
-                    ✓ Sua presença foi confirmada para {attendanceGuests} {attendanceGuests === 1 ? "pessoa" : "pessoas"}
+                    {allowGuestCount
+                      ? `✓ Sua presença foi confirmada para ${attendanceGuests} ${attendanceGuests === 1 ? "pessoa" : "pessoas"}`
+                      : "✓ Sua presença foi confirmada"}
                   </p>
                 )}
               </div>

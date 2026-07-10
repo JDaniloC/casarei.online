@@ -27,7 +27,12 @@ const priceRanges = [
 
 const ITEMS_PER_PAGE = 6;
 
-const GiftRegistrySection = () => {
+interface GiftRegistrySectionProps {
+  /** false em links públicos (não-convite): não menciona presença no casamento */
+  isGuestView?: boolean;
+}
+
+const GiftRegistrySection = ({ isGuestView = true }: GiftRegistrySectionProps) => {
   const ref = useRef(null);
   const isInView = useInView(ref, { once: true, margin: "-100px" });
   const { config } = useWedding();
@@ -147,8 +152,9 @@ const GiftRegistrySection = () => {
           <h2 className="section-title">Lista de Presentes</h2>
           <div className="gold-divider mt-6" />
           <p className="section-subtitle max-w-2xl mx-auto">
-            Sua presença é nosso maior presente, mas se desejar nos presentear,
-            preparamos algumas sugestões especiais
+            {isGuestView
+              ? "Sua presença é nosso maior presente, mas se desejar nos presentear, preparamos algumas sugestões especiais"
+              : "Preparamos algumas sugestões especiais de presentes"}
           </p>
         </motion.div>
 

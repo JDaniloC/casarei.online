@@ -27,11 +27,12 @@ interface PublicLandingProps {
   manualPixType?: string;
   manualPixKey?: string;
   manualPixQrImageUrl?: string;
+  allowGuestCount?: boolean;
   isGuestView?: boolean;
   guest?: any;
 }
 
-const PublicLandingContent = ({ 
+const PublicLandingContent = ({
   weddingId,
   mercadoPagoPublicKey,
   paymentCreditCard,
@@ -41,6 +42,7 @@ const PublicLandingContent = ({
   manualPixType,
   manualPixKey,
   manualPixQrImageUrl,
+  allowGuestCount = true,
   isGuestView = true,
   guest,
 }: {
@@ -53,6 +55,7 @@ const PublicLandingContent = ({
   manualPixType?: string;
   manualPixKey?: string;
   manualPixQrImageUrl?: string;
+  allowGuestCount?: boolean;
   isGuestView?: boolean;
   guest?: any;
 }) => {
@@ -98,7 +101,7 @@ const PublicLandingContent = ({
         
         {sections.dressCode && <PublicDressCode />}
         
-        {sections.gifts && <GiftRegistrySection />}
+        {sections.gifts && <GiftRegistrySection isGuestView={isGuestView} />}
         
         {sections.virtualHouse && (
           <PublicVirtualHouse
@@ -107,7 +110,7 @@ const PublicLandingContent = ({
           />
         )}
         
-        {sections.rsvp && <PublicRSVP weddingId={weddingId} guest={guest} />}
+        {sections.rsvp && <PublicRSVP weddingId={weddingId} guest={guest} allowGuestCount={allowGuestCount} />}
         
         {sections.gallery && <PhotoGallery weddingId={weddingId} />}
         
@@ -131,6 +134,8 @@ const PublicLandingContent = ({
             manualPixType={manualPixType}
             manualPixKey={manualPixKey}
             manualPixQrImageUrl={manualPixQrImageUrl}
+            isGuestView={isGuestView}
+            allowGuestCount={allowGuestCount}
           />
         </>
       )}
@@ -138,8 +143,8 @@ const PublicLandingContent = ({
   );
 };
 
-const PublicLanding = ({ 
-  isPreview = false, 
+const PublicLanding = ({
+  isPreview = false,
   config: propConfig,
   weddingId,
   mercadoPagoPublicKey,
@@ -150,12 +155,13 @@ const PublicLanding = ({
   manualPixType,
   manualPixKey,
   manualPixQrImageUrl,
+  allowGuestCount,
   isGuestView,
   guest,
 }: PublicLandingProps) => {
   return (
     <CartProvider>
-      <PublicLandingContent 
+      <PublicLandingContent
         weddingId={weddingId}
         mercadoPagoPublicKey={mercadoPagoPublicKey}
         paymentCreditCard={paymentCreditCard}
@@ -165,6 +171,7 @@ const PublicLanding = ({
         manualPixType={manualPixType}
         manualPixKey={manualPixKey}
         manualPixQrImageUrl={manualPixQrImageUrl}
+        allowGuestCount={allowGuestCount}
         isGuestView={isPreview ? true : isGuestView}
         guest={guest}
       />

@@ -51,17 +51,18 @@ vi.mock('@/contexts/WeddingContext', () => ({
   WeddingProvider: ({ children }: any) => <div>{children}</div>
 }));
 
-const renderCheckoutModal = () => {
+const renderCheckoutModal = (extraProps: Partial<React.ComponentProps<typeof CheckoutModal>> = {}) => {
   return render(
     <BrowserRouter>
-      <CheckoutModal 
-        isOpen={true} 
-        onClose={vi.fn()} 
-        weddingId="test-id" 
+      <CheckoutModal
+        isOpen={true}
+        onClose={vi.fn()}
+        weddingId="test-id"
         mercadoPagoPublicKey="TEST-KEY"
         paymentCreditCard={true}
         paymentPix={true}
         paymentBoleto={false}
+        {...extraProps}
       />
     </BrowserRouter>
   );
@@ -121,5 +122,41 @@ describe('CheckoutModal Component', () => {
       expect(screen.getByText(/Pix/i)).toBeInTheDocument();
       expect(screen.getByText(/Cartão/i)).toBeInTheDocument();
     });
+  });
+
+  it('em link público (isGuestView=false) não pergunta sobre presença e avança sem ela', async () => {
+    renderCheckoutModal({ isGuestView: false });
+
+    fireEvent.click(screen.getByText('Continuar'));
+
+    await waitFor(() => {
+      expect(screen.getByText('Suas Informações')).toBeInTheDocument();
+    });
+
+    // A pergunta de presença não deve existir no fluxo público
+    expect(screen.queryByText(/Você vai estar presente no casamento/i)).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByPlaceholderText('Digite seu nome completo'), { target: { value: 'João da Silva' } });
+    fireEvent.change(screen.getByPlaceholderText('Digite seu e-mail'), { target: { value: 'joao@email.com' } });
+    fireEvent.change(screen.getByPlaceholderText('(11) 99999-9999'), { target: { value: '(11) 99999-9999' } });
+
+    // Sem responder presença, o botão deve habilitar mesmo assim
+    expect(screen.getByRole('button', { name: /Ir para Pagamento/i })).not.toBeDisabled();
+  });
+
+  it('em convite com allowGuestCount=false não mostra o seletor de quantidade', async () => {
+    renderCheckoutModal({ isGuestView: true, allowGuestCount: false });
+
+    fireEvent.click(screen.getByText('Continuar'));
+
+    await waitFor(() => {
+      expect(screen.getByText('Suas Informações')).toBeInTheDocument();
+    });
+
+    // Responde presença = sim
+    fireEvent.click(screen.getByLabelText('Sim, estarei presente'));
+
+    // O seletor de quantidade não deve aparecer
+    expect(screen.queryByLabelText(/Quantidade de pessoas/i)).not.toBeInTheDocument();
   });
 });

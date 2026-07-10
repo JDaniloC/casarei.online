@@ -182,7 +182,7 @@ const Dashboard = () => {
             manual_pix_type, manual_pix_key, manual_pix_qr_image_url,
             story_photo_1, story_photo_2, story_photo_3,
             whatsapp_number,
-            theme_color, theme_font, theme_decorations, global_passcode
+            theme_color, theme_font, theme_decorations, global_passcode, allow_guest_count
           `)
           .eq("user_id", user.id)
           .maybeSingle();
@@ -222,7 +222,7 @@ const Dashboard = () => {
               manual_pix_type, manual_pix_key, manual_pix_qr_image_url,
               story_photo_1, story_photo_2, story_photo_3,
               whatsapp_number,
-              theme_color, theme_font, theme_decorations, global_passcode
+              theme_color, theme_font, theme_decorations, global_passcode, allow_guest_count
             `)
             .single();
 
@@ -243,7 +243,7 @@ const Dashboard = () => {
                   manual_pix_type, manual_pix_key, manual_pix_qr_image_url,
                   story_photo_1, story_photo_2, story_photo_3,
                   whatsapp_number,
-                  theme_color, theme_font, theme_decorations, global_passcode
+                  theme_color, theme_font, theme_decorations, global_passcode, allow_guest_count
                 `)
                 .eq("user_id", user.id)
                 .single();
@@ -303,6 +303,7 @@ const Dashboard = () => {
             themeFont: (wedding as any).theme_font as string || "serif",
             themeDecorations: (wedding as any).theme_decorations ?? true,
             globalPasscode: (wedding as any).global_passcode as string || "",
+            allowGuestCount: (wedding as any).allow_guest_count ?? true,
             mercadoPagoPublicKey: wedding.mercado_pago_public_key || "",
             paymentCreditCard: (wedding as any).payment_credit_card ?? true,
             paymentPix: (wedding as any).payment_pix ?? true,
@@ -501,6 +502,7 @@ const Dashboard = () => {
         theme_font: config.themeFont || "serif",
         theme_decorations: config.themeDecorations ?? true,
         global_passcode: config.globalPasscode || null,
+        allow_guest_count: config.allowGuestCount ?? true,
       };
 
       let weddingId: string;

@@ -91,6 +91,10 @@ export interface WeddingConfig {
   
   // Security
   globalPasscode?: string;
+
+  // RSVP / Convites
+  /** false = convidado não escolhe a quantidade de pessoas (todo convite vale 1) */
+  allowGuestCount?: boolean;
 }
 
 interface WeddingContextType {
@@ -117,6 +121,7 @@ const defaultConfig: WeddingConfig = {
   manualPixKey: "",
   manualPixQrImageUrl: "",
   globalPasscode: "",
+  allowGuestCount: true,
   
   layout: "classic",
   themeColor: "terracotta",

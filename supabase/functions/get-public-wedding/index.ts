@@ -52,6 +52,10 @@ serve(async (req) => {
       );
     }
 
+    // Defensivo: a view expõe has_global_passcode (boolean); o valor da senha
+    // nunca deve sair desta função mesmo que a view mude.
+    delete (wedding as Record<string, unknown>).global_passcode;
+
     const { data: gifts } = await supabase
       .from("gifts")
       .select("id, name, category, price, image_url, external_link, total_quotas, stock, is_open_price, is_vaquinha, raised_amount, house_item_type, house_room, house_position_x, house_position_y")

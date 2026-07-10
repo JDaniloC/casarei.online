@@ -49,7 +49,8 @@ interface WeddingData {
   manual_pix_key?: string;
   manual_pix_qr_image_url?: string;
   whatsapp_number?: string;
-  global_passcode?: string | null;
+  has_global_passcode?: boolean;
+  allow_guest_count?: boolean;
 }
 
 interface GiftData {
@@ -155,6 +156,7 @@ const WeddingContent = ({
         manualPixType={weddingData.manual_pix_type}
         manualPixKey={weddingData.manual_pix_key}
         manualPixQrImageUrl={weddingData.manual_pix_qr_image_url}
+        allowGuestCount={weddingData.allow_guest_count ?? true}
         isGuestView={isGuestView}
         guest={guest}
       />
@@ -185,6 +187,9 @@ const WeddingPage = () => {
   const [imagesReady, setImagesReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [guest, setGuest] = useState<any>(null);
+  // Para rotas com token: 'pending' até a busca terminar; 'invalid' = token não
+  // encontrado (tratado como visita genérica — NÃO libera o acesso).
+  const [guestStatus, setGuestStatus] = useState<"pending" | "found" | "invalid">("pending");
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const location = useLocation();
   const isPreview = location.pathname.startsWith("/preview");
@@ -237,15 +242,9 @@ const WeddingPage = () => {
         setWedding(weddingData);
         setGifts(publicData.gifts || []);
 
-        // Authentication logic based on weddingData and token
-        if (!token) {
-          const isGenericGuestView = location.pathname.includes("/convite") || new URLSearchParams(location.search).has("convite");
-          if (isGenericGuestView && weddingData.global_passcode) {
-            setIsAuthenticated(false);
-          } else {
-            setIsAuthenticated(true);
-          }
-        }
+        // A autorização é derivada no render a partir de has_global_passcode /
+        // has_passcode do convidado; a senha em si nunca chega ao cliente e é
+        // validada server-side (verify-passcode) via GuestPasscodeModal.
 
         // Preload critical images (hero + story photos)
         const criticalImages = [
@@ -265,27 +264,25 @@ const WeddingPage = () => {
     };
 
     const fetchGuest = async () => {
-      if (token) {
-        try {
-          const baseUrl = import.meta.env.VITE_SUPABASE_URL;
-          const anonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
-          const res = await fetch(
-            `${baseUrl}/functions/v1/get-guest-by-token?token=${encodeURIComponent(token)}`,
-            { headers: { apikey: anonKey, "Content-Type": "application/json" } }
-          );
-          const data = res.ok ? (await res.json()).guest : null;
-          if (data) {
-            setGuest(data);
-            if (!data.passcode) {
-              setIsAuthenticated(true);
-            }
-          } else {
-            // token inválido: deixa ver a página pública
-            setIsAuthenticated(true);
-          }
-        } catch {
-          setIsAuthenticated(true);
+      if (!token) return;
+      try {
+        const baseUrl = import.meta.env.VITE_SUPABASE_URL;
+        const anonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+        const res = await fetch(
+          `${baseUrl}/functions/v1/get-guest-by-token?token=${encodeURIComponent(token)}`,
+          { headers: { apikey: anonKey, "Content-Type": "application/json" } }
+        );
+        const data = res.ok ? (await res.json()).guest : null;
+        if (data) {
+          setGuest(data);
+          setGuestStatus("found");
+        } else {
+          // Token inválido NÃO libera acesso: a visita é tratada como o link
+          // genérico /convite e, havendo senha global, o gate se aplica.
+          setGuestStatus("invalid");
         }
+      } catch {
+        setGuestStatus("invalid");
       }
     };
 
@@ -293,7 +290,9 @@ const WeddingPage = () => {
     fetchGuest();
   }, [slug, token, location.pathname, location.search]);
 
-  if (loading || (!imagesReady && !error)) {
+  // Em rotas com token, aguarda a verificação do convidado terminar antes de
+  // renderizar — evita mostrar conteúdo antes de saber se o gate se aplica.
+  if (loading || (!imagesReady && !error) || (token && !error && guestStatus === "pending")) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
@@ -326,23 +325,26 @@ const WeddingPage = () => {
     );
   }
 
-  const isGenericGuestView = isGuestView && !token;
-  const requiresGlobalPasscode = isGenericGuestView && wedding.global_passcode;
-  const requiresGuestPasscode = !!(guest && guest.passcode);
-  const expectedPasscode = requiresGuestPasscode ? guest.passcode : (requiresGlobalPasscode ? wedding.global_passcode : null);
+  // Convite com token válido e senha individual → gate do convidado.
+  // Token inválido ou link genérico /convite → gate global, se configurado.
+  const requiresGuestPasscode = guestStatus === "found" && Boolean(guest?.has_passcode);
+  const treatAsGenericGuestView = isGuestView && (!token || guestStatus === "invalid");
+  const requiresGlobalPasscode = treatAsGenericGuestView && Boolean(wedding.has_global_passcode);
+  const requiresPasscode = requiresGuestPasscode || requiresGlobalPasscode;
 
   return (
     <>
-      {expectedPasscode && (
-        <GuestPasscodeModal 
-          open={!isAuthenticated} 
-          expectedPasscode={expectedPasscode} 
-          onSuccess={() => setIsAuthenticated(true)} 
+      {requiresPasscode && (
+        <GuestPasscodeModal
+          open={!isAuthenticated}
+          weddingId={wedding.id}
+          guestToken={requiresGuestPasscode ? token : undefined}
+          onSuccess={() => setIsAuthenticated(true)}
         />
       )}
-      {isAuthenticated && (
-        <WeddingContent 
-          weddingData={wedding} 
+      {(!requiresPasscode || isAuthenticated) && (
+        <WeddingContent
+          weddingData={wedding}
           gifts={gifts}
           weddingId={wedding.id}
           mercadoPagoPublicKey={wedding.mercado_pago_public_key}
