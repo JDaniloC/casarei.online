@@ -28,10 +28,10 @@ vi.mock('@/integrations/supabase/client', () => ({
   }
 }));
 
-const renderRSVP = (weddingId?: string) => {
+const renderRSVP = (weddingId?: string, allowGuestCount?: boolean) => {
   return render(
     <BrowserRouter>
-      <PublicRSVP weddingId={weddingId || 'wedding-123'} />
+      <PublicRSVP weddingId={weddingId || 'wedding-123'} allowGuestCount={allowGuestCount} />
     </BrowserRouter>
   );
 };
@@ -67,5 +67,23 @@ describe('PublicRSVP Component (WhatsApp Fallback)', () => {
     // A seção do WhatsApp e o botão não devem estar presentes
     expect(screen.queryByText(/Prefer confirmar pelo WhatsApp ou teve algum problema?/i)).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: /Confirmar pelo WhatsApp/i })).not.toBeInTheDocument();
+  });
+});
+
+describe('PublicRSVP Component (allowGuestCount)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockConfig.whatsappNumber = '';
+  });
+
+  it('exibe o seletor de quantidade por padrão', () => {
+    renderRSVP();
+    expect(screen.getByLabelText(/Quantidade de Pessoas/i)).toBeInTheDocument();
+  });
+
+  it('oculta o seletor de quantidade quando allowGuestCount=false', () => {
+    renderRSVP(undefined, false);
+    expect(screen.queryByLabelText(/Quantidade de Pessoas/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Nomes dos acompanhantes/i)).not.toBeInTheDocument();
   });
 });

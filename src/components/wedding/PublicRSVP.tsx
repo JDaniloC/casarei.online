@@ -18,9 +18,11 @@ interface RSVPFormData {
 interface PublicRSVPProps {
   weddingId?: string;
   guest?: any;
+  /** false quando o casal não permite o convidado escolher a quantidade de pessoas */
+  allowGuestCount?: boolean;
 }
 
-const PublicRSVP = ({ weddingId, guest }: PublicRSVPProps) => {
+const PublicRSVP = ({ weddingId, guest, allowGuestCount = true }: PublicRSVPProps) => {
   const ref = useRef(null);
   const isInView = useInView(ref, { once: true, margin: "-100px" });
   const { config } = useWedding();
@@ -71,7 +73,7 @@ const PublicRSVP = ({ weddingId, guest }: PublicRSVPProps) => {
       return false;
     }
     if (!formData.attending) return false;
-    if (formData.guests > 1 && formData.attending === "yes") {
+    if (allowGuestCount && formData.guests > 1 && formData.attending === "yes") {
       if (formData.companionNames.some(n => !n.trim())) return false;
     }
     return true;
@@ -95,10 +97,12 @@ const PublicRSVP = ({ weddingId, guest }: PublicRSVPProps) => {
     try {
       const sanitizedName = formData.name.trim().replace(/[<>]/g, '').substring(0, 100);
       const sanitizedEmail = formData.email.trim().replace(/[<>]/g, '').substring(0, 255);
-      const clampedGuests = Math.max(1, Math.min(20, formData.guests));
-      const sanitizedCompanions = formData.companionNames
-        .map(n => n.trim().replace(/[<>]/g, '').substring(0, 200))
-        .filter(Boolean);
+      const clampedGuests = allowGuestCount ? Math.max(1, Math.min(20, formData.guests)) : 1;
+      const sanitizedCompanions = allowGuestCount
+        ? formData.companionNames
+            .map(n => n.trim().replace(/[<>]/g, '').substring(0, 200))
+            .filter(Boolean)
+        : [];
 
       // O status do convidado (convite com token) é atualizado dentro da
       // submit-rsvp (service role), pois um UPDATE anônimo direto é bloqueado pela RLS.
@@ -264,6 +268,7 @@ const PublicRSVP = ({ weddingId, guest }: PublicRSVPProps) => {
               />
             </div>
 
+            {allowGuestCount && (
             <div>
               <label htmlFor="guests" className="block text-sm font-medium text-foreground mb-2">
                 <Users className="w-4 h-4 inline mr-2" />
@@ -285,9 +290,10 @@ const PublicRSVP = ({ weddingId, guest }: PublicRSVPProps) => {
                 ))}
               </select>
             </div>
+            )}
 
             {/* Companion name inputs */}
-            {formData.guests > 1 && (
+            {allowGuestCount && formData.guests > 1 && (
               <div className="space-y-3">
                 <label className="block text-sm font-medium text-foreground">
                   Nomes dos acompanhantes *

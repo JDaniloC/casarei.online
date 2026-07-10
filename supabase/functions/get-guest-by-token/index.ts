@@ -53,8 +53,12 @@ serve(async (req) => {
       );
     }
 
+    // Nunca enviar o VALOR da senha ao cliente — apenas se ela existe.
+    // A validação é feita server-side pela função verify-passcode.
+    const { passcode, ...guestSafe } = guest;
+
     return new Response(
-      JSON.stringify({ guest }),
+      JSON.stringify({ guest: { ...guestSafe, has_passcode: Boolean(passcode) } }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error) {
