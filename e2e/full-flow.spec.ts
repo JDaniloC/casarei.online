@@ -1,15 +1,23 @@
 import { test, expect } from '@playwright/test';
+import { createTestUser, deleteTestUser, loginViaUI, TestUser } from './helpers/testUser';
+import { proxyEdgeFunctionsCors } from './helpers/corsProxy';
 
 test.describe('Full Flow E2E', () => {
-  const testEmail = `test_${Date.now()}@casarei.online`;
-  const testPassword = 'Password123!';
   const testSlug = `casal-${Date.now()}`;
+  let user: TestUser | undefined;
+
+  test.afterAll(async () => {
+    await deleteTestUser(user);
+  });
 
   test('Deve criar conta, configurar casamento, adicionar presente e acessar página pública', async ({ page }) => {
     // Listen to console logs
     page.on('console', msg => console.log('BROWSER:', msg.text()));
 
     test.setTimeout(90000); // 90s timeout
+
+    // Proxy de CORS para as edge functions reais (registrar ANTES dos mocks)
+    await proxyEdgeFunctionsCors(page);
 
     // Mockar validação do Mercado Pago no Dashboard
     await page.route('**/functions/v1/validate-mercadopago', async route => {
@@ -28,16 +36,10 @@ test.describe('Full Flow E2E', () => {
       await route.fulfill({ json: { success: true } });
     });
 
-    // 1. Register
-    await page.goto('/register');
-    await page.fill('input[id="fullName"]', 'João & Maria');
-    await page.fill('input[id="email"]', testEmail);
-    await page.fill('input[id="password"]', testPassword);
-    await page.fill('input[id="confirmPassword"]', testPassword);
-    await page.click('button[type="submit"]');
-
-    // Aguardar redirecionamento pro dashboard
-    await page.waitForURL('**/dashboard**');
+    // 1. Conta de teste via Admin API (sem e-mail de confirmação → sem bounce)
+    // e login pela UI. NÃO usar /register aqui: dispara e-mail real.
+    user = await createTestUser('João & Maria');
+    await loginViaUI(page, user);
 
     // Fechar possíveis modais ou popups de boas vindas
     // (Opcional, caso a tela mostre algum toast ou intro)
@@ -103,22 +105,32 @@ test.describe('Full Flow E2E', () => {
 
     // STEP 2: Informações do Convidado
     await page.fill('input[placeholder="Digite seu nome completo"]', 'Tio Patinhas');
-    await page.fill('input[placeholder="Digite seu e-mail"]', 'tio@patinhas.com');
+    await page.fill('input[placeholder="Digite seu e-mail"]', 'convidado@e2e.casarei.test');
     await page.fill('input[placeholder="(11) 99999-9999"]', '11999999999');
     
-    // Selecionar presença (obrigatório)
-    await page.click('label:has-text("Sim, estarei presente")');
-    
+    // Selecionar presença — a pergunta não existe mais no link público geral
+    // (commit 6f2504c removeu menções de presença); só aparece na visão convite.
+    const presenceOption = page.locator('label:has-text("Sim, estarei presente")');
+    if (await presenceOption.isVisible().catch(() => false)) {
+      await presenceOption.click();
+    }
+
     // Clica no botão de ir para pagamento
     await page.click('button:has-text("Ir para Pagamento")');
     await page.waitForTimeout(2000);
-    
+
     // STEP 3: Pagamento
-    // Usaremos Pix Direto no teste E2E pois o Mercado Pago usa um Iframe (Brick) que não carrega com chave falsa
-    await page.click('button:has-text("Pagar com Pix Direto")');
-    await page.waitForTimeout(500);
-    
-    // Agora deve ter ido para o step "manual_pix"
+    // Usaremos Pix Direto no teste E2E pois o Mercado Pago usa um Iframe (Brick) que não carrega com chave falsa.
+    // Sem credenciais MP válidas o checkout pula direto para o passo manual_pix.
+    const pixDirectBtn = page.locator('button:has-text("Pagar com Pix Direto")');
+    if (await pixDirectBtn.isVisible().catch(() => false)) {
+      await pixDirectBtn.click();
+      await page.waitForTimeout(500);
+    }
+
+    // Agora deve ter ido para o step "manual_pix" — o convidado vê a chave PIX dos noivos
+    await expect(page.locator('text=Chave PIX dos Noivos')).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('text=123.456.789-00')).toBeVisible();
     // Preenche o arquivo de comprovante (dummy)
     await page.setInputFiles('input[type="file"]', {
       name: 'comprovante.jpg',

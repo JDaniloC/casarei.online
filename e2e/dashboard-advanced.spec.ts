@@ -1,10 +1,16 @@
 import { test, expect } from '@playwright/test';
+import { createTestUser, deleteTestUser, loginViaUI, TestUser } from './helpers/testUser';
 
 test.describe('Dashboard Advanced Features', () => {
+  let user: TestUser | undefined;
+
+  test.afterEach(async () => {
+    await deleteTestUser(user);
+    user = undefined;
+  });
+
   // Helper para fazer login e criar conta antes de cada teste
   test.beforeEach(async ({ page }) => {
-    const testEmail = `admin_${Date.now()}_${Math.floor(Math.random() * 1000)}@casarei.online`;
-    const testPassword = 'Password123!';
     const testSlug = `casal-adv-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
 
     // 1. Setup network intercepts for dashboard operations
@@ -16,16 +22,10 @@ test.describe('Dashboard Advanced Features', () => {
       await route.fulfill({ json: { success: true } });
     });
 
-    // 2. Register
-    await page.goto('/register');
-    await page.fill('input[id="fullName"]', 'Casal Teste Avançado');
-    await page.fill('input[id="email"]', testEmail);
-    await page.fill('input[id="password"]', testPassword);
-    await page.fill('input[id="confirmPassword"]', testPassword);
-    await page.click('button[type="submit"]');
-
-    // 3. Aguardar dashboard e configurar o slug inicial
-    await page.waitForURL('**/dashboard**');
+    // 2. Conta de teste via Admin API (sem e-mail de confirmação → sem bounce)
+    // e login pela UI. NÃO usar /register aqui: dispara e-mail real.
+    user = await createTestUser('Casal Teste Avançado', 'adv');
+    await loginViaUI(page, user);
     await page.waitForTimeout(1000);
     
     // As in full-flow, select "Configurar Site" first
@@ -77,8 +77,6 @@ test.describe('Dashboard Advanced Features', () => {
     // Clica em "Adicionar Presente" para abrir o formulário
     await page.click('button:has-text("Adicionar Presente")');
     await page.waitForTimeout(1000);
-    
-    await page.screenshot({ path: 'before-ai-input.png' });
 
     // Mockar a resposta do web-scrape
     await page.route('**/functions/v1/scrape-gift', async route => {

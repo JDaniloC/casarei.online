@@ -1,5 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { Page } from '@playwright/test';
+import { createTestUser, deleteTestUser, loginViaUI, TestUser } from './helpers/testUser';
+import { proxyEdgeFunctionsCors } from './helpers/corsProxy';
 
 /**
  * Testes E2E: Loja da Página Pública - Estoque, Cotas e WhatsApp
@@ -17,12 +19,21 @@ import { Page } from '@playwright/test';
  * presentes via API pública do Supabase mockada.
  * Retorna a URL pública do casal.
  */
+const createdUsers: TestUser[] = [];
+
+test.afterAll(async () => {
+  for (const u of createdUsers) {
+    await deleteTestUser(u);
+  }
+});
+
 async function setupWeddingPage(page: Page) {
   const ts = Date.now();
   const rnd = Math.floor(Math.random() * 9999);
-  const testEmail = `store_${ts}_${rnd}@casarei.online`;
-  const testPassword = 'Password123!';
   const coupleName = `casal-store-${ts}-${rnd}`;
+
+  // Proxy de CORS para as edge functions reais (registrar ANTES dos mocks)
+  await proxyEdgeFunctionsCors(page);
 
   // Mock edge functions
   await page.route('**/functions/v1/validate-mercadopago', route =>
@@ -32,14 +43,11 @@ async function setupWeddingPage(page: Page) {
     route.fulfill({ json: { success: true } })
   );
 
-  // 1. Registro
-  await page.goto('/register');
-  await page.fill('input[id="fullName"]', 'Casal Store E2E');
-  await page.fill('input[id="email"]', testEmail);
-  await page.fill('input[id="password"]', testPassword);
-  await page.fill('input[id="confirmPassword"]', testPassword);
-  await page.click('button[type="submit"]');
-  await page.waitForURL('**/dashboard**');
+  // 1. Conta de teste via Admin API (sem e-mail de confirmação → sem bounce)
+  // e login pela UI. NÃO usar /register aqui: dispara e-mail real.
+  const user = await createTestUser('Casal Store E2E', 'store');
+  createdUsers.push(user);
+  await loginViaUI(page, user);
   await page.waitForTimeout(2000);
 
   // 2. Configura nome do casal e WhatsApp (ambos estão na sub-aba "appearance" que é a padrão)

@@ -1,9 +1,14 @@
 import { test, expect } from '@playwright/test';
+import { createTestUser, deleteTestUser, loginViaUI, TestUser } from './helpers/testUser';
+import { proxyEdgeFunctionsCors } from './helpers/corsProxy';
 
 test.describe('Casa Virtual 2D E2E', () => {
-  const testEmail = `test_house_${Date.now()}@casarei.online`;
-  const testPassword = 'Password123!';
   const testSlug = `casal-house-${Date.now()}`;
+  let user: TestUser | undefined;
+
+  test.afterAll(async () => {
+    await deleteTestUser(user);
+  });
 
   test('Deve configurar a Casa Virtual no Dashboard, ativar a seção e visualizar no convite público', async ({ page }) => {
     // Listen to console logs
@@ -12,22 +17,19 @@ test.describe('Casa Virtual 2D E2E', () => {
 
     test.setTimeout(90000); // 90s timeout
 
+    // Proxy de CORS para as edge functions reais (registrar ANTES dos mocks)
+    await proxyEdgeFunctionsCors(page);
+
     // Mockar validação do Mercado Pago no Dashboard
     await page.route('**/functions/v1/validate-mercadopago', async route => {
       const json = { valid: true, isTestMode: true };
       await route.fulfill({ json });
     });
 
-    // 1. Register
-    await page.goto('/register');
-    await page.fill('input[id="fullName"]', 'Pedro & Ana');
-    await page.fill('input[id="email"]', testEmail);
-    await page.fill('input[id="password"]', testPassword);
-    await page.fill('input[id="confirmPassword"]', testPassword);
-    await page.click('button[type="submit"]');
-
-    // Aguardar redirecionamento pro dashboard
-    await page.waitForURL('**/dashboard**');
+    // 1. Conta de teste via Admin API (sem e-mail de confirmação → sem bounce)
+    // e login pela UI. NÃO usar /register aqui: dispara e-mail real.
+    user = await createTestUser('Pedro & Ana', 'vh');
+    await loginViaUI(page, user);
     await page.waitForTimeout(2000);
 
     // Ir para a aba "Configurar Site"
@@ -56,9 +58,13 @@ test.describe('Casa Virtual 2D E2E', () => {
     // Verificar se o cabeçalho do catálogo está visível
     await expect(page.locator('h2:has-text("Catálogo de Construção")').first()).toBeVisible();
 
-    // Ativar o presente "Geladeira Duplex Inox" (primeiro item da lista de móveis)
-    // Clicar no switch da Geladeira
-    await page.click('div:has-text("Geladeira Duplex Inox") >> button[role="switch"]');
+    // Ativar o presente "Geladeira" (item do catálogo de móveis).
+    // O switch de ativação é o último button[role=switch] da linha do item
+    // (o primeiro é o "Já Concluído?", que só aparece após ativar).
+    const fridgeRow = page.locator('div.bg-card').filter({
+      has: page.locator('h4', { hasText: /^Geladeira$/ }),
+    });
+    await fridgeRow.locator('button[role="switch"]').last().click();
     await page.waitForTimeout(500);
 
     // Salvar o Catálogo
