@@ -63,6 +63,26 @@ export async function clearRecentRsvpRateLimit(): Promise<void> {
   if (error) console.warn(`não foi possível limpar rate_limit_log: ${error.message}`);
 }
 
+/**
+ * true se a migration 20260713120000_add_guest_checkin já foi aplicada no
+ * banco remoto. O teste de check-in se auto-ativa quando ela existir.
+ */
+export async function guestCheckinColumnsExist(): Promise<boolean> {
+  const { error } = await adminClient().from('guests').select('checked_in').limit(1);
+  return !error;
+}
+
+/** Remove do bucket os arquivos enviados pelo teste (ex.: QR code do pix). */
+export async function removeStorageByPrefix(bucket: string, prefix: string): Promise<void> {
+  const { data, error } = await adminClient().storage.from(bucket).list('', {
+    limit: 100,
+    search: prefix,
+  });
+  if (error || !data?.length) return;
+  const names = data.map((f) => f.name).filter((n) => n.startsWith(prefix));
+  if (names.length) await adminClient().storage.from(bucket).remove(names);
+}
+
 /** Status dos pedidos do casamento de teste (para asserções de fluxo de compra). */
 export async function fetchOrderStatuses(slug: string): Promise<string[]> {
   const weddingId = await fetchWeddingIdBySlug(slug);

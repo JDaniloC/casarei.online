@@ -1,7 +1,12 @@
 import { test, expect, Page } from '@playwright/test';
 import { createTestUser, deleteTestUser, loginViaUI, TestUser } from './helpers/testUser';
 import { proxyEdgeFunctionsCors } from './helpers/corsProxy';
-import { clearRecentRsvpRateLimit, fetchGuestToken, fetchOrderStatuses } from './helpers/db';
+import {
+  clearRecentRsvpRateLimit,
+  fetchGuestToken,
+  fetchOrderStatuses,
+  guestCheckinColumnsExist,
+} from './helpers/db';
 
 /**
  * Fluxos ponta-a-ponta pedidos na verificação de 2026-07-13:
@@ -286,6 +291,54 @@ test.describe('Fluxos: pix, presentes, convidados e tipos de presente', () => {
       .locator('div.bg-card')
       .filter({ has: page.locator('span:text-is("Não Irão")') });
     await expect(declinedCard.locator('p').first()).toHaveText('1');
+  });
+
+  test('Fluxo 3b: check-in no dia do evento (marcar chegada e contar presentes)', async ({ page }) => {
+    // Auto-ativa quando a migration 20260713120000_add_guest_checkin for aplicada
+    test.skip(
+      !(await guestCheckinColumnsExist()),
+      'migration 20260713120000_add_guest_checkin ainda não aplicada no banco remoto (npx supabase db push)'
+    );
+    test.setTimeout(150000);
+
+    const slug = await setupWedding(page, 'checkin');
+
+    // Noivo adiciona convidado e confirma manualmente
+    await page.click('button:has-text("Convidados")');
+    await page.waitForTimeout(1500);
+    await page.fill('input[placeholder="Ex: Sr. e Sra. Silva"]', 'Família Chegada E2E');
+    await page.click('button:has-text("Adicionar Convidado")');
+    await page.waitForTimeout(1200);
+    await page.click('button[title="Pendente (Clique para confirmar)"]');
+    await page.waitForTimeout(1200);
+
+    // Sub-aba de check-in: contadores zerados
+    await page.click('button:has-text("Check-in do Dia")');
+    await page.waitForTimeout(800);
+    await expect(page.locator('p', { hasText: 'de 1 confirmados' })).toHaveText(/^0\s*de 1 confirmados$/);
+    await expect(page.locator('p', { hasText: 'de 1 esperadas' })).toHaveText(/^0\s*de 1 esperadas$/);
+
+    // Marca a chegada
+    await page.click('button:has-text("Marcar chegada")');
+    await page.waitForTimeout(1500);
+    await expect(page.locator('text=Chegou')).toBeVisible();
+    await expect(page.locator('p', { hasText: 'de 1 confirmados' })).toHaveText(/^1\s*de 1 confirmados$/);
+    await expect(page.locator('p', { hasText: 'de 1 esperadas' })).toHaveText(/^1\s*de 1 esperadas$/);
+
+    // Persistência: recarrega o dashboard e o check-in continua registrado
+    await page.goto('/dashboard');
+    await page.waitForTimeout(2000);
+    await page.click('button:has-text("Convidados")');
+    await page.waitForTimeout(1500);
+    await page.click('button:has-text("Check-in do Dia")');
+    await page.waitForTimeout(800);
+    await expect(page.locator('text=Chegou')).toBeVisible();
+
+    // Desfaz e os contadores voltam
+    await page.click('button:has-text("Desfazer")');
+    await page.waitForTimeout(1500);
+    await expect(page.locator('button:has-text("Marcar chegada")')).toBeVisible();
+    await expect(page.locator('p', { hasText: 'de 1 confirmados' })).toHaveText(/^0\s*de 1 confirmados$/);
   });
 
   test('Fluxo 4: vaquinha com meta (arrecadado via aprovação) e valor livre', async ({ page }) => {

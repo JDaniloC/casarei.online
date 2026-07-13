@@ -47,7 +47,7 @@ export default function DashboardGuests({ weddingId, weddingSlug }: DashboardGue
   const { config, updateConfig } = useWedding();
   const [guests, setGuests] = useState<any[]>([]);
   const [rsvps, setRsvps] = useState<RsvpResponse[]>([]);
-  const [activeSubTab, setActiveSubTab] = useState<"list" | "rsvps">("list");
+  const [activeSubTab, setActiveSubTab] = useState<"list" | "rsvps" | "checkin">("list");
   const [searchQuery, setSearchQuery] = useState("");
   
   // Add guest form inputs
@@ -141,6 +141,21 @@ export default function DashboardGuests({ weddingId, weddingSlug }: DashboardGue
     await handleUpdateStatus(id, nextStatus);
   };
 
+  const handleToggleCheckIn = async (g: { id: string; name: string; checked_in?: boolean }) => {
+    const next = !g.checked_in;
+    const { error } = await supabase
+      .from("guests")
+      .update({ checked_in: next, checked_in_at: next ? new Date().toISOString() : null })
+      .eq("id", g.id);
+
+    if (error) {
+      toast.error("Erro ao registrar check-in.");
+    } else {
+      toast.success(next ? `Chegada registrada: ${g.name}` : `Check-in desfeito: ${g.name}`);
+      fetchGuests();
+    }
+  };
+
   const handleResetAllStatus = async () => {
     if (!confirm("Tem certeza que deseja desmarcar todas as confirmações? Isso definirá o status de todos os convidados como 'Pendente' e limpará as respostas de RSVP detalhadas para reiniciar seus testes.")) return;
 
@@ -209,16 +224,23 @@ export default function DashboardGuests({ weddingId, weddingSlug }: DashboardGue
   const declinedGuests = guests.filter(g => g.status === "declined").length;
   const pendingGuests = guests.filter(g => g.status === "pending").length;
 
-  // Headcount sum: count actual RSVP guests_count if it exists, otherwise fall back to 1 for each manually confirmed guest card
+  // Headcount: usa o guests_count do RSVP correspondente quando existir,
+  // senão conta 1 pessoa por convite (confirmação manual)
+  const headcountFor = (g: { name: string }) => {
+    const matchingRsvp = rsvps.find(r =>
+      (r.attendance === "yes" || r.attendance === "confirmed") &&
+      r.guest_name.toLowerCase() === g.name.toLowerCase()
+    );
+    return matchingRsvp ? matchingRsvp.guests_count : 1;
+  };
+
   const confirmedHeadcount = guests
     .filter(g => g.status === "confirmed")
-    .reduce((sum, g) => {
-      const matchingRsvp = rsvps.find(r => 
-        (r.attendance === "yes" || r.attendance === "confirmed") &&
-        r.guest_name.toLowerCase() === g.name.toLowerCase()
-      );
-      return sum + (matchingRsvp ? matchingRsvp.guests_count : 1);
-    }, 0);
+    .reduce((sum, g) => sum + headcountFor(g), 0);
+
+  // Check-in do dia: grupos que chegaram e total de pessoas presentes
+  const checkedInGuests = guests.filter(g => g.checked_in);
+  const checkedInHeadcount = checkedInGuests.reduce((sum, g) => sum + headcountFor(g), 0);
 
   // Filtered guest list for search
   const filteredGuests = guests.filter(g => 
@@ -415,6 +437,17 @@ export default function DashboardGuests({ weddingId, weddingSlug }: DashboardGue
           >
             <MessageSquare className="w-4 h-4" />
             Respostas RSVP Detalhadas ({rsvps.length})
+          </button>
+          <button
+            onClick={() => setActiveSubTab("checkin")}
+            className={`flex items-center gap-2 px-4 py-3 text-sm font-semibold border-b-2 transition-colors ${
+              activeSubTab === "checkin"
+                ? "border-gold text-gold"
+                : "border-transparent text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <UserCheck className="w-4 h-4" />
+            Check-in do Dia ({checkedInGuests.length})
           </button>
         </div>
 
@@ -679,6 +712,123 @@ export default function DashboardGuests({ weddingId, weddingSlug }: DashboardGue
                         </TableCell>
                       </TableRow>
                     ))
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+          </div>
+        )}
+        {/* Tab 3: Check-in do Dia do Evento */}
+        {activeSubTab === "checkin" && (
+          <div className="p-6 space-y-5">
+            <div className="grid sm:grid-cols-2 gap-4">
+              <div className="bg-muted/40 rounded-xl p-5 border border-border">
+                <span className="text-sm text-muted-foreground font-medium">Grupos presentes</span>
+                <p className="text-3xl font-serif font-bold text-gold mt-1">
+                  {checkedInGuests.length}
+                  <span className="text-base text-muted-foreground font-sans font-normal ml-2">
+                    de {confirmedGuests} confirmados
+                  </span>
+                </p>
+              </div>
+              <div className="bg-muted/40 rounded-xl p-5 border border-border">
+                <span className="text-sm text-muted-foreground font-medium">Pessoas presentes</span>
+                <p className="text-3xl font-serif font-bold text-gold mt-1">
+                  {checkedInHeadcount}
+                  <span className="text-base text-muted-foreground font-sans font-normal ml-2">
+                    de {confirmedHeadcount} esperadas
+                  </span>
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3 w-full max-w-sm border border-border rounded-lg px-3 py-2 bg-background focus-within:ring-2 focus-within:ring-gold/30">
+              <Search className="w-4 h-4 text-muted-foreground shrink-0" />
+              <input
+                type="text"
+                placeholder="Buscar convidado para check-in..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full text-sm bg-transparent border-0 outline-none placeholder:text-muted-foreground focus:ring-0 p-0"
+              />
+            </div>
+
+            <div className="border rounded-xl overflow-x-auto bg-background">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-muted/40 hover:bg-muted/40">
+                    <TableHead className="font-semibold text-muted-foreground">Convidado</TableHead>
+                    <TableHead className="font-semibold text-muted-foreground">RSVP</TableHead>
+                    <TableHead className="font-semibold text-muted-foreground">Pessoas</TableHead>
+                    <TableHead className="font-semibold text-muted-foreground">Chegada</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredGuests.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={4} className="text-center text-muted-foreground py-10">
+                        Nenhum convidado correspondente à busca.
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    [...filteredGuests]
+                      .sort((a, b) => {
+                        const order: Record<string, number> = { confirmed: 0, pending: 1, sent: 1, viewed: 1, declined: 2 };
+                        return (order[a.status] ?? 1) - (order[b.status] ?? 1) || a.name.localeCompare(b.name);
+                      })
+                      .map((g) => (
+                        <TableRow key={g.id} className="hover:bg-muted/10 transition-colors">
+                          <TableCell className="py-4 font-semibold text-foreground">{g.name}</TableCell>
+                          <TableCell className="py-4">
+                            <Badge
+                              className={
+                                g.status === "confirmed"
+                                  ? "bg-green-100 text-green-800 border-green-200 dark:bg-green-900/30 dark:text-green-400"
+                                  : g.status === "declined"
+                                  ? "bg-red-100 text-red-800 border-red-200 dark:bg-red-900/30 dark:text-red-400"
+                                  : "bg-yellow-100 text-yellow-800 border-yellow-200 dark:bg-yellow-900/30 dark:text-yellow-400"
+                              }
+                            >
+                              {g.status === "confirmed" ? "Confirmado" : g.status === "declined" ? "Não irá" : "Pendente"}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="py-4 text-sm text-muted-foreground">
+                            {headcountFor(g)} {headcountFor(g) === 1 ? "pessoa" : "pessoas"}
+                          </TableCell>
+                          <TableCell className="py-4">
+                            {g.checked_in ? (
+                              <div className="flex items-center gap-3">
+                                <span className="inline-flex items-center gap-1.5 text-sm font-medium text-green-700 dark:text-green-400">
+                                  <Check className="w-4 h-4" />
+                                  Chegou
+                                  {g.checked_in_at && (
+                                    <span className="text-muted-foreground font-normal">
+                                      às {new Date(g.checked_in_at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
+                                    </span>
+                                  )}
+                                </span>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-7 text-xs"
+                                  onClick={() => handleToggleCheckIn(g)}
+                                >
+                                  Desfazer
+                                </Button>
+                              </div>
+                            ) : (
+                              <Button
+                                size="sm"
+                                className="bg-gold hover:bg-gold-light text-background font-semibold"
+                                onClick={() => handleToggleCheckIn(g)}
+                              >
+                                <UserCheck className="w-4 h-4 mr-1.5" />
+                                Marcar chegada
+                              </Button>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      ))
                   )}
                 </TableBody>
               </Table>
