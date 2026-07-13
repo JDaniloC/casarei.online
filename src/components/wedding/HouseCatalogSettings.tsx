@@ -190,20 +190,37 @@ export default function HouseCatalogSettings({ weddingId }: HouseCatalogSettings
               .eq("id", match.id);
             if (error) throw error;
           } else {
-            // Insert
-            const { error } = await supabase
+            // Check if another gift with same name already exists to avoid conflict
+            const { data: existingNameMatch } = await supabase
               .from("gifts")
-              .insert({
-                wedding_id: weddingId,
-                name: item.name,
-                category: item.category,
-                price,
-                house_item_type: item.id,
-                house_room: item.room,
-                stock,
-                image_url: `https://images.unsplash.com/photo-1513694203232-719a280e022f?w=400`, // Default beautiful house texture placeholder
-              });
-            if (error) throw error;
+              .select("id")
+              .eq("wedding_id", weddingId)
+              .eq("name", item.name)
+              .maybeSingle();
+
+            if (existingNameMatch) {
+              // Update existing
+               const { error } = await supabase
+                .from("gifts")
+                .update({ price, stock, house_item_type: item.id, house_room: item.room })
+                .eq("id", existingNameMatch.id);
+              if (error) throw error;
+            } else {
+              // Insert
+              const { error } = await supabase
+                .from("gifts")
+                .insert({
+                  wedding_id: weddingId,
+                  name: item.name,
+                  category: item.category,
+                  price,
+                  house_item_type: item.id,
+                  house_room: item.room,
+                  stock,
+                  image_url: `https://images.unsplash.com/photo-1513694203232-719a280e022f?w=400`,
+                });
+              if (error) throw error;
+            }
           }
         } else if (match) {
           // Delete

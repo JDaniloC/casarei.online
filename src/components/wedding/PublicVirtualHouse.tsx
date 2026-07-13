@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useCart } from "@/contexts/CartContext";
 import { Gift } from "@/contexts/WeddingContext";
@@ -71,6 +71,7 @@ export default function PublicVirtualHouse({ weddingId, onOpenCheckout }: Public
   const [selectedGhost, setSelectedGhost] = useState<DBGift | null>(null);
   const [activeCabinet, setActiveCabinet] = useState<keyof typeof ROOM_DISPLAY | null>(null);
   const [showRoof, setShowRoof] = useState(false);
+  const constraintsRef = useRef(null);
 
   const { addItem } = useCart();
 
@@ -242,8 +243,18 @@ export default function PublicVirtualHouse({ weddingId, onOpenCheckout }: Public
             )}
           </div>
 
-          <div className="bg-[#1a1c1a] rounded-2xl border border-border shadow-card overflow-hidden w-full overflow-x-auto relative" style={{ minHeight: `${containerHeight}px` }}>
-            <div className="relative mx-auto" style={{ width: '1000px', height: `${containerHeight}px` }}>
+          <div 
+            ref={constraintsRef} 
+            className="bg-[#1a1c1a] rounded-2xl border border-border shadow-card overflow-hidden w-full relative cursor-grab active:cursor-grabbing" 
+            style={{ minHeight: `${containerHeight}px` }}
+          >
+            <motion.div 
+              drag 
+              dragConstraints={constraintsRef}
+              dragElastic={0.1}
+              className="relative mx-auto" 
+              style={{ width: '1200px', height: `${containerHeight}px` }}
+            >
               
               {/* Grid Foundation & Cells */}
               {gridCells.map(({ x, y, roomKey }) => {
@@ -274,7 +285,6 @@ export default function PublicVirtualHouse({ weddingId, onOpenCheckout }: Public
                       width: `${TILE_W}px`,
                       height: `${TILE_H}px`,
                       zIndex: iso.zIndex,
-                      clipPath: "polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)"
                     }}
                     className={`transition-all flex items-center justify-center
                       ${!tileImg ? "border border-white/20" : ""}
@@ -302,6 +312,48 @@ export default function PublicVirtualHouse({ weddingId, onOpenCheckout }: Public
                     )}
                   </div>
                 );
+              })}
+
+              {/* Walls Rendering */}
+              {wallsPaid && Array.from({ length: 10 }).map((_, x) => {
+                // Back-right wall (along y=0 edge). wall_right faces down-right.
+                const iso = getIsoCoords(x, 0, mapOriginX, mapOriginY);
+                return (
+                  <div
+                    key={`wall-right-${x}`}
+                    style={{
+                      position: "absolute",
+                      left: `${iso.x + TILE_W / 2}px`,
+                      top: `${iso.y - TILE_H}px`,
+                      width: `${TILE_W / 2}px`,
+                      height: `${TILE_W}px`,
+                      zIndex: iso.zIndex + 1,
+                      pointerEvents: "none"
+                    }}
+                  >
+                    <img src="/assets/iso/wall_left_painted.png" className="w-full h-full object-contain" alt="wall" />
+                  </div>
+                )
+              })}
+              {wallsPaid && Array.from({ length: 7 }).map((_, y) => {
+                // Back-left wall (along x=0 edge). wall_left faces down-left.
+                const iso = getIsoCoords(0, y, mapOriginX, mapOriginY);
+                return (
+                  <div
+                    key={`wall-left-${y}`}
+                    style={{
+                      position: "absolute",
+                      left: `${iso.x}px`,
+                      top: `${iso.y - TILE_H}px`,
+                      width: `${TILE_W / 2}px`,
+                      height: `${TILE_W}px`,
+                      zIndex: iso.zIndex + 1,
+                      pointerEvents: "none"
+                    }}
+                  >
+                    <img src="/assets/iso/wall_right_painted.png" className="w-full h-full object-contain" alt="wall" />
+                  </div>
+                )
               })}
 
               {/* Placed Furniture */}
@@ -398,13 +450,40 @@ export default function PublicVirtualHouse({ weddingId, onOpenCheckout }: Public
               )}
 
               {/* Roof Overlay */}
-              {showRoof && roofPaid && (
-                <div className="absolute inset-0 z-[100] pointer-events-none flex items-center justify-center">
-                  <img src="/assets/iso/roof.png" alt="Roof" className="drop-shadow-2xl opacity-95 object-contain" />
-                </div>
-              )}
+              {showRoof && roofPaid && (() => {
+                // Compute roof position from the grid's bounding diamond
+                const topLeft = getIsoCoords(0, 0, mapOriginX, mapOriginY);
+                const topRight = getIsoCoords(9, 0, mapOriginX, mapOriginY);
+                const bottomLeft = getIsoCoords(0, 6, mapOriginX, mapOriginY);
+                const bottomRight = getIsoCoords(9, 6, mapOriginX, mapOriginY);
+                // Diamond extremes
+                const topY = topLeft.y;
+                const leftX = bottomLeft.x;
+                const rightX = topRight.x + TILE_W;
+                const bbW = rightX - leftX;
+                // Use roof's native aspect ratio (700:400 = 1.75) to compute height
+                const ROOF_ASPECT = 700 / 400;
+                const roofW = bbW + 160;
+                const roofH = roofW / ROOF_ASPECT;
+                const roofLeft = leftX - 80;
+                const roofTop = topY - 180;
+                return (
+                  <div 
+                    className="absolute pointer-events-none"
+                    style={{
+                      left: `${roofLeft}px`,
+                      top: `${roofTop}px`,
+                      width: `${roofW}px`,
+                      height: `${roofH}px`,
+                      zIndex: 200,
+                    }}
+                  >
+                    <img src="/assets/iso/roof.png" alt="Roof" className="w-full h-full drop-shadow-2xl opacity-95" />
+                  </div>
+                );
+              })()}
 
-            </div>
+            </motion.div>
           </div>
         </div>
 
