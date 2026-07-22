@@ -187,16 +187,29 @@ export default function DashboardGuests({ weddingId, weddingSlug }: DashboardGue
     return `${window.location.origin}/${weddingSlug}/convite/${token}`;
   };
 
-  const copyLink = (token: string) => {
+  const buildInviteMessage = (guestName: string, token: string, individualPasscode?: string | null) => {
     const link = getInviteLink(token);
-    const message = `Você foi convidado para o nosso casamento! Acesse seu convite exclusivo pelo link a seguir:\n\n${link}`;
+    const passcode = individualPasscode || config?.globalPasscode || "";
+
+    let msg = `Olá, *${guestName}*! ✨\n\nÉ com muita alegria que convidamos você para celebrar esse momento tão especial conosco! ❤️\n\n🔗 *Acesse seu convite exclusivo pelo link:*\n${link}`;
+
+    if (passcode) {
+      msg += `\n\n🔐 *Senha de Acesso:* \`${passcode}\``;
+    }
+
+    msg += `\n\nAguardamos a sua confirmação de presença! 🥂`;
+    return msg;
+  };
+
+  const copyLink = (token: string, name: string, passcode?: string | null) => {
+    const message = buildInviteMessage(name, token, passcode);
     navigator.clipboard.writeText(message);
     toast.success("Mensagem com link copiada!");
   };
 
-  const shareWhatsApp = (phone: string | null, token: string) => {
-    const link = getInviteLink(token);
-    const message = encodeURIComponent(`Você foi convidado para o nosso casamento! Acesse seu convite exclusivo: ${link}`);
+  const shareWhatsApp = (phone: string | null, token: string, name: string, passcode?: string | null) => {
+    const rawMessage = buildInviteMessage(name, token, passcode);
+    const message = encodeURIComponent(rawMessage);
     let url = `https://wa.me/?text=${message}`;
     if (phone) {
       let digits = phone.replace(/\D/g, "");
@@ -619,10 +632,10 @@ export default function DashboardGuests({ weddingId, weddingSlug }: DashboardGue
                           </TableCell>
                           <TableCell className="py-4">
                             <div className="flex gap-2">
-                              <Button variant="outline" size="icon" className="h-8 w-8 hover:border-gold/50" onClick={() => copyLink(g.token)} title="Copiar link do convite">
+                              <Button variant="outline" size="icon" className="h-8 w-8 hover:border-gold/50" onClick={() => copyLink(g.token, g.name, g.passcode)} title="Copiar link do convite">
                                 <Copy className="h-3.5 w-3.5 text-muted-foreground" />
                               </Button>
-                              <Button variant="outline" size="icon" className="h-8 w-8 hover:border-green-400" onClick={() => shareWhatsApp(g.phone, g.token)} title="Enviar convite por WhatsApp">
+                              <Button variant="outline" size="icon" className="h-8 w-8 hover:border-green-400" onClick={() => shareWhatsApp(g.phone, g.token, g.name, g.passcode)} title="Enviar convite por WhatsApp">
                                 <MessageCircle className="h-3.5 w-3.5 text-green-600" />
                               </Button>
                               <Button variant="destructive" size="icon" className="h-8 w-8 hover:bg-red-700" onClick={() => handleDeleteGuest(g.id)} title="Excluir Convidado">
