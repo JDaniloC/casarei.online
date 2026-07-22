@@ -290,6 +290,12 @@ const WeddingPage = () => {
     fetchGuest();
   }, [slug, token, location.pathname, location.search]);
 
+  useEffect(() => {
+    if (wedding?.couple_name) {
+      document.title = `${wedding.couple_name} | Convite de Casamento`;
+    }
+  }, [wedding]);
+
   // Em rotas com token, aguarda a verificação do convidado terminar antes de
   // renderizar — evita mostrar conteúdo antes de saber se o gate se aplica.
   if (loading || (!imagesReady && !error) || (token && !error && guestStatus === "pending")) {
