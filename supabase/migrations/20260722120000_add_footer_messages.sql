@@ -1,0 +1,118 @@
+-- Add custom footer messages to weddings table
+
+ALTER TABLE public.weddings
+ADD COLUMN invite_message text,
+ADD COLUMN public_message text;
+
+-- Update views if they exist to include the new columns
+DROP VIEW IF EXISTS public.wedding_config;
+CREATE VIEW public.wedding_config AS
+SELECT
+  id,
+  user_id,
+  couple_name,
+  slug,
+  wedding_date,
+  tagline,
+  layout,
+  section_about,
+  section_wedding_info,
+  section_gifts,
+  section_rsvp,
+  section_message_wall,
+  section_gallery,
+  section_video,
+  section_dress_code,
+  section_virtual_house,
+  hero_image_url,
+  video_url,
+  ceremony_date,
+  ceremony_time,
+  ceremony_location,
+  ceremony_address,
+  reception_location,
+  reception_address,
+  reception_time,
+  same_location,
+  about_text,
+  dress_code_text,
+  colors_to_avoid,
+  additional_info,
+  mercado_pago_public_key,
+  payment_credit_card,
+  payment_pix,
+  payment_boleto,
+  max_installments,
+  manual_pix_type,
+  manual_pix_key,
+  manual_pix_qr_image_url,
+  whatsapp_number,
+  story_photo_1,
+  story_photo_2,
+  story_photo_3,
+  theme_color,
+  theme_font,
+  theme_decorations,
+  background_color,
+  global_passcode,
+  allow_guest_count,
+  invite_message,
+  public_message
+FROM public.weddings;
+
+GRANT SELECT ON public.wedding_config TO anon, authenticated;
+
+-- And update wedding_config_safe which excludes private details like max_installments
+DROP VIEW IF EXISTS public.wedding_config_safe;
+CREATE VIEW public.wedding_config_safe AS
+SELECT
+  id,
+  couple_name,
+  slug,
+  wedding_date,
+  tagline,
+  layout,
+  section_about,
+  section_wedding_info,
+  section_gifts,
+  section_rsvp,
+  section_message_wall,
+  section_gallery,
+  section_video,
+  section_dress_code,
+  section_virtual_house,
+  hero_image_url,
+  video_url,
+  ceremony_date,
+  ceremony_time,
+  ceremony_location,
+  ceremony_address,
+  reception_location,
+  reception_address,
+  reception_time,
+  same_location,
+  about_text,
+  dress_code_text,
+  colors_to_avoid,
+  additional_info,
+  payment_credit_card,
+  payment_pix,
+  payment_boleto,
+  manual_pix_type,
+  manual_pix_key,
+  manual_pix_qr_image_url,
+  whatsapp_number,
+  story_photo_1,
+  story_photo_2,
+  story_photo_3,
+  theme_color,
+  theme_font,
+  theme_decorations,
+  background_color,
+  global_passcode IS NOT NULL AND global_passcode != '' as has_passcode,
+  allow_guest_count,
+  invite_message,
+  public_message
+FROM public.weddings;
+
+GRANT SELECT ON public.wedding_config_safe TO anon, authenticated;

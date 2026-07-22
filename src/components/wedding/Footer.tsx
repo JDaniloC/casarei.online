@@ -1,7 +1,23 @@
 import { motion } from "framer-motion";
 import { Heart } from "lucide-react";
+import { useWedding } from "@/contexts/WeddingContext";
 
 const Footer = () => {
+  const { config } = useWedding();
+
+  // Fix timezone issue by parsing the date correctly
+  const formattedDate = config.weddingDate 
+    ? (() => {
+        const [year, month, day] = config.weddingDate.split('-').map(Number);
+        const date = new Date(year, month - 1, day);
+        return date.toLocaleDateString("pt-BR", {
+          day: "numeric",
+          month: "long",
+          year: "numeric",
+        });
+      })()
+    : "";
+
   return (
     <footer className="py-16 bg-foreground text-background">
       <div className="section-container text-center">
@@ -18,15 +34,15 @@ const Footer = () => {
           </div>
 
           <p className="font-serif text-xl sm:text-2xl italic mb-6 text-background/80 max-w-2xl mx-auto">
-            "Com carinho, esperamos você para celebrar esse dia tão especial conosco."
+            "{config.inviteMessage}"
           </p>
 
           <h3 className="font-serif text-3xl sm:text-4xl text-gold mb-8">
-            Camila & Rafael
+            {config.coupleName || "Camila & Rafael"}
           </h3>
 
-          <p className="text-background/60 text-sm">
-            15 de Agosto de 2025
+          <p className="text-background/60 text-sm capitalize">
+            {formattedDate}
           </p>
 
           <div className="mt-12 pt-8 border-t border-background/10">

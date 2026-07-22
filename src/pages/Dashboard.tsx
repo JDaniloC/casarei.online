@@ -222,7 +222,8 @@ const Dashboard = () => {
               manual_pix_type, manual_pix_key, manual_pix_qr_image_url,
               story_photo_1, story_photo_2, story_photo_3,
               whatsapp_number,
-              theme_color, theme_font, theme_decorations, global_passcode, allow_guest_count
+              theme_color, theme_font, theme_decorations, global_passcode, allow_guest_count,
+              invite_message, public_message
             `)
             .single();
 
@@ -243,7 +244,8 @@ const Dashboard = () => {
                   manual_pix_type, manual_pix_key, manual_pix_qr_image_url,
                   story_photo_1, story_photo_2, story_photo_3,
                   whatsapp_number,
-                  theme_color, theme_font, theme_decorations, global_passcode, allow_guest_count
+                  theme_color, theme_font, theme_decorations, global_passcode, allow_guest_count,
+              invite_message, public_message
                 `)
                 .eq("user_id", user.id)
                 .single();
@@ -304,6 +306,8 @@ const Dashboard = () => {
             themeDecorations: (wedding as any).theme_decorations ?? true,
             globalPasscode: (wedding as any).global_passcode as string || "",
             allowGuestCount: (wedding as any).allow_guest_count ?? true,
+            inviteMessage: (wedding as any).invite_message ?? "Com carinho, esperamos você para celebrar esse dia tão especial conosco.",
+            publicMessage: (wedding as any).public_message ?? "",
             mercadoPagoPublicKey: wedding.mercado_pago_public_key || "",
             paymentCreditCard: (wedding as any).payment_credit_card ?? true,
             paymentPix: (wedding as any).payment_pix ?? true,
@@ -503,6 +507,8 @@ const Dashboard = () => {
         theme_decorations: config.themeDecorations ?? true,
         global_passcode: config.globalPasscode || null,
         allow_guest_count: config.allowGuestCount ?? true,
+        invite_message: config.inviteMessage || null,
+        public_message: config.publicMessage || null,
       };
 
       let weddingId: string;
@@ -1060,6 +1066,26 @@ const Dashboard = () => {
                       value={config.tagline}
                       onChange={(e) => updateConfig({ tagline: e.target.value })}
                       placeholder="Uma frase especial..."
+                      className="bg-background"
+                    />
+                  </div>
+                  <div className="space-y-2 sm:col-span-2 lg:col-span-1">
+                    <Label htmlFor="inviteMessage">Mensagem do Convite (Rodapé)</Label>
+                    <Input
+                      id="inviteMessage"
+                      value={config.inviteMessage || ""}
+                      onChange={(e) => updateConfig({ inviteMessage: e.target.value })}
+                      placeholder="Com carinho, esperamos você..."
+                      className="bg-background"
+                    />
+                  </div>
+                  <div className="space-y-2 sm:col-span-2 lg:col-span-1">
+                    <Label htmlFor="publicMessage">Mensagem do Link Público (Rodapé)</Label>
+                    <Input
+                      id="publicMessage"
+                      value={config.publicMessage || ""}
+                      onChange={(e) => updateConfig({ publicMessage: e.target.value })}
+                      placeholder="Opcional. Ex: Casamento de..."
                       className="bg-background"
                     />
                   </div>

@@ -95,6 +95,10 @@ export interface WeddingConfig {
   // RSVP / Convites
   /** false = convidado não escolhe a quantidade de pessoas (todo convite vale 1) */
   allowGuestCount?: boolean;
+
+  // Custom Texts
+  inviteMessage?: string;
+  publicMessage?: string;
 }
 
 interface WeddingContextType {
@@ -122,6 +126,8 @@ const defaultConfig: WeddingConfig = {
   manualPixQrImageUrl: "",
   globalPasscode: "",
   allowGuestCount: true,
+  inviteMessage: "Com carinho, esperamos você para celebrar esse dia tão especial conosco.",
+  publicMessage: "",
   
   layout: "classic",
   themeColor: "terracotta",

@@ -33,9 +33,11 @@ const PublicFooter = () => {
             <div className="w-16 h-px bg-gold/50" />
           </div>
 
-          <p className="font-serif text-xl sm:text-2xl italic mb-6 text-background/80 max-w-2xl mx-auto">
-            "Com carinho, esperamos você para celebrar esse dia tão especial conosco."
-          </p>
+          {config.publicMessage && (
+            <p className="font-serif text-xl sm:text-2xl italic mb-6 text-background/80 max-w-2xl mx-auto">
+              "{config.publicMessage}"
+            </p>
+          )}
 
           <h3 className="font-serif text-3xl sm:text-4xl text-gold mb-8">
             {config.coupleName}
