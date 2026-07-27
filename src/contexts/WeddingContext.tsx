@@ -95,6 +95,8 @@ export interface WeddingConfig {
   // RSVP / Convites
   /** false = convidado não escolhe a quantidade de pessoas (todo convite vale 1) */
   allowGuestCount?: boolean;
+  /** Limite padrão de acompanhantes por convite quando o convidado não tem um limite próprio. */
+  defaultMaxCompanions?: number;
 
   // Custom Texts
   inviteMessage?: string;
@@ -126,6 +128,7 @@ const defaultConfig: WeddingConfig = {
   manualPixQrImageUrl: "",
   globalPasscode: "",
   allowGuestCount: true,
+  defaultMaxCompanions: 0,
   inviteMessage: "Com carinho, esperamos você para celebrar esse dia tão especial conosco.",
   publicMessage: "",
   

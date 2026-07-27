@@ -18,11 +18,11 @@ interface RSVPFormData {
 interface PublicRSVPProps {
   weddingId?: string;
   guest?: any;
-  /** false quando o casal não permite o convidado escolher a quantidade de pessoas */
-  allowGuestCount?: boolean;
+  /** Quantos acompanhantes este convite pode levar. 0 = convite individual. */
+  maxCompanions?: number;
 }
 
-const PublicRSVP = ({ weddingId, guest, allowGuestCount = true }: PublicRSVPProps) => {
+const PublicRSVP = ({ weddingId, guest, maxCompanions = 0 }: PublicRSVPProps) => {
   const ref = useRef(null);
   const isInView = useInView(ref, { once: true, margin: "-100px" });
   const { config } = useWedding();
@@ -73,7 +73,7 @@ const PublicRSVP = ({ weddingId, guest, allowGuestCount = true }: PublicRSVPProp
       return false;
     }
     if (!formData.attending) return false;
-    if (allowGuestCount && formData.guests > 1 && formData.attending === "yes") {
+    if (maxCompanions > 0 && formData.guests > 1 && formData.attending === "yes") {
       if (formData.companionNames.some(n => !n.trim())) return false;
     }
     return true;
@@ -97,8 +97,8 @@ const PublicRSVP = ({ weddingId, guest, allowGuestCount = true }: PublicRSVPProp
     try {
       const sanitizedName = formData.name.trim().replace(/[<>]/g, '').substring(0, 100);
       const sanitizedEmail = formData.email.trim().replace(/[<>]/g, '').substring(0, 255);
-      const clampedGuests = allowGuestCount ? Math.max(1, Math.min(20, formData.guests)) : 1;
-      const sanitizedCompanions = allowGuestCount
+      const clampedGuests = Math.max(1, Math.min(maxCompanions + 1, formData.guests));
+      const sanitizedCompanions = maxCompanions > 0
         ? formData.companionNames
             .map(n => n.trim().replace(/[<>]/g, '').substring(0, 200))
             .filter(Boolean)
@@ -268,24 +268,24 @@ const PublicRSVP = ({ weddingId, guest, allowGuestCount = true }: PublicRSVPProp
               />
             </div>
 
-            {allowGuestCount && (
+            {maxCompanions > 0 && (
             <div>
               <label htmlFor="guests" className="block text-sm font-medium text-foreground mb-2">
                 <Users className="w-4 h-4 inline mr-2" />
-                Quantidade de Pessoas (incluindo você)
+                Quantas pessoas vão com você?
               </label>
               <select
                 id="guests"
                 name="guests"
                 required
-                value={formData.guests}
-                onChange={handleInputChange}
+                value={formData.guests - 1}
+                onChange={(e) => handleGuestsChange(Number(e.target.value) + 1)}
                 className="input-wedding"
                 disabled={loading}
               >
-                {Array.from({ length: 20 }, (_, i) => i + 1).map((num) => (
+                {Array.from({ length: maxCompanions + 1 }, (_, i) => i).map((num) => (
                   <option key={num} value={num}>
-                    {num} {num === 1 ? "pessoa" : "pessoas"}
+                    {num} {num === 1 ? "acompanhante" : "acompanhantes"}
                   </option>
                 ))}
               </select>
@@ -293,7 +293,7 @@ const PublicRSVP = ({ weddingId, guest, allowGuestCount = true }: PublicRSVPProp
             )}
 
             {/* Companion name inputs */}
-            {allowGuestCount && formData.guests > 1 && (
+            {maxCompanions > 0 && formData.guests > 1 && (
               <div className="space-y-3">
                 <label className="block text-sm font-medium text-foreground">
                   Nomes dos acompanhantes *

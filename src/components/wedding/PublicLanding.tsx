@@ -28,6 +28,7 @@ interface PublicLandingProps {
   manualPixKey?: string;
   manualPixQrImageUrl?: string;
   allowGuestCount?: boolean;
+  maxCompanions?: number;
   isGuestView?: boolean;
   guest?: any;
 }
@@ -43,6 +44,7 @@ const PublicLandingContent = ({
   manualPixKey,
   manualPixQrImageUrl,
   allowGuestCount = true,
+  maxCompanions = 0,
   isGuestView = true,
   guest,
 }: {
@@ -56,6 +58,7 @@ const PublicLandingContent = ({
   manualPixKey?: string;
   manualPixQrImageUrl?: string;
   allowGuestCount?: boolean;
+  maxCompanions?: number;
   isGuestView?: boolean;
   guest?: any;
 }) => {
@@ -110,7 +113,7 @@ const PublicLandingContent = ({
           />
         )}
         
-        {sections.rsvp && <PublicRSVP weddingId={weddingId} guest={guest} allowGuestCount={allowGuestCount} />}
+        {sections.rsvp && <PublicRSVP weddingId={weddingId} guest={guest} maxCompanions={maxCompanions} />}
         
         {sections.gallery && <PhotoGallery weddingId={weddingId} />}
         
@@ -156,6 +159,7 @@ const PublicLanding = ({
   manualPixKey,
   manualPixQrImageUrl,
   allowGuestCount,
+  maxCompanions,
   isGuestView,
   guest,
 }: PublicLandingProps) => {
@@ -172,6 +176,7 @@ const PublicLanding = ({
         manualPixKey={manualPixKey}
         manualPixQrImageUrl={manualPixQrImageUrl}
         allowGuestCount={allowGuestCount}
+        maxCompanions={maxCompanions}
         isGuestView={isPreview ? true : isGuestView}
         guest={guest}
       />

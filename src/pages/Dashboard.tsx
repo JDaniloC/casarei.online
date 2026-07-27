@@ -223,6 +223,7 @@ const Dashboard = () => {
               story_photo_1, story_photo_2, story_photo_3,
               whatsapp_number,
               theme_color, theme_font, theme_decorations, global_passcode, allow_guest_count,
+              default_max_companions,
               invite_message, public_message
             `)
             .single();
@@ -245,6 +246,7 @@ const Dashboard = () => {
                   story_photo_1, story_photo_2, story_photo_3,
                   whatsapp_number,
                   theme_color, theme_font, theme_decorations, global_passcode, allow_guest_count,
+              default_max_companions,
               invite_message, public_message
                 `)
                 .eq("user_id", user.id)
@@ -306,6 +308,7 @@ const Dashboard = () => {
             themeDecorations: (wedding as any).theme_decorations ?? true,
             globalPasscode: (wedding as any).global_passcode as string || "",
             allowGuestCount: (wedding as any).allow_guest_count ?? true,
+            defaultMaxCompanions: (wedding as any).default_max_companions ?? 0,
             inviteMessage: (wedding as any).invite_message ?? "Com carinho, esperamos você para celebrar esse dia tão especial conosco.",
             publicMessage: (wedding as any).public_message ?? "",
             mercadoPagoPublicKey: wedding.mercado_pago_public_key || "",
@@ -507,6 +510,7 @@ const Dashboard = () => {
         theme_decorations: config.themeDecorations ?? true,
         global_passcode: config.globalPasscode || null,
         allow_guest_count: config.allowGuestCount ?? true,
+        default_max_companions: config.defaultMaxCompanions ?? 0,
         invite_message: config.inviteMessage || null,
         public_message: config.publicMessage || null,
       };
