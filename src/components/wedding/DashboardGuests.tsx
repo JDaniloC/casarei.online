@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useWedding } from "@/contexts/WeddingContext";
+import { buildInviteMessage } from "@/lib/inviteMessage";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -187,28 +188,21 @@ export default function DashboardGuests({ weddingId, weddingSlug }: DashboardGue
     return `${window.location.origin}/${weddingSlug}/convite/${token}`;
   };
 
-  const buildInviteMessage = (guestName: string, token: string, individualPasscode?: string | null) => {
-    const link = getInviteLink(token);
-    const passcode = individualPasscode || config?.globalPasscode || "";
-
-    let msg = `Olá, *${guestName}*! ✨\n\nÉ com muita alegria que convidamos você para celebrar esse momento tão especial conosco! ❤️\n\n🔗 *Acesse seu convite exclusivo pelo link:*\n${link}`;
-
-    if (passcode) {
-      msg += `\n\n🔐 *Senha de Acesso:* \`${passcode}\``;
-    }
-
-    msg += `\n\nAguardamos a sua confirmação de presença! 🥂`;
-    return msg;
-  };
+  const buildMessage = (guestName: string, token: string, individualPasscode?: string | null) =>
+    buildInviteMessage({
+      guestName,
+      link: getInviteLink(token),
+      passcode: individualPasscode || config?.globalPasscode || "",
+    });
 
   const copyLink = (token: string, name: string, passcode?: string | null) => {
-    const message = buildInviteMessage(name, token, passcode);
+    const message = buildMessage(name, token, passcode);
     navigator.clipboard.writeText(message);
     toast.success("Mensagem com link copiada!");
   };
 
   const shareWhatsApp = (phone: string | null, token: string, name: string, passcode?: string | null) => {
-    const rawMessage = buildInviteMessage(name, token, passcode);
+    const rawMessage = buildMessage(name, token, passcode);
     const message = encodeURIComponent(rawMessage);
     let url = `https://wa.me/?text=${message}`;
     if (phone) {
