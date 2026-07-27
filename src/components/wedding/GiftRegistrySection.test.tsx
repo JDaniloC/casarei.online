@@ -131,6 +131,25 @@ describe('GiftRegistrySection Component (Gift Quotas)', () => {
     expect(addButtons[0]).toBeInTheDocument();
   });
 
+  it('deve exibir quantas unidades restam em presentes com estoque e sem cotas', () => {
+    renderGiftRegistry();
+
+    // "Jogo de Panelas" tem stock=10 e totalQuotas=null: o convidado precisa
+    // enxergar que o item é limitado, senão um item parcialmente comprado
+    // parece intocado.
+    expect(screen.getByText('Restam 10 unidades')).toBeInTheDocument();
+  });
+
+  it('não deve exibir estoque restante em presentes de cota nem em vaquinha sem limite', () => {
+    renderGiftRegistry();
+
+    // Só o presente de estoque puro deve exibir o aviso. Presente de cota já
+    // comunica disponibilidade pela barra de cotas e a vaquinha tem stock=null.
+    const avisos = screen.getAllByText(/^Restam \d+ unidades?$/);
+    expect(avisos).toHaveLength(1);
+    expect(avisos[0]).toHaveTextContent('Restam 10 unidades');
+  });
+
   it('deve adicionar o presente fracionado ao carrinho com o preço da cota', () => {
     renderGiftRegistry();
 

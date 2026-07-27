@@ -316,6 +316,11 @@ const GiftRegistrySection = ({ isGuestView = true }: GiftRegistrySectionProps) =
                     </div>
                   </div>
                 )}
+                {!gift.totalQuotas && gift.stock !== null && gift.stock !== undefined && gift.stock > 0 && (
+                  <p className="mt-3 text-xs font-medium text-gold">
+                    Restam {gift.stock} {gift.stock === 1 ? "unidade" : "unidades"}
+                  </p>
+                )}
                 {gift.totalQuotas && gift.price > 0 ? (
                   <p className="text-2xl font-serif text-gold mt-3">
                     R$ {(gift.price / gift.totalQuotas).toFixed(2).replace(".", ",")}
