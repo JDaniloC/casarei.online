@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { securityHeaders } from "../_shared/security-headers.ts";
+import { resolveCompanionLimit } from "../_shared/companions.ts";
 
 // Público intencional — função sem dados de autenticação
 const ALLOWED_ORIGIN = Deno.env.get("ALLOWED_ORIGIN") ?? "*";
@@ -62,7 +63,52 @@ serve(async (req) => {
     const sanitizedPhone = phone
       ? String(phone).trim().replace(/[<>]/g, "").substring(0, 20)
       : null;
-    const clampedCount = Math.max(1, Math.min(20, parseInt(guest_count) || 1));
+    // O limite real depende do convite. Convite com token usa o limite do
+    // convidado (ou o padrão do casamento); link público usa só o padrão.
+    let guestMaxCompanions: number | null = null;
+    if (guest_id) {
+      const { data: guestRow, error: guestLookupError } = await supabase
+        .from("guests")
+        .select("max_companions")
+        .eq("id", guest_id)
+        .eq("wedding_id", wedding_id)
+        .maybeSingle();
+      if (guestLookupError) {
+        console.error("Guest lookup error:", guestLookupError.message);
+      }
+      guestMaxCompanions = guestRow?.max_companions ?? null;
+    }
+
+    const { data: weddingRow, error: weddingLookupError } = await supabase
+      .from("weddings")
+      .select("default_max_companions")
+      .eq("id", wedding_id)
+      .maybeSingle();
+
+    // Falha fechado: sem esses valores o limite cai para 0, nunca para mais.
+    // Ainda assim o erro precisa deixar rastro, senão um convite capado por
+    // falha transitória vira um bug invisível para quem opera.
+    if (weddingLookupError) {
+      console.error("Wedding lookup error:", weddingLookupError.message);
+    }
+
+    const companionLimit = resolveCompanionLimit(
+      guestMaxCompanions,
+      weddingRow?.default_max_companions ?? 0,
+    );
+
+    const requestedCompanions = Math.max(0, (parseInt(guest_count) || 1) - 1);
+
+    if (requestedCompanions > companionLimit) {
+      return new Response(
+        JSON.stringify({
+          error: "Número de acompanhantes acima do permitido para este convite.",
+        }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const clampedCount = requestedCompanions + 1;
 
     // Validate email format if provided
     if (sanitizedEmail) {
@@ -94,6 +140,7 @@ serve(async (req) => {
       ? companion_names
           .map((n: unknown) => String(n).trim().replace(/[<>]/g, "").substring(0, 200))
           .filter(Boolean)
+          .slice(0, requestedCompanions)
       : [];
 
     // Map attending value
