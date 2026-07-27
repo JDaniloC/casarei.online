@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { z } from "https://deno.land/x/zod@v3.21.4/mod.ts";
 import { securityHeaders } from "../_shared/security-headers.ts";
+import { resolveCompanionLimit } from "../_shared/companions.ts";
 
 // Público intencional — busca o convidado pelo token do convite (o token é o segredo
 // que só o destinatário do link possui). Usa service role para retornar APENAS o
@@ -42,7 +43,7 @@ serve(async (req) => {
 
     const { data: guest, error } = await supabase
       .from("guests")
-      .select("id, name, phone, wedding_id, status, passcode")
+      .select("id, name, phone, wedding_id, status, passcode, max_companions")
       .eq("token", validationResult.data.token)
       .maybeSingle();
 
@@ -55,10 +56,29 @@ serve(async (req) => {
 
     // Nunca enviar o VALOR da senha ao cliente — apenas se ela existe.
     // A validação é feita server-side pela função verify-passcode.
-    const { passcode, ...guestSafe } = guest;
+    const { passcode, max_companions, ...guestSafe } = guest;
+
+    // O limite de acompanhantes é resolvido aqui (servidor é a autoridade);
+    // o front apenas renderiza o número que recebe.
+    const { data: wedding } = await supabase
+      .from("weddings")
+      .select("default_max_companions")
+      .eq("id", guest.wedding_id)
+      .maybeSingle();
+
+    const maxCompanions = resolveCompanionLimit(
+      max_companions,
+      wedding?.default_max_companions ?? 0,
+    );
 
     return new Response(
-      JSON.stringify({ guest: { ...guestSafe, has_passcode: Boolean(passcode) } }),
+      JSON.stringify({
+        guest: {
+          ...guestSafe,
+          has_passcode: Boolean(passcode),
+          max_companions: maxCompanions,
+        },
+      }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error) {
