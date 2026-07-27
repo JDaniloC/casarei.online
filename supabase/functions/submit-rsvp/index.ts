@@ -66,6 +66,7 @@ serve(async (req) => {
     // O limite real depende do convite. Convite com token usa o limite do
     // convidado (ou o padrão do casamento); link público usa só o padrão.
     let guestMaxCompanions: number | null = null;
+    let guestLookupFailed = false;
     if (guest_id) {
       const { data: guestRow, error: guestLookupError } = await supabase
         .from("guests")
@@ -75,6 +76,7 @@ serve(async (req) => {
         .maybeSingle();
       if (guestLookupError) {
         console.error("Guest lookup error:", guestLookupError.message);
+        guestLookupFailed = true;
       }
       guestMaxCompanions = guestRow?.max_companions ?? null;
     }
@@ -85,17 +87,21 @@ serve(async (req) => {
       .eq("id", wedding_id)
       .maybeSingle();
 
-    // Falha fechado: sem esses valores o limite cai para 0, nunca para mais.
-    // Ainda assim o erro precisa deixar rastro, senão um convite capado por
-    // falha transitória vira um bug invisível para quem opera.
     if (weddingLookupError) {
       console.error("Wedding lookup error:", weddingLookupError.message);
     }
 
-    const companionLimit = resolveCompanionLimit(
-      guestMaxCompanions,
-      weddingRow?.default_max_companions ?? 0,
-    );
+    // Falha fechado. As duas consultas são independentes, então o caso a
+    // proteger é a parcial: se a do convidado falha e a do casamento funciona,
+    // herdar o padrão do casamento concederia MAIS do que o casal definiu
+    // justamente para quem ele restringiu de propósito. Sem conseguir ler o
+    // limite pessoal, assume-se o mais restritivo.
+    const companionLimit = guestLookupFailed
+      ? 0
+      : resolveCompanionLimit(
+          guestMaxCompanions,
+          weddingRow?.default_max_companions ?? 0,
+        );
 
     const requestedCompanions = Math.max(0, (parseInt(guest_count) || 1) - 1);
 
