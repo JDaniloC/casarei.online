@@ -60,11 +60,19 @@ serve(async (req) => {
 
     // O limite de acompanhantes é resolvido aqui (servidor é a autoridade);
     // o front apenas renderiza o número que recebe.
-    const { data: wedding } = await supabase
+    const { data: wedding, error: weddingError } = await supabase
       .from("weddings")
       .select("default_max_companions")
       .eq("id", guest.wedding_id)
       .maybeSingle();
+
+    // Falha fechado: sem o padrão do casamento o limite cai para 0, nunca para
+    // mais. Mas o erro precisa deixar rastro — capar um convite silenciosamente
+    // aparece para o casal como "a família não consegue adicionar ninguém",
+    // sem nada no log explicando por quê.
+    if (weddingError) {
+      console.error("Wedding lookup error:", weddingError.message);
+    }
 
     const maxCompanions = resolveCompanionLimit(
       max_companions,
