@@ -48,6 +48,8 @@ interface CheckoutModalProps {
   isGuestView?: boolean;
   /** Quantos acompanhantes este convite pode levar. 0 = convite individual. */
   maxCompanions?: number;
+  /** Convidado do convite com token (mesma origem usada pelo PublicRSVP). Necessário para o servidor resolver o limite pessoal e atualizar o status do convite. */
+  guest?: any;
 }
 
 type CheckoutStep = "cart" | "info" | "payment" | "success" | "pix" | "boleto" | "manual_pix";
@@ -114,6 +116,7 @@ const CheckoutModal = ({
   manualPixQrImageUrl,
   isGuestView = true,
   maxCompanions = 0,
+  guest,
 }: CheckoutModalProps) => {
   const { config } = useWedding();
   const {
@@ -144,6 +147,11 @@ const CheckoutModal = ({
   const [willAttend, setWillAttend] = useState<"yes" | "no" | "">("");
   const [attendanceGuests, setAttendanceGuests] = useState(1);
   const [companionNames, setCompanionNames] = useState<string[]>([]);
+  // Reflete se o submit-rsvp de fato confirmou (não apenas se o convidado
+  // respondeu "sim"). O pagamento do presente é independente da confirmação
+  // de presença: um pode ter sucesso mesmo se o outro falhar, então a tela de
+  // sucesso só afirma a confirmação quando ela realmente aconteceu.
+  const [rsvpConfirmed, setRsvpConfirmed] = useState(false);
 
   // Track if abandonment was saved
   const [abandonmentSaved, setAbandonmentSaved] = useState(false);
@@ -208,6 +216,7 @@ const CheckoutModal = ({
       setWillAttend("");
       setAttendanceGuests(1);
       setCompanionNames([]);
+      setRsvpConfirmed(false);
       setAbandonmentSaved(false);
       setReceiptFile(null);
     }
@@ -280,7 +289,11 @@ const CheckoutModal = ({
                 .map(n => n.trim().replace(/[<>]/g, '').substring(0, 200))
                 .filter(Boolean)
             : [];
-          await supabase.functions.invoke("submit-rsvp", {
+          // guest_id é o que permite ao servidor resolver o limite pessoal do
+          // convite (em vez de cair no padrão do casamento) e atualizar o
+          // status do convidado. Sem ele, submit-rsvp não sabe qual convite é
+          // este (mesma origem que PublicRSVP já usa para o mesmo campo).
+          const { data: rsvpData, error: rsvpError } = await supabase.functions.invoke("submit-rsvp", {
             body: {
               wedding_id: weddingId,
               guest_name: sanitizedName,
@@ -289,8 +302,18 @@ const CheckoutModal = ({
               guest_count: clampedGuests,
               companion_names: sanitizedCompanions,
               phone: guestPhone.trim(),
+              guest_id: guest?.id || undefined,
             },
           });
+
+          if (rsvpError || rsvpData?.error) {
+            // O presente pode ter sido pago mesmo que o RSVP falhe — por isso
+            // isso não interrompe o checkout. Mas rsvpConfirmed continua false,
+            // então a tela de sucesso não afirma uma confirmação que não houve.
+            console.error("RSVP save error:", rsvpError || rsvpData?.error);
+          } else {
+            setRsvpConfirmed(true);
+          }
         } catch (rsvpErr) {
           console.error("RSVP save error:", rsvpErr);
         }
@@ -1014,11 +1037,16 @@ const CheckoutModal = ({
                 <p className="text-muted-foreground text-sm sm:text-base">
                   Seu presente para {config.coupleName} foi registrado com sucesso.
                 </p>
-                {isGuestView && willAttend === "yes" && (
+                {isGuestView && willAttend === "yes" && rsvpConfirmed && (
                   <p className="text-sm text-gold">
                     {maxCompanions > 0
                       ? `✓ Sua presença foi confirmada para ${attendanceGuests} ${attendanceGuests === 1 ? "pessoa" : "pessoas"}`
                       : "✓ Sua presença foi confirmada"}
+                  </p>
+                )}
+                {isGuestView && willAttend === "yes" && !rsvpConfirmed && (
+                  <p className="text-sm text-muted-foreground">
+                    Não conseguimos registrar sua confirmação de presença. Por favor, confirme novamente pelo formulário de RSVP ou fale com os noivos.
                   </p>
                 )}
               </div>

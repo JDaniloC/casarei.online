@@ -136,6 +136,7 @@ const PublicLandingContent = ({
             manualPixQrImageUrl={manualPixQrImageUrl}
             isGuestView={isGuestView}
             maxCompanions={maxCompanions}
+            guest={guest}
           />
         </>
       )}
