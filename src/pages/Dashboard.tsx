@@ -1086,6 +1086,24 @@ const Dashboard = () => {
                       className="bg-background"
                     />
                   </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="defaultMaxCompanions">Acompanhantes por convite (padrão)</Label>
+                    <Input
+                      id="defaultMaxCompanions"
+                      type="number"
+                      min="0"
+                      max="19"
+                      value={config.defaultMaxCompanions ?? 0}
+                      onChange={(e) =>
+                        updateConfig({
+                          defaultMaxCompanions: Math.max(0, Math.min(19, parseInt(e.target.value) || 0)),
+                        })
+                      }
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Vale para todo convite que não tiver um número próprio. Use 0 para convites individuais.
+                    </p>
+                  </div>
                   <div className="space-y-2 sm:col-span-2 lg:col-span-1">
                     <Label htmlFor="publicMessage">Mensagem do Link Público (Rodapé)</Label>
                     <Input
