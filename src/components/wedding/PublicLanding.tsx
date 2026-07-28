@@ -27,7 +27,6 @@ interface PublicLandingProps {
   manualPixType?: string;
   manualPixKey?: string;
   manualPixQrImageUrl?: string;
-  allowGuestCount?: boolean;
   maxCompanions?: number;
   isGuestView?: boolean;
   guest?: any;
@@ -43,7 +42,6 @@ const PublicLandingContent = ({
   manualPixType,
   manualPixKey,
   manualPixQrImageUrl,
-  allowGuestCount = true,
   maxCompanions = 0,
   isGuestView = true,
   guest,
@@ -57,7 +55,6 @@ const PublicLandingContent = ({
   manualPixType?: string;
   manualPixKey?: string;
   manualPixQrImageUrl?: string;
-  allowGuestCount?: boolean;
   maxCompanions?: number;
   isGuestView?: boolean;
   guest?: any;
@@ -138,7 +135,7 @@ const PublicLandingContent = ({
             manualPixKey={manualPixKey}
             manualPixQrImageUrl={manualPixQrImageUrl}
             isGuestView={isGuestView}
-            allowGuestCount={allowGuestCount}
+            maxCompanions={maxCompanions}
           />
         </>
       )}
@@ -158,7 +155,6 @@ const PublicLanding = ({
   manualPixType,
   manualPixKey,
   manualPixQrImageUrl,
-  allowGuestCount,
   maxCompanions,
   isGuestView,
   guest,
@@ -175,7 +171,6 @@ const PublicLanding = ({
         manualPixType={manualPixType}
         manualPixKey={manualPixKey}
         manualPixQrImageUrl={manualPixQrImageUrl}
-        allowGuestCount={allowGuestCount}
         maxCompanions={maxCompanions}
         isGuestView={isPreview ? true : isGuestView}
         guest={guest}

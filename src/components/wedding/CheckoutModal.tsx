@@ -46,8 +46,8 @@ interface CheckoutModalProps {
   manualPixQrImageUrl?: string;
   /** false em links públicos (não-convite): esconde tudo sobre presença no casamento */
   isGuestView?: boolean;
-  /** false quando o casal não permite o convidado escolher a quantidade de pessoas */
-  allowGuestCount?: boolean;
+  /** Quantos acompanhantes este convite pode levar. 0 = convite individual. */
+  maxCompanions?: number;
 }
 
 type CheckoutStep = "cart" | "info" | "payment" | "success" | "pix" | "boleto" | "manual_pix";
@@ -113,7 +113,7 @@ const CheckoutModal = ({
   manualPixKey,
   manualPixQrImageUrl,
   isGuestView = true,
-  allowGuestCount = true,
+  maxCompanions = 0,
 }: CheckoutModalProps) => {
   const { config } = useWedding();
   const {
@@ -238,7 +238,7 @@ const CheckoutModal = ({
     // A pergunta de presença só existe no fluxo de convite
     if (isGuestView) {
       if (!willAttend) return false;
-      if (willAttend === "yes" && allowGuestCount && attendanceGuests > 1) {
+      if (willAttend === "yes" && maxCompanions > 0 && attendanceGuests > 1) {
         if (companionNames.some(n => !n.trim())) return false;
       }
     }
@@ -274,8 +274,8 @@ const CheckoutModal = ({
         try {
           const sanitizedName = guestName.trim().replace(/[<>]/g, '').substring(0, 100);
           const sanitizedEmail = guestEmail.trim().replace(/[<>]/g, '').substring(0, 255);
-          const clampedGuests = allowGuestCount ? Math.max(1, Math.min(20, attendanceGuests)) : 1;
-          const sanitizedCompanions = allowGuestCount
+          const clampedGuests = maxCompanions > 0 ? Math.max(1, Math.min(maxCompanions + 1, attendanceGuests)) : 1;
+          const sanitizedCompanions = maxCompanions > 0
             ? companionNames
                 .map(n => n.trim().replace(/[<>]/g, '').substring(0, 200))
                 .filter(Boolean)
@@ -879,21 +879,21 @@ const CheckoutModal = ({
                     </label>
                   </RadioGroup>
 
-                  {willAttend === "yes" && allowGuestCount && (
+                  {willAttend === "yes" && maxCompanions > 0 && (
                     <div className="mt-3 space-y-3">
                       <div>
                         <Label htmlFor="attendanceGuests" className="text-sm">
-                          Quantidade de pessoas (incluindo você) *
+                          Quantos acompanhantes vão com você? *
                         </Label>
                         <select
                           id="attendanceGuests"
-                          value={attendanceGuests}
-                          onChange={(e) => handleAttendanceGuestsChange(parseInt(e.target.value))}
+                          value={attendanceGuests - 1}
+                          onChange={(e) => handleAttendanceGuestsChange(Number(e.target.value) + 1)}
                           className="mt-1 w-full px-3 py-2 rounded-md border border-input bg-background text-sm"
                         >
-                          {Array.from({ length: 20 }, (_, i) => i + 1).map((num) => (
+                          {Array.from({ length: maxCompanions + 1 }, (_, i) => i).map((num) => (
                             <option key={num} value={num}>
-                              {num} {num === 1 ? "pessoa" : "pessoas"}
+                              {num} {num === 1 ? "acompanhante" : "acompanhantes"}
                             </option>
                           ))}
                         </select>
@@ -1016,7 +1016,7 @@ const CheckoutModal = ({
                 </p>
                 {isGuestView && willAttend === "yes" && (
                   <p className="text-sm text-gold">
-                    {allowGuestCount
+                    {maxCompanions > 0
                       ? `✓ Sua presença foi confirmada para ${attendanceGuests} ${attendanceGuests === 1 ? "pessoa" : "pessoas"}`
                       : "✓ Sua presença foi confirmada"}
                   </p>

@@ -144,8 +144,8 @@ describe('CheckoutModal Component', () => {
     expect(screen.getByRole('button', { name: /Ir para Pagamento/i })).not.toBeDisabled();
   });
 
-  it('em convite com allowGuestCount=false não mostra o seletor de quantidade', async () => {
-    renderCheckoutModal({ isGuestView: true, allowGuestCount: false });
+  it('em convite com maxCompanions=0 não mostra o seletor de quantidade', async () => {
+    renderCheckoutModal({ isGuestView: true, maxCompanions: 0 });
 
     fireEvent.click(screen.getByText('Continuar'));
 

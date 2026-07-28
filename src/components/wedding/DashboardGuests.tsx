@@ -5,7 +5,6 @@ import { buildInviteMessage } from "@/lib/inviteMessage";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 import { 
   Copy, 
@@ -331,23 +330,6 @@ export default function DashboardGuests({ weddingId, weddingSlug }: DashboardGue
               value={config?.globalPasscode || ""}
               onChange={(e) => updateConfig({ globalPasscode: e.target.value })}
               className="bg-background font-mono"
-            />
-          </div>
-
-          <div className="border-t border-border pt-4 flex items-start justify-between gap-4">
-            <div>
-              <p className="font-medium text-foreground flex items-center gap-2">
-                <Users className="w-4 h-4 text-gold" />
-                Convidado escolhe a quantidade de pessoas
-              </p>
-              <p className="text-sm text-muted-foreground mt-1 leading-relaxed">
-                Quando desativado, o convidado não escolhe quantas pessoas levará:
-                cada confirmação vale para 1 pessoa.
-              </p>
-            </div>
-            <Switch
-              checked={config?.allowGuestCount ?? true}
-              onCheckedChange={(checked) => updateConfig({ allowGuestCount: checked })}
             />
           </div>
         </div>
