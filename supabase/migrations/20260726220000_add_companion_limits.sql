@@ -2,16 +2,24 @@
 --
 -- max_companions NULL = herda default_max_companions do casamento.
 -- Teto 19 = 19 acompanhantes + titular, coerente com o clamp de guests_count (1..20).
+--
+-- Envolvida em BEGIN/COMMIT porque esta migration é aplicada manualmente no SQL
+-- editor do Supabase, que não coloca o script inteiro numa transação sozinho. Sem
+-- isso, um aborto no meio (ex.: entre o DROP VIEW e o CREATE VIEW correspondente)
+-- deixaria a página pública fora do ar sem rollback automático. ADD COLUMN ... IF
+-- NOT EXISTS torna o arquivo seguro para reexecutar após uma falha parcial.
+
+BEGIN;
 
 ALTER TABLE public.weddings
-  ADD COLUMN default_max_companions INTEGER NOT NULL DEFAULT 0;
+  ADD COLUMN IF NOT EXISTS default_max_companions INTEGER NOT NULL DEFAULT 0;
 
 ALTER TABLE public.weddings
   ADD CONSTRAINT weddings_default_max_companions_range
   CHECK (default_max_companions BETWEEN 0 AND 19);
 
 ALTER TABLE public.guests
-  ADD COLUMN max_companions INTEGER NULL;
+  ADD COLUMN IF NOT EXISTS max_companions INTEGER NULL;
 
 ALTER TABLE public.guests
   ADD CONSTRAINT guests_max_companions_range
@@ -146,3 +154,5 @@ SELECT
 FROM public.weddings;
 
 GRANT SELECT ON public.wedding_config_safe TO anon, authenticated;
+
+COMMIT;

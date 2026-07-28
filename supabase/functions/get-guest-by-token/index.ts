@@ -71,7 +71,7 @@ serve(async (req) => {
     // aparece para o casal como "a família não consegue adicionar ninguém",
     // sem nada no log explicando por quê.
     if (weddingError) {
-      console.error("Wedding lookup error:", weddingError.message);
+      console.error("Wedding lookup error:", guest.wedding_id, weddingError.message);
     }
 
     const maxCompanions = resolveCompanionLimit(
