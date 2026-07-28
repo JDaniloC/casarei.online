@@ -56,6 +56,12 @@ export default function DashboardGuests({ weddingId, weddingSlug }: DashboardGue
   const [passcode, setPasscode] = useState("");
   const [maxCompanions, setMaxCompanions] = useState("");
   const [loading, setLoading] = useState(false);
+  // Rascunho por convidado do campo "Acomp.": torna o input controlado.
+  // Antes ele usava defaultValue com key={g.id} estável, então o React nunca
+  // reescrevia o DOM depois de handleUpdateMaxCompanions gravar o valor
+  // clampado e chamar fetchGuests() — o campo continuava mostrando o texto
+  // bruto digitado (ex.: 25) mesmo com o banco já tendo gravado 19.
+  const [companionDrafts, setCompanionDrafts] = useState<Record<string, string>>({});
 
   useEffect(() => {
     if (weddingId) {
@@ -143,6 +149,12 @@ export default function DashboardGuests({ weddingId, weddingSlug }: DashboardGue
     // Campo vazio grava NULL: o convidado volta a herdar o padrão do casamento.
     const parsed = value.trim() === "" ? null : Math.max(0, Math.min(19, parseInt(value) || 0));
 
+    // Otimista: mostra o valor já clampado imediatamente, para o campo não
+    // continuar exibindo o texto bruto digitado (ex.: 25) enquanto aguarda a
+    // resposta do servidor — era exatamente esse hiato que fazia a tela
+    // mentir sobre o que foi gravado.
+    setCompanionDrafts((prev) => ({ ...prev, [id]: parsed === null ? "" : String(parsed) }));
+
     const { error } = await supabase
       .from("guests")
       .update({ max_companions: parsed })
@@ -150,9 +162,25 @@ export default function DashboardGuests({ weddingId, weddingSlug }: DashboardGue
 
     if (error) {
       toast.error("Erro ao salvar acompanhantes.");
-    } else {
-      fetchGuests();
+      // Nada foi persistido: descarta o rascunho para o campo voltar a
+      // refletir o valor real (ainda não alterado) do convidado.
+      setCompanionDrafts((prev) => {
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      });
+      return;
     }
+
+    toast.success("Limite de acompanhantes atualizado!");
+    await fetchGuests();
+    // Depois de recarregar, o dado canônico já vem de g.max_companions;
+    // descarta o rascunho para o campo voltar a ser derivado dele.
+    setCompanionDrafts((prev) => {
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
   };
 
   const handleToggleStatus = async (id: string, currentStatus: "pending" | "confirmed" | "declined") => {
@@ -600,8 +628,11 @@ export default function DashboardGuests({ weddingId, weddingSlug }: DashboardGue
                               min="0"
                               max="19"
                               aria-label={`Acompanhantes de ${g.name}`}
-                              defaultValue={g.max_companions ?? ""}
+                              value={companionDrafts[g.id] ?? (g.max_companions ?? "")}
                               placeholder={String(config?.defaultMaxCompanions ?? 0)}
+                              onChange={(e) =>
+                                setCompanionDrafts((prev) => ({ ...prev, [g.id]: e.target.value }))
+                              }
                               onBlur={(e) => handleUpdateMaxCompanions(g.id, e.target.value)}
                               className="w-20 bg-background"
                             />
