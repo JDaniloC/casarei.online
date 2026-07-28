@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { BrowserRouter } from 'react-router-dom';
 import DashboardGuests from './DashboardGuests';
@@ -67,6 +67,16 @@ vi.mock('@/integrations/supabase/client', () => ({
   },
 }));
 
+// A factory de mockFrom cria um objeto (com vi.fn() novos) a cada chamada,
+// então não há uma única referência estável de `update` para espionar.
+// Este helper varre todas as chamadas a mockFrom("guests") e agrega os
+// payloads efetivamente passados para `.update(...)` em qualquer uma delas.
+const getGuestsUpdatePayloads = () =>
+  mockFrom.mock.calls
+    .map((call, i) => ({ table: call[0], result: mockFrom.mock.results[i]?.value }))
+    .filter((entry) => entry.table === 'guests')
+    .flatMap((entry) => entry.result.update.mock.calls.map((args: unknown[]) => args[0]));
+
 const renderDashboardGuests = () => {
   return render(
     <BrowserRouter>
@@ -78,6 +88,7 @@ const renderDashboardGuests = () => {
 describe('DashboardGuests Component (acompanhantes por convidado)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockGuest.max_companions = null;
   });
 
   it('exibe o padrão do casamento como placeholder quando o convidado herda o limite', async () => {
@@ -86,5 +97,59 @@ describe('DashboardGuests Component (acompanhantes por convidado)', () => {
     const campo = await screen.findByLabelText(/Acompanhantes de Família Silva/i);
     expect(campo).toHaveValue(null);
     expect(campo).toHaveAttribute('placeholder', '2');
+  });
+
+  it('limpar o campo e sair (blur) grava max_companions como null, não como zero', async () => {
+    mockGuest.max_companions = 3;
+    renderDashboardGuests();
+
+    const campo = await screen.findByLabelText(/Acompanhantes de Família Silva/i);
+    fireEvent.change(campo, { target: { value: '' } });
+    fireEvent.blur(campo);
+
+    await waitFor(() => {
+      expect(getGuestsUpdatePayloads()).toContainEqual({ max_companions: null });
+    });
+    // E não deve ter gravado 0 em nenhum momento nessa interação.
+    expect(getGuestsUpdatePayloads()).not.toContainEqual({ max_companions: 0 });
+  });
+
+  it('digitar um valor acima de 19 grava o teto da faixa (19)', async () => {
+    renderDashboardGuests();
+
+    const campo = await screen.findByLabelText(/Acompanhantes de Família Silva/i);
+    fireEvent.change(campo, { target: { value: '25' } });
+    fireEvent.blur(campo);
+
+    await waitFor(() => {
+      expect(getGuestsUpdatePayloads()).toContainEqual({ max_companions: 19 });
+    });
+  });
+
+  it('digitar um valor negativo grava o piso da faixa (0)', async () => {
+    renderDashboardGuests();
+
+    const campo = await screen.findByLabelText(/Acompanhantes de Família Silva/i);
+    fireEvent.change(campo, { target: { value: '-3' } });
+    fireEvent.blur(campo);
+
+    await waitFor(() => {
+      expect(getGuestsUpdatePayloads()).toContainEqual({ max_companions: 0 });
+    });
+  });
+
+  it('digitar "0" grava zero, não null (par do caso do campo vazio)', async () => {
+    renderDashboardGuests();
+
+    const campo = await screen.findByLabelText(/Acompanhantes de Família Silva/i);
+    fireEvent.change(campo, { target: { value: '0' } });
+    fireEvent.blur(campo);
+
+    await waitFor(() => {
+      expect(getGuestsUpdatePayloads()).toContainEqual({ max_companions: 0 });
+    });
+    // A distinção NULL (herda o padrão) vs 0 (convite individual) só está
+    // provada se este caso e o do campo vazio forem verificados juntos.
+    expect(getGuestsUpdatePayloads()).not.toContainEqual({ max_companions: null });
   });
 });
