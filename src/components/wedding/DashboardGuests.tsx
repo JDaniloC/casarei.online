@@ -54,6 +54,7 @@ export default function DashboardGuests({ weddingId, weddingSlug }: DashboardGue
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [passcode, setPasscode] = useState("");
+  const [maxCompanions, setMaxCompanions] = useState("");
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -94,7 +95,8 @@ export default function DashboardGuests({ weddingId, weddingSlug }: DashboardGue
       name,
       phone: phone || null,
       passcode: passcode || null,
-      status: "pending"
+      status: "pending",
+      max_companions: maxCompanions.trim() === "" ? null : Math.max(0, Math.min(19, parseInt(maxCompanions) || 0)),
     });
 
     if (error) {
@@ -104,6 +106,7 @@ export default function DashboardGuests({ weddingId, weddingSlug }: DashboardGue
       setName("");
       setPhone("");
       setPasscode("");
+      setMaxCompanions("");
       fetchGuests();
     }
   };
@@ -132,6 +135,22 @@ export default function DashboardGuests({ weddingId, weddingSlug }: DashboardGue
       toast.success(`Confirmação atualizada para: ${
         status === "confirmed" ? "Confirmado" : status === "declined" ? "Não irá" : "Pendente"
       }`);
+      fetchGuests();
+    }
+  };
+
+  const handleUpdateMaxCompanions = async (id: string, value: string) => {
+    // Campo vazio grava NULL: o convidado volta a herdar o padrão do casamento.
+    const parsed = value.trim() === "" ? null : Math.max(0, Math.min(19, parseInt(value) || 0));
+
+    const { error } = await supabase
+      .from("guests")
+      .update({ max_companions: parsed })
+      .eq("id", id);
+
+    if (error) {
+      toast.error("Erro ao salvar acompanhantes.");
+    } else {
       fetchGuests();
     }
   };
@@ -365,7 +384,7 @@ export default function DashboardGuests({ weddingId, weddingSlug }: DashboardGue
           <UserPlus className="w-5 h-5 text-gold" />
           <h3 className="text-lg font-serif text-foreground">Adicionar Novo Convidado</h3>
         </div>
-        <form onSubmit={handleAddGuest} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 items-end bg-muted/40 p-4 rounded-xl border border-border/50">
+        <form onSubmit={handleAddGuest} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 items-end bg-muted/40 p-4 rounded-xl border border-border/50">
           <div className="space-y-2">
             <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Nome do Convidado / Família</label>
             <Input 
@@ -391,6 +410,18 @@ export default function DashboardGuests({ weddingId, weddingSlug }: DashboardGue
               value={passcode} 
               onChange={(e) => setPasscode(e.target.value)} 
               placeholder="Deixe em branco para sem senha"
+              className="bg-background"
+            />
+          </div>
+          <div className="space-y-2">
+            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Acompanhantes (Opcional)</label>
+            <Input
+              type="number"
+              min="0"
+              max="19"
+              value={maxCompanions}
+              onChange={(e) => setMaxCompanions(e.target.value)}
+              placeholder={`Padrão: ${config?.defaultMaxCompanions ?? 0}`}
               className="bg-background"
             />
           </div>
@@ -462,6 +493,7 @@ export default function DashboardGuests({ weddingId, weddingSlug }: DashboardGue
                     <TableHead className="font-semibold text-muted-foreground w-12 text-center">Presença</TableHead>
                     <TableHead className="font-semibold text-muted-foreground">Nome Convidado</TableHead>
                     <TableHead className="font-semibold text-muted-foreground">Senha Individual</TableHead>
+                    <TableHead className="font-semibold text-muted-foreground w-28">Acomp.</TableHead>
                     <TableHead className="font-semibold text-muted-foreground">Status do Convite</TableHead>
                     <TableHead className="font-semibold text-muted-foreground">Confirmação Manual</TableHead>
                     <TableHead className="font-semibold text-muted-foreground">Ações de Convite</TableHead>
@@ -470,7 +502,7 @@ export default function DashboardGuests({ weddingId, weddingSlug }: DashboardGue
                 <TableBody>
                   {filteredGuests.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={6} className="text-center text-muted-foreground py-10">
+                      <TableCell colSpan={7} className="text-center text-muted-foreground py-10">
                         Nenhum convidado correspondente à busca.
                       </TableCell>
                     </TableRow>
@@ -561,6 +593,18 @@ export default function DashboardGuests({ weddingId, weddingSlug }: DashboardGue
                             ) : (
                               <span className="text-muted-foreground text-xs italic">Livre</span>
                             )}
+                          </TableCell>
+                          <TableCell className="py-4">
+                            <Input
+                              type="number"
+                              min="0"
+                              max="19"
+                              aria-label={`Acompanhantes de ${g.name}`}
+                              defaultValue={g.max_companions ?? ""}
+                              placeholder={String(config?.defaultMaxCompanions ?? 0)}
+                              onBlur={(e) => handleUpdateMaxCompanions(g.id, e.target.value)}
+                              className="w-20 bg-background"
+                            />
                           </TableCell>
                           <TableCell className="py-4">
                             <Badge
