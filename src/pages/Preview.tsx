@@ -87,9 +87,10 @@ const Preview = () => {
 
       {/* Landing Preview */}
       <div className="pt-14">
-        <PublicLanding 
-          isPreview 
+        <PublicLanding
+          isPreview
           weddingId={weddingId || undefined}
+          maxCompanions={config.defaultMaxCompanions ?? 0}
         />
       </div>
     </div>
