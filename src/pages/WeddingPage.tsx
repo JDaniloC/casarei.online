@@ -50,7 +50,7 @@ interface WeddingData {
   manual_pix_qr_image_url?: string;
   whatsapp_number?: string;
   has_global_passcode?: boolean;
-  allow_guest_count?: boolean;
+  default_max_companions?: number;
 }
 
 interface GiftData {
@@ -156,7 +156,9 @@ const WeddingContent = ({
         manualPixType={weddingData.manual_pix_type}
         manualPixKey={weddingData.manual_pix_key}
         manualPixQrImageUrl={weddingData.manual_pix_qr_image_url}
-        allowGuestCount={weddingData.allow_guest_count ?? true}
+        maxCompanions={
+          guest?.max_companions ?? weddingData.default_max_companions ?? 0
+        }
         isGuestView={isGuestView}
         guest={guest}
       />

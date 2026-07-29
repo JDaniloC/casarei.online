@@ -182,7 +182,8 @@ const Dashboard = () => {
             manual_pix_type, manual_pix_key, manual_pix_qr_image_url,
             story_photo_1, story_photo_2, story_photo_3,
             whatsapp_number,
-            theme_color, theme_font, theme_decorations, global_passcode, allow_guest_count
+            theme_color, theme_font, theme_decorations, global_passcode, allow_guest_count,
+            default_max_companions
           `)
           .eq("user_id", user.id)
           .maybeSingle();
@@ -223,6 +224,7 @@ const Dashboard = () => {
               story_photo_1, story_photo_2, story_photo_3,
               whatsapp_number,
               theme_color, theme_font, theme_decorations, global_passcode, allow_guest_count,
+              default_max_companions,
               invite_message, public_message
             `)
             .single();
@@ -245,6 +247,7 @@ const Dashboard = () => {
                   story_photo_1, story_photo_2, story_photo_3,
                   whatsapp_number,
                   theme_color, theme_font, theme_decorations, global_passcode, allow_guest_count,
+              default_max_companions,
               invite_message, public_message
                 `)
                 .eq("user_id", user.id)
@@ -305,7 +308,7 @@ const Dashboard = () => {
             themeFont: (wedding as any).theme_font as string || "serif",
             themeDecorations: (wedding as any).theme_decorations ?? true,
             globalPasscode: (wedding as any).global_passcode as string || "",
-            allowGuestCount: (wedding as any).allow_guest_count ?? true,
+            defaultMaxCompanions: (wedding as any).default_max_companions ?? 0,
             inviteMessage: (wedding as any).invite_message ?? "Com carinho, esperamos você para celebrar esse dia tão especial conosco.",
             publicMessage: (wedding as any).public_message ?? "",
             mercadoPagoPublicKey: wedding.mercado_pago_public_key || "",
@@ -438,7 +441,7 @@ const Dashboard = () => {
       // Check if wedding exists
       const { data: existingWedding } = await supabase
         .from("weddings")
-        .select("id, slug")
+        .select("id, slug, allow_guest_count")
         .eq("user_id", user.id)
         .single();
 
@@ -506,7 +509,11 @@ const Dashboard = () => {
         theme_font: config.themeFont || "serif",
         theme_decorations: config.themeDecorations ?? true,
         global_passcode: config.globalPasscode || null,
-        allow_guest_count: config.allowGuestCount ?? true,
+        // allow_guest_count não tem mais UI própria (unificado em default_max_companions),
+        // mas a coluna segue na tabela para um cliente já em produção. Ecoa o valor
+        // atual de volta para não zerar a coluna a cada save.
+        allow_guest_count: (existingWedding as any)?.allow_guest_count ?? true,
+        default_max_companions: config.defaultMaxCompanions ?? 0,
         invite_message: config.inviteMessage || null,
         public_message: config.publicMessage || null,
       };
@@ -1078,6 +1085,24 @@ const Dashboard = () => {
                       placeholder="Com carinho, esperamos você..."
                       className="bg-background"
                     />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="defaultMaxCompanions">Acompanhantes por convite (padrão)</Label>
+                    <Input
+                      id="defaultMaxCompanions"
+                      type="number"
+                      min="0"
+                      max="19"
+                      value={config.defaultMaxCompanions ?? 0}
+                      onChange={(e) =>
+                        updateConfig({
+                          defaultMaxCompanions: Math.max(0, Math.min(19, parseInt(e.target.value) || 0)),
+                        })
+                      }
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Vale para todo convite que não tiver um número próprio. Use 0 para convites individuais.
+                    </p>
                   </div>
                   <div className="space-y-2 sm:col-span-2 lg:col-span-1">
                     <Label htmlFor="publicMessage">Mensagem do Link Público (Rodapé)</Label>

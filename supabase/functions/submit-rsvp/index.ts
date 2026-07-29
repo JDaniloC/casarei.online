@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { securityHeaders } from "../_shared/security-headers.ts";
+import { resolveCompanionLimit } from "../_shared/companions.ts";
 
 // Público intencional — função sem dados de autenticação
 const ALLOWED_ORIGIN = Deno.env.get("ALLOWED_ORIGIN") ?? "*";
@@ -62,7 +63,71 @@ serve(async (req) => {
     const sanitizedPhone = phone
       ? String(phone).trim().replace(/[<>]/g, "").substring(0, 20)
       : null;
-    const clampedCount = Math.max(1, Math.min(20, parseInt(guest_count) || 1));
+    // O limite real depende do convite. Convite com token usa o limite do
+    // convidado (ou o padrão do casamento); link público usa só o padrão.
+    let guestMaxCompanions: number | null = null;
+    let guestLookupFailed = false;
+    if (guest_id) {
+      const { data: guestRow, error: guestLookupError } = await supabase
+        .from("guests")
+        .select("max_companions")
+        .eq("id", guest_id)
+        .eq("wedding_id", wedding_id)
+        .maybeSingle();
+      if (guestLookupError) {
+        console.error("Guest lookup error:", guestLookupError.message);
+        guestLookupFailed = true;
+      }
+      guestMaxCompanions = guestRow?.max_companions ?? null;
+    }
+
+    // Consulta única à tabela weddings: cobre tanto o padrão de acompanhantes
+    // quanto a checagem de existência (antes eram duas consultas separadas pela
+    // mesma linha). A checagem de existência roda AQUI, antes da validação de
+    // limite, para que um wedding_id inexistente responda 404 em vez de "acima
+    // do permitido" (que dependeria do requestedCompanions ser > 0).
+    const { data: weddingRow, error: weddingLookupError } = await supabase
+      .from("weddings")
+      .select("id, default_max_companions")
+      .eq("id", wedding_id)
+      .maybeSingle();
+
+    if (weddingLookupError) {
+      // Falha fechado: erro na consulta não é "linha ausente". O limite cai
+      // para 0 abaixo (via weddingRow?.default_max_companions ?? 0), mas não
+      // tratamos isso como 404 — só uma linha realmente ausente é 404.
+      console.error("Wedding lookup error:", weddingLookupError.message);
+    } else if (!weddingRow) {
+      return new Response(
+        JSON.stringify({ error: "Casamento não encontrado" }),
+        { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Falha fechado. As duas consultas (guest e wedding) são independentes,
+    // então o caso a proteger é a parcial: se a do convidado falha e a do
+    // casamento funciona, herdar o padrão do casamento concederia MAIS do que
+    // o casal definiu justamente para quem ele restringiu de propósito. Sem
+    // conseguir ler o limite pessoal, assume-se o mais restritivo.
+    const companionLimit = guestLookupFailed
+      ? 0
+      : resolveCompanionLimit(
+          guestMaxCompanions,
+          weddingRow?.default_max_companions ?? 0,
+        );
+
+    const requestedCompanions = Math.max(0, (parseInt(guest_count) || 1) - 1);
+
+    if (requestedCompanions > companionLimit) {
+      return new Response(
+        JSON.stringify({
+          error: "Número de acompanhantes acima do permitido para este convite.",
+        }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const clampedCount = requestedCompanions + 1;
 
     // Validate email format if provided
     if (sanitizedEmail) {
@@ -75,25 +140,12 @@ serve(async (req) => {
       }
     }
 
-    // Verify wedding exists
-    const { data: wedding, error: weddingError } = await supabase
-      .from("weddings")
-      .select("id")
-      .eq("id", wedding_id)
-      .single();
-
-    if (weddingError || !wedding) {
-      return new Response(
-        JSON.stringify({ error: "Casamento não encontrado" }),
-        { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
     // Sanitize companion names
     const sanitizedCompanions = Array.isArray(companion_names)
       ? companion_names
           .map((n: unknown) => String(n).trim().replace(/[<>]/g, "").substring(0, 200))
           .filter(Boolean)
+          .slice(0, requestedCompanions)
       : [];
 
     // Map attending value

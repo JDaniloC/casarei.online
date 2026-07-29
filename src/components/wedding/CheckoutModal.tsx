@@ -46,8 +46,10 @@ interface CheckoutModalProps {
   manualPixQrImageUrl?: string;
   /** false em links públicos (não-convite): esconde tudo sobre presença no casamento */
   isGuestView?: boolean;
-  /** false quando o casal não permite o convidado escolher a quantidade de pessoas */
-  allowGuestCount?: boolean;
+  /** Quantos acompanhantes este convite pode levar. 0 = convite individual. */
+  maxCompanions?: number;
+  /** Convidado do convite com token (mesma origem usada pelo PublicRSVP). Necessário para o servidor resolver o limite pessoal e atualizar o status do convite. */
+  guest?: any;
 }
 
 type CheckoutStep = "cart" | "info" | "payment" | "success" | "pix" | "boleto" | "manual_pix";
@@ -113,7 +115,8 @@ const CheckoutModal = ({
   manualPixKey,
   manualPixQrImageUrl,
   isGuestView = true,
-  allowGuestCount = true,
+  maxCompanions = 0,
+  guest,
 }: CheckoutModalProps) => {
   const { config } = useWedding();
   const {
@@ -144,6 +147,11 @@ const CheckoutModal = ({
   const [willAttend, setWillAttend] = useState<"yes" | "no" | "">("");
   const [attendanceGuests, setAttendanceGuests] = useState(1);
   const [companionNames, setCompanionNames] = useState<string[]>([]);
+  // Reflete se o submit-rsvp de fato confirmou (não apenas se o convidado
+  // respondeu "sim"). O pagamento do presente é independente da confirmação
+  // de presença: um pode ter sucesso mesmo se o outro falhar, então a tela de
+  // sucesso só afirma a confirmação quando ela realmente aconteceu.
+  const [rsvpConfirmed, setRsvpConfirmed] = useState(false);
 
   // Track if abandonment was saved
   const [abandonmentSaved, setAbandonmentSaved] = useState(false);
@@ -208,6 +216,7 @@ const CheckoutModal = ({
       setWillAttend("");
       setAttendanceGuests(1);
       setCompanionNames([]);
+      setRsvpConfirmed(false);
       setAbandonmentSaved(false);
       setReceiptFile(null);
     }
@@ -238,7 +247,7 @@ const CheckoutModal = ({
     // A pergunta de presença só existe no fluxo de convite
     if (isGuestView) {
       if (!willAttend) return false;
-      if (willAttend === "yes" && allowGuestCount && attendanceGuests > 1) {
+      if (willAttend === "yes" && maxCompanions > 0 && attendanceGuests > 1) {
         if (companionNames.some(n => !n.trim())) return false;
       }
     }
@@ -274,13 +283,17 @@ const CheckoutModal = ({
         try {
           const sanitizedName = guestName.trim().replace(/[<>]/g, '').substring(0, 100);
           const sanitizedEmail = guestEmail.trim().replace(/[<>]/g, '').substring(0, 255);
-          const clampedGuests = allowGuestCount ? Math.max(1, Math.min(20, attendanceGuests)) : 1;
-          const sanitizedCompanions = allowGuestCount
+          const clampedGuests = maxCompanions > 0 ? Math.max(1, Math.min(maxCompanions + 1, attendanceGuests)) : 1;
+          const sanitizedCompanions = maxCompanions > 0
             ? companionNames
                 .map(n => n.trim().replace(/[<>]/g, '').substring(0, 200))
                 .filter(Boolean)
             : [];
-          await supabase.functions.invoke("submit-rsvp", {
+          // guest_id é o que permite ao servidor resolver o limite pessoal do
+          // convite (em vez de cair no padrão do casamento) e atualizar o
+          // status do convidado. Sem ele, submit-rsvp não sabe qual convite é
+          // este (mesma origem que PublicRSVP já usa para o mesmo campo).
+          const { data: rsvpData, error: rsvpError } = await supabase.functions.invoke("submit-rsvp", {
             body: {
               wedding_id: weddingId,
               guest_name: sanitizedName,
@@ -289,8 +302,18 @@ const CheckoutModal = ({
               guest_count: clampedGuests,
               companion_names: sanitizedCompanions,
               phone: guestPhone.trim(),
+              guest_id: guest?.id || undefined,
             },
           });
+
+          if (rsvpError || rsvpData?.error) {
+            // O presente pode ter sido pago mesmo que o RSVP falhe — por isso
+            // isso não interrompe o checkout. Mas rsvpConfirmed continua false,
+            // então a tela de sucesso não afirma uma confirmação que não houve.
+            console.error("RSVP save error:", rsvpError || rsvpData?.error);
+          } else {
+            setRsvpConfirmed(true);
+          }
         } catch (rsvpErr) {
           console.error("RSVP save error:", rsvpErr);
         }
@@ -879,21 +902,21 @@ const CheckoutModal = ({
                     </label>
                   </RadioGroup>
 
-                  {willAttend === "yes" && allowGuestCount && (
+                  {willAttend === "yes" && maxCompanions > 0 && (
                     <div className="mt-3 space-y-3">
                       <div>
                         <Label htmlFor="attendanceGuests" className="text-sm">
-                          Quantidade de pessoas (incluindo você) *
+                          Quantos acompanhantes vão com você? *
                         </Label>
                         <select
                           id="attendanceGuests"
-                          value={attendanceGuests}
-                          onChange={(e) => handleAttendanceGuestsChange(parseInt(e.target.value))}
+                          value={attendanceGuests - 1}
+                          onChange={(e) => handleAttendanceGuestsChange(Number(e.target.value) + 1)}
                           className="mt-1 w-full px-3 py-2 rounded-md border border-input bg-background text-sm"
                         >
-                          {Array.from({ length: 20 }, (_, i) => i + 1).map((num) => (
+                          {Array.from({ length: maxCompanions + 1 }, (_, i) => i).map((num) => (
                             <option key={num} value={num}>
-                              {num} {num === 1 ? "pessoa" : "pessoas"}
+                              {num} {num === 1 ? "acompanhante" : "acompanhantes"}
                             </option>
                           ))}
                         </select>
@@ -1014,11 +1037,16 @@ const CheckoutModal = ({
                 <p className="text-muted-foreground text-sm sm:text-base">
                   Seu presente para {config.coupleName} foi registrado com sucesso.
                 </p>
-                {isGuestView && willAttend === "yes" && (
+                {isGuestView && willAttend === "yes" && rsvpConfirmed && (
                   <p className="text-sm text-gold">
-                    {allowGuestCount
+                    {maxCompanions > 0
                       ? `✓ Sua presença foi confirmada para ${attendanceGuests} ${attendanceGuests === 1 ? "pessoa" : "pessoas"}`
                       : "✓ Sua presença foi confirmada"}
+                  </p>
+                )}
+                {isGuestView && willAttend === "yes" && !rsvpConfirmed && (
+                  <p className="text-sm text-muted-foreground">
+                    Não conseguimos registrar sua confirmação de presença. Por favor, confirme novamente pelo formulário de RSVP ou fale com os noivos.
                   </p>
                 )}
               </div>

@@ -5,7 +5,6 @@ import { buildInviteMessage } from "@/lib/inviteMessage";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 import { 
   Copy, 
@@ -55,7 +54,14 @@ export default function DashboardGuests({ weddingId, weddingSlug }: DashboardGue
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [passcode, setPasscode] = useState("");
+  const [maxCompanions, setMaxCompanions] = useState("");
   const [loading, setLoading] = useState(false);
+  // Rascunho por convidado do campo "Acomp.": torna o input controlado.
+  // Antes ele usava defaultValue com key={g.id} estável, então o React nunca
+  // reescrevia o DOM depois de handleUpdateMaxCompanions gravar o valor
+  // clampado e chamar fetchGuests() — o campo continuava mostrando o texto
+  // bruto digitado (ex.: 25) mesmo com o banco já tendo gravado 19.
+  const [companionDrafts, setCompanionDrafts] = useState<Record<string, string>>({});
 
   useEffect(() => {
     if (weddingId) {
@@ -95,7 +101,8 @@ export default function DashboardGuests({ weddingId, weddingSlug }: DashboardGue
       name,
       phone: phone || null,
       passcode: passcode || null,
-      status: "pending"
+      status: "pending",
+      max_companions: maxCompanions.trim() === "" ? null : Math.max(0, Math.min(19, parseInt(maxCompanions) || 0)),
     });
 
     if (error) {
@@ -105,6 +112,7 @@ export default function DashboardGuests({ weddingId, weddingSlug }: DashboardGue
       setName("");
       setPhone("");
       setPasscode("");
+      setMaxCompanions("");
       fetchGuests();
     }
   };
@@ -135,6 +143,44 @@ export default function DashboardGuests({ weddingId, weddingSlug }: DashboardGue
       }`);
       fetchGuests();
     }
+  };
+
+  const handleUpdateMaxCompanions = async (id: string, value: string) => {
+    // Campo vazio grava NULL: o convidado volta a herdar o padrão do casamento.
+    const parsed = value.trim() === "" ? null : Math.max(0, Math.min(19, parseInt(value) || 0));
+
+    // Otimista: mostra o valor já clampado imediatamente, para o campo não
+    // continuar exibindo o texto bruto digitado (ex.: 25) enquanto aguarda a
+    // resposta do servidor — era exatamente esse hiato que fazia a tela
+    // mentir sobre o que foi gravado.
+    setCompanionDrafts((prev) => ({ ...prev, [id]: parsed === null ? "" : String(parsed) }));
+
+    const { error } = await supabase
+      .from("guests")
+      .update({ max_companions: parsed })
+      .eq("id", id);
+
+    if (error) {
+      toast.error("Erro ao salvar acompanhantes.");
+      // Nada foi persistido: descarta o rascunho para o campo voltar a
+      // refletir o valor real (ainda não alterado) do convidado.
+      setCompanionDrafts((prev) => {
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      });
+      return;
+    }
+
+    toast.success("Limite de acompanhantes atualizado!");
+    await fetchGuests();
+    // Depois de recarregar, o dado canônico já vem de g.max_companions;
+    // descarta o rascunho para o campo voltar a ser derivado dele.
+    setCompanionDrafts((prev) => {
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
   };
 
   const handleToggleStatus = async (id: string, currentStatus: "pending" | "confirmed" | "declined") => {
@@ -333,23 +379,6 @@ export default function DashboardGuests({ weddingId, weddingSlug }: DashboardGue
               className="bg-background font-mono"
             />
           </div>
-
-          <div className="border-t border-border pt-4 flex items-start justify-between gap-4">
-            <div>
-              <p className="font-medium text-foreground flex items-center gap-2">
-                <Users className="w-4 h-4 text-gold" />
-                Convidado escolhe a quantidade de pessoas
-              </p>
-              <p className="text-sm text-muted-foreground mt-1 leading-relaxed">
-                Quando desativado, o convidado não escolhe quantas pessoas levará:
-                cada confirmação vale para 1 pessoa.
-              </p>
-            </div>
-            <Switch
-              checked={config?.allowGuestCount ?? true}
-              onCheckedChange={(checked) => updateConfig({ allowGuestCount: checked })}
-            />
-          </div>
         </div>
 
         <div className="bg-card rounded-xl border border-border p-6 shadow-soft space-y-4 flex flex-col justify-between">
@@ -383,7 +412,7 @@ export default function DashboardGuests({ weddingId, weddingSlug }: DashboardGue
           <UserPlus className="w-5 h-5 text-gold" />
           <h3 className="text-lg font-serif text-foreground">Adicionar Novo Convidado</h3>
         </div>
-        <form onSubmit={handleAddGuest} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 items-end bg-muted/40 p-4 rounded-xl border border-border/50">
+        <form onSubmit={handleAddGuest} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 items-end bg-muted/40 p-4 rounded-xl border border-border/50">
           <div className="space-y-2">
             <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Nome do Convidado / Família</label>
             <Input 
@@ -409,6 +438,18 @@ export default function DashboardGuests({ weddingId, weddingSlug }: DashboardGue
               value={passcode} 
               onChange={(e) => setPasscode(e.target.value)} 
               placeholder="Deixe em branco para sem senha"
+              className="bg-background"
+            />
+          </div>
+          <div className="space-y-2">
+            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Acompanhantes (Opcional)</label>
+            <Input
+              type="number"
+              min="0"
+              max="19"
+              value={maxCompanions}
+              onChange={(e) => setMaxCompanions(e.target.value)}
+              placeholder={`Padrão: ${config?.defaultMaxCompanions ?? 0}`}
               className="bg-background"
             />
           </div>
@@ -480,6 +521,7 @@ export default function DashboardGuests({ weddingId, weddingSlug }: DashboardGue
                     <TableHead className="font-semibold text-muted-foreground w-12 text-center">Presença</TableHead>
                     <TableHead className="font-semibold text-muted-foreground">Nome Convidado</TableHead>
                     <TableHead className="font-semibold text-muted-foreground">Senha Individual</TableHead>
+                    <TableHead className="font-semibold text-muted-foreground w-28">Acomp.</TableHead>
                     <TableHead className="font-semibold text-muted-foreground">Status do Convite</TableHead>
                     <TableHead className="font-semibold text-muted-foreground">Confirmação Manual</TableHead>
                     <TableHead className="font-semibold text-muted-foreground">Ações de Convite</TableHead>
@@ -488,7 +530,7 @@ export default function DashboardGuests({ weddingId, weddingSlug }: DashboardGue
                 <TableBody>
                   {filteredGuests.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={6} className="text-center text-muted-foreground py-10">
+                      <TableCell colSpan={7} className="text-center text-muted-foreground py-10">
                         Nenhum convidado correspondente à busca.
                       </TableCell>
                     </TableRow>
@@ -579,6 +621,21 @@ export default function DashboardGuests({ weddingId, weddingSlug }: DashboardGue
                             ) : (
                               <span className="text-muted-foreground text-xs italic">Livre</span>
                             )}
+                          </TableCell>
+                          <TableCell className="py-4">
+                            <Input
+                              type="number"
+                              min="0"
+                              max="19"
+                              aria-label={`Acompanhantes de ${g.name}`}
+                              value={companionDrafts[g.id] ?? (g.max_companions ?? "")}
+                              placeholder={String(config?.defaultMaxCompanions ?? 0)}
+                              onChange={(e) =>
+                                setCompanionDrafts((prev) => ({ ...prev, [g.id]: e.target.value }))
+                              }
+                              onBlur={(e) => handleUpdateMaxCompanions(g.id, e.target.value)}
+                              className="w-20 bg-background"
+                            />
                           </TableCell>
                           <TableCell className="py-4">
                             <Badge

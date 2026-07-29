@@ -28,10 +28,10 @@ vi.mock('@/integrations/supabase/client', () => ({
   }
 }));
 
-const renderRSVP = (weddingId?: string, allowGuestCount?: boolean) => {
+const renderRSVP = (weddingId?: string, maxCompanions?: number) => {
   return render(
     <BrowserRouter>
-      <PublicRSVP weddingId={weddingId || 'wedding-123'} allowGuestCount={allowGuestCount} />
+      <PublicRSVP weddingId={weddingId || 'wedding-123'} maxCompanions={maxCompanions} />
     </BrowserRouter>
   );
 };
@@ -70,20 +70,35 @@ describe('PublicRSVP Component (WhatsApp Fallback)', () => {
   });
 });
 
-describe('PublicRSVP Component (allowGuestCount)', () => {
+describe('PublicRSVP Component (maxCompanions)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockConfig.whatsappNumber = '';
   });
 
-  it('exibe o seletor de quantidade por padrão', () => {
-    renderRSVP();
-    expect(screen.getByLabelText(/Quantidade de Pessoas/i)).toBeInTheDocument();
+  it('exibe o seletor de acompanhantes quando maxCompanions > 0', () => {
+    renderRSVP(undefined, 2);
+    expect(screen.getByLabelText(/Quantas pessoas vão com você/i)).toBeInTheDocument();
   });
 
-  it('oculta o seletor de quantidade quando allowGuestCount=false', () => {
-    renderRSVP(undefined, false);
-    expect(screen.queryByLabelText(/Quantidade de Pessoas/i)).not.toBeInTheDocument();
+  it('oculta o seletor de acompanhantes por padrão (maxCompanions=0)', () => {
+    renderRSVP();
+    expect(screen.queryByLabelText(/Quantas pessoas vão com você/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/Nomes dos acompanhantes/i)).not.toBeInTheDocument();
+  });
+
+  it('não exibe seleção de pessoas quando o limite de acompanhantes é zero', () => {
+    render(<PublicRSVP weddingId="w1" maxCompanions={0} />);
+
+    expect(screen.queryByLabelText(/Quantas pessoas vão com você/i)).not.toBeInTheDocument();
+  });
+
+  it('limita a seleção ao número de acompanhantes permitido', () => {
+    render(<PublicRSVP weddingId="w1" maxCompanions={3} />);
+
+    const select = screen.getByLabelText(/Quantas pessoas vão com você/i) as HTMLSelectElement;
+    const valores = Array.from(select.options).map((o) => o.value);
+
+    expect(valores).toEqual(['0', '1', '2', '3']);
   });
 });
