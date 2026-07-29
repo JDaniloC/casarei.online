@@ -1,1 +1,18 @@
-/*    /index.html   200
+# Rotas de sistema: precisam vir antes de /:slug, que casaria com elas.
+/login              /index.html         200
+/register           /index.html         200
+/dashboard          /index.html         200
+/preview            /index.html         200
+/demo               /index.html         200
+/payment-success    /index.html         200
+/payment-failure    /index.html         200
+/payment-pending    /index.html         200
+
+# Convite (com ou sem token): preview de convite.
+/:slug/convite      /index.html         200
+/:slug/convite/*    /index.html         200
+
+# Link geral do casal: apresentação, não convite.
+/:slug              /apresentacao.html  200
+
+/*                  /index.html         200

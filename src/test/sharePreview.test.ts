@@ -40,3 +40,48 @@ describe("preview de compartilhamento", () => {
     expect(readRepoFile("apresentacao.html")).not.toContain("og-image");
   });
 });
+
+describe("_redirects", () => {
+  const rules = readRepoFile("public/_redirects")
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0 && !line.startsWith("#"));
+
+  const indexOfRule = (from: string) =>
+    rules.findIndex((rule) => rule.split(/\s+/)[0] === from);
+
+  const targetOfRule = (from: string) =>
+    rules.find((rule) => rule.split(/\s+/)[0] === from)?.split(/\s+/)[1];
+
+  it("serve a apresentação no link geral", () => {
+    expect(targetOfRule("/:slug")).toBe("/apresentacao.html");
+  });
+
+  it("mantém o convite no index.html", () => {
+    expect(indexOfRule("/:slug/convite")).toBeGreaterThanOrEqual(0);
+    expect(indexOfRule("/:slug/convite")).toBeLessThan(indexOfRule("/:slug"));
+    expect(indexOfRule("/:slug/convite/*")).toBeLessThan(indexOfRule("/:slug"));
+  });
+
+  it("resolve as rotas de sistema antes do slug", () => {
+    const systemRoutes = [
+      "/login",
+      "/register",
+      "/dashboard",
+      "/preview",
+      "/demo",
+      "/payment-success",
+      "/payment-failure",
+      "/payment-pending",
+    ];
+
+    for (const route of systemRoutes) {
+      expect(indexOfRule(route)).toBeGreaterThanOrEqual(0);
+      expect(indexOfRule(route)).toBeLessThan(indexOfRule("/:slug"));
+    }
+  });
+
+  it("mantém o catch-all por último", () => {
+    expect(indexOfRule("/*")).toBe(rules.length - 1);
+  });
+});
