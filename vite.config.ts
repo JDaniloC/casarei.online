@@ -19,6 +19,14 @@ export default defineConfig(({ mode }) => ({
       "@": path.resolve(__dirname, "./src"),
     },
   },
+  build: {
+    rollupOptions: {
+      input: {
+        index: path.resolve(__dirname, "index.html"),
+        apresentacao: path.resolve(__dirname, "apresentacao.html"),
+      },
+    },
+  },
   test: {
     globals: true,
     environment: 'jsdom',
