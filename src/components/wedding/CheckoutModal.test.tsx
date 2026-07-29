@@ -145,6 +145,54 @@ describe('CheckoutModal Component', () => {
     expect(screen.getByRole('button', { name: /Ir para Pagamento/i })).not.toBeDisabled();
   });
 
+  it('no convite genérico (sem convidado identificado) não obriga a responder sobre presença', async () => {
+    // O link /{slug}/convite sem token é aberto: quem chega ali pode ser
+    // alguém que só quer mandar um presente. Obrigar a resposta transformava
+    // todo presente numa confirmação de presença de quem não foi convidado.
+    renderCheckoutModal({ isGuestView: true, guest: undefined });
+
+    fireEvent.click(screen.getByText('Continuar'));
+
+    await waitFor(() => {
+      expect(screen.getByText('Suas Informações')).toBeInTheDocument();
+    });
+
+    fireEvent.change(screen.getByPlaceholderText('Digite seu nome completo'), { target: { value: 'João da Silva' } });
+    fireEvent.change(screen.getByPlaceholderText('Digite seu e-mail'), { target: { value: 'joao@email.com' } });
+    fireEvent.change(screen.getByPlaceholderText('(11) 99999-9999'), { target: { value: '(11) 99999-9999' } });
+
+    expect(screen.getByRole('button', { name: /Ir para Pagamento/i })).not.toBeDisabled();
+  });
+
+  it('marca a pergunta de presença como opcional no convite genérico', async () => {
+    renderCheckoutModal({ isGuestView: true, guest: undefined });
+
+    fireEvent.click(screen.getByText('Continuar'));
+
+    await waitFor(() => {
+      expect(screen.getByText('Suas Informações')).toBeInTheDocument();
+    });
+
+    expect(screen.getByText(/\(opcional\)/i)).toBeInTheDocument();
+  });
+
+  it('em convite identificado a presença continua obrigatória', async () => {
+    renderCheckoutModal({ isGuestView: true, guest: { id: 'guest-1', name: 'Maria' } });
+
+    fireEvent.click(screen.getByText('Continuar'));
+
+    await waitFor(() => {
+      expect(screen.getByText('Suas Informações')).toBeInTheDocument();
+    });
+
+    fireEvent.change(screen.getByPlaceholderText('Digite seu nome completo'), { target: { value: 'Maria' } });
+    fireEvent.change(screen.getByPlaceholderText('Digite seu e-mail'), { target: { value: 'maria@email.com' } });
+    fireEvent.change(screen.getByPlaceholderText('(11) 99999-9999'), { target: { value: '(11) 99999-9999' } });
+
+    expect(screen.queryByText(/\(opcional\)/i)).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Ir para Pagamento/i })).toBeDisabled();
+  });
+
   it('em convite com maxCompanions=0 não mostra o seletor de quantidade', async () => {
     renderCheckoutModal({ isGuestView: true, maxCompanions: 0 });
 

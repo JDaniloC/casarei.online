@@ -240,13 +240,20 @@ const CheckoutModal = ({
 
   const isValidEmail = (email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 
+  // Convite identificado = link com token que resolveu um convidado da lista.
+  // Sem ele, /{slug}/convite é aberto a qualquer um — inclusive a quem só quer
+  // mandar um presente.
+  const hasIdentifiedInvite = Boolean(guest?.id);
+
   const isInfoStepValid = () => {
     if (!guestName.trim()) return false;
     if (!guestEmail.trim() || !isValidEmail(guestEmail.trim())) return false;
     if (!guestPhone.trim() || guestPhone.replace(/\D/g, "").length < 10) return false;
-    // A pergunta de presença só existe no fluxo de convite
+    // A pergunta de presença só existe no fluxo de convite, e só é obrigatória
+    // quando o convite identifica o convidado. No convite genérico, exigi-la
+    // transformava todo presente numa confirmação de quem não foi convidado.
     if (isGuestView) {
-      if (!willAttend) return false;
+      if (!willAttend && hasIdentifiedInvite) return false;
       if (willAttend === "yes" && maxCompanions > 0 && attendanceGuests > 1) {
         if (companionNames.some(n => !n.trim())) return false;
       }
@@ -869,7 +876,8 @@ const CheckoutModal = ({
                 <div className="p-3 sm:p-4 bg-gold/5 border border-gold/20 rounded-lg">
                   <Label className="font-medium text-foreground flex items-center gap-2 text-sm sm:text-base mb-3">
                     <Users className="w-4 h-4 text-gold" />
-                    Você vai estar presente no casamento? *
+                    Você vai estar presente no casamento?{" "}
+                    {hasIdentifiedInvite ? "*" : "(opcional)"}
                   </Label>
                   <RadioGroup
                     value={willAttend}
