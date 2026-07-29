@@ -5,6 +5,7 @@ import { WeddingProvider, WeddingConfig } from "@/contexts/WeddingContext";
 import PublicLanding from "@/components/wedding/PublicLanding";
 import { Button } from "@/components/ui/button";
 import GuestPasscodeModal from "@/components/wedding/GuestPasscodeModal";
+import { buildWeddingPageTitle } from "@/lib/pageTitle";
 
 interface WeddingData {
   id: string;
@@ -294,9 +295,9 @@ const WeddingPage = () => {
 
   useEffect(() => {
     if (wedding?.couple_name) {
-      document.title = `${wedding.couple_name} | Convite de Casamento`;
+      document.title = buildWeddingPageTitle(wedding.couple_name, isGuestView);
     }
-  }, [wedding]);
+  }, [wedding, isGuestView]);
 
   // Em rotas com token, aguarda a verificação do convidado terminar antes de
   // renderizar — evita mostrar conteúdo antes de saber se o gate se aplica.
