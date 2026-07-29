@@ -39,6 +39,10 @@ describe("preview de compartilhamento", () => {
   it("nenhum dos dois referencia a og-image inexistente", () => {
     expect(readRepoFile("apresentacao.html")).not.toContain("og-image");
   });
+
+  it("apresentacao.html está registrada como entrada do build", () => {
+    expect(readRepoFile("vite.config.ts")).toContain("apresentacao.html");
+  });
 });
 
 describe("_redirects", () => {
@@ -61,6 +65,8 @@ describe("_redirects", () => {
     expect(indexOfRule("/:slug/convite")).toBeGreaterThanOrEqual(0);
     expect(indexOfRule("/:slug/convite")).toBeLessThan(indexOfRule("/:slug"));
     expect(indexOfRule("/:slug/convite/*")).toBeLessThan(indexOfRule("/:slug"));
+    expect(targetOfRule("/:slug/convite")).toBe("/index.html");
+    expect(targetOfRule("/:slug/convite/*")).toBe("/index.html");
   });
 
   it("resolve as rotas de sistema antes do slug", () => {
@@ -78,6 +84,7 @@ describe("_redirects", () => {
     for (const route of systemRoutes) {
       expect(indexOfRule(route)).toBeGreaterThanOrEqual(0);
       expect(indexOfRule(route)).toBeLessThan(indexOfRule("/:slug"));
+      expect(targetOfRule(route)).toBe("/index.html");
     }
   });
 
