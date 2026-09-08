@@ -9,3 +9,8 @@
 | Task 7: Redimensionar e ancorar o Micro-ondas para escala real de bancada | COMPLETED | Redimensionado furniture_microwave.png para 72x54px nítido e ajustado em isometric.ts com offsetX 28 |
 | Task 8: Integrar paredes contínuas estilo loft e novo micro-ondas no React | COMPLETED | Atualizado PublicVirtualHouse.tsx e DashboardVirtualHouse.tsx com paredes contínuas, janelas e canvas com pé-direito alto |
 | Task 9: Validação automatizada e inspeção visual no navegador | COMPLETED | npm test 60/60 passaram, npm run build exit code 0 e screenshots capturados comprovando paredes contínuas de fundo com janelas e micro-ondas na escala correta |
+| Task 10: Gerar imagens brutas com IA para os 11 móveis e eletrodomésticos | PENDING | generate_image para fogão, gabinete banheiro, tanque, lavadora, vaso, rack TV, mesa jantar, lava-louças, cafeteira, air fryer, robô aspirador |
+| Task 11: Processar e recortar os 11 assets com Sharp | PENDING | Atualizar scripts/process_furniture.js com flood-fill e dimensões exatas |
+| Task 12: Atualizar tipos, footprints e posicionamento no código React | PENDING | Adicionar novos itens em isometric.ts e DEMO_HOUSE_GIFTS em PublicVirtualHouse.tsx |
+| Task 13: Validação dos testes automatizados e compilação | PENDING | npm test e npm run build |
+| Task 14: Validação visual no navegador e captura de evidências | PENDING | Inspeção com browser_subagent e relatório final com screenshots |
