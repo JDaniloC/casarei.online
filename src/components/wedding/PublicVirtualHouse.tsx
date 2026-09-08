@@ -5,7 +5,7 @@ import { Gift } from "@/contexts/WeddingContext";
 import { Loader2, ShoppingBag, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from "framer-motion";
-import { getIsoCoords, TILE_W, TILE_H, ISO_ROOMS } from "@/utils/isometric";
+import { getIsoCoords, TILE_W, TILE_H, ISO_ROOMS, FURNITURE_SIZES, getFurniturePlacement } from "@/utils/isometric";
 
 interface PublicVirtualHouseProps {
   weddingId: string;
@@ -37,32 +37,56 @@ const FURNITURE_ICONS: Record<string, string> = {
   generic: "📦",
 };
 
-const FURNITURE_SIZES: Record<string, { w: number; h: number }> = {
-  fridge: { w: 1, h: 1 },
-  stove: { w: 1, h: 1 },
-  microwave: { w: 1, h: 1 },
-  sink_counter: { w: 2, h: 1 },
-  dining_table: { w: 2, h: 2 },
-  kitchen_cabinet: { w: 2, h: 1 },
-  dishwasher: { w: 1, h: 1 },
-  sofa: { w: 2, h: 1 },
-  tv_rack: { w: 2, h: 1 },
-  coffee_table: { w: 1, h: 1 },
-  armchair: { w: 1, h: 1 },
-  bed: { w: 2, h: 2 },
-  wardrobe: { w: 2, h: 1 },
-  dresser: { w: 2, h: 1 },
-  vanity: { w: 1, h: 1 },
-  toilet: { w: 1, h: 1 },
-  bathroom_sink: { w: 1, h: 1 },
-  shower: { w: 1, h: 2 },
-  washing_machine: { w: 1, h: 1 },
-  dryer: { w: 1, h: 1 },
-  laundry_sink: { w: 1, h: 1 },
-  generic: { w: 1, h: 1 },
-};
-
 const STRUCTURAL_ITEMS = ["foundation", "floor_coverings", "walls", "painting", "doors_windows", "roof", "electric", "plumbing"];
+
+const DEMO_HOUSE_GIFTS: DBGift[] = [
+  { id: "demo-foundation", name: "Fundação e Alicerce", price: 1500, stock: 0, houseItemType: "foundation", housePositionX: null, housePositionY: null },
+  { id: "demo-floors", name: "Pisos e Revestimentos", price: 1200, stock: 0, houseItemType: "floor_coverings", housePositionX: null, housePositionY: null },
+  { id: "demo-walls", name: "Paredes e Estrutura", price: 1800, stock: 0, houseItemType: "walls", housePositionX: null, housePositionY: null },
+  { id: "demo-painting", name: "Pintura Completa", price: 900, stock: 0, houseItemType: "painting", housePositionX: null, housePositionY: null },
+  { id: "demo-doors", name: "Portas e Janelas", price: 1100, stock: 0, houseItemType: "doors_windows", housePositionX: null, housePositionY: null },
+  { id: "demo-plumbing", name: "Instalação Hidráulica", price: 800, stock: 0, houseItemType: "plumbing", housePositionX: null, housePositionY: null },
+  { id: "demo-electric", name: "Instalação Elétrica", price: 850, stock: 0, houseItemType: "electric", housePositionX: null, housePositionY: null },
+
+  { id: "demo-sink", name: "Bancada com Pia", price: 1200, stock: 0, houseItemType: "sink_counter", houseRoom: "kitchen", housePositionX: 0, housePositionY: 0 },
+  { id: "demo-cabinet", name: "Armário de Cozinha", price: 950, stock: 0, houseItemType: "kitchen_cabinet", houseRoom: "kitchen", housePositionX: 2, housePositionY: 0 },
+  { id: "demo-micro", name: "Micro-ondas Inox", price: 650, stock: 0, houseItemType: "microwave", houseRoom: "kitchen", housePositionX: 2, housePositionY: 1 },
+  { id: "demo-fridge", name: "Geladeira French Door", price: 4200, stock: 1, houseItemType: "fridge", houseRoom: "kitchen", housePositionX: 0, housePositionY: 2 },
+
+  { id: "demo-shower", name: "Box de Vidro com Chuveiro", price: 1100, stock: 0, houseItemType: "shower", houseRoom: "bathroom", housePositionX: 4, housePositionY: 0 },
+  { id: "demo-toilet", name: "Vaso Sanitário & Pia", price: 750, stock: 0, houseItemType: "toilet", houseRoom: "bathroom", housePositionX: 5, housePositionY: 2 },
+
+  { id: "demo-wardrobe", name: "Guarda-Roupa Casal", price: 2800, stock: 0, houseItemType: "wardrobe", houseRoom: "bedroom", housePositionX: 6, housePositionY: 0 },
+  { id: "demo-bed", name: "Cama Queen Size", price: 2400, stock: 0, houseItemType: "bed", houseRoom: "bedroom", housePositionX: 7, housePositionY: 1 },
+
+  { id: "demo-dryer", name: "Secadora de Roupas", price: 1800, stock: 0, houseItemType: "dryer", houseRoom: "laundry", housePositionX: 0, housePositionY: 4 },
+  { id: "demo-washer", name: "Máquina de Lavar 13kg", price: 2100, stock: 0, houseItemType: "washing_machine", houseRoom: "laundry", housePositionX: 1, housePositionY: 4 },
+
+  { id: "demo-sofa", name: "Sofá Retrátil Confort", price: 2200, stock: 0, houseItemType: "sofa", houseRoom: "living_room", housePositionX: 3, housePositionY: 5 },
+  { id: "demo-tv", name: "Painel & Rack TV", price: 890, stock: 0, houseItemType: "tv_rack", houseRoom: "living_room", housePositionX: 6, housePositionY: 4 },
+  { id: "demo-generic", name: "Presente Surpresa para a Casa", price: 350, stock: 1, houseItemType: "generic", houseRoom: "living_room", housePositionX: 5, housePositionY: 5 },
+];
+
+const DEMO_BUYERS: Record<string, string> = {
+  "demo-foundation": "Pais da Noiva",
+  "demo-floors": "Padrinhos Lucas & Ana",
+  "demo-walls": "Tios Roberto & Carla",
+  "demo-painting": "Primos Marcos & Julia",
+  "demo-doors": "Família Oliveira",
+  "demo-plumbing": "Amigos da Faculdade",
+  "demo-electric": "Tia Cecília",
+  "demo-sink": "Vovó Helena",
+  "demo-cabinet": "Padrinho Gabriel",
+  "demo-micro": "Bruna & Thiago",
+  "demo-shower": "Família Souza",
+  "demo-toilet": "Amigos do Trabalho",
+  "demo-wardrobe": "Pais do Noivo",
+  "demo-bed": "Irmãos e Cunhados",
+  "demo-dryer": "Madrinha Mariana",
+  "demo-washer": "Família Costa",
+  "demo-sofa": "Padrinho Felipe",
+  "demo-tv": "Tio Fernando",
+};
 
 export default function PublicVirtualHouse({ weddingId, onOpenCheckout }: PublicVirtualHouseProps) {
   const [loading, setLoading] = useState(true);
@@ -77,7 +101,12 @@ export default function PublicVirtualHouse({ weddingId, onOpenCheckout }: Public
 
   useEffect(() => {
     async function loadHouseData() {
-      if (!weddingId) return;
+      if (!weddingId) {
+        setGifts(DEMO_HOUSE_GIFTS);
+        setBuyers(DEMO_BUYERS);
+        setLoading(false);
+        return;
+      }
       try {
         setLoading(true);
 
@@ -150,7 +179,7 @@ export default function PublicVirtualHouse({ weddingId, onOpenCheckout }: Public
   const plumbingPaid = getPaidStructural("plumbing");
 
   const placedFurniture = gifts.filter((g) => {
-    return g.houseItemType && g.housePositionX !== null && g.housePositionY !== null;
+    return g.houseItemType && g.housePositionX !== null && g.housePositionY !== null && isGiftPaid(g);
   });
 
   const getFurnitureAt = (x: number, y: number) => {
@@ -214,8 +243,8 @@ export default function PublicVirtualHouse({ weddingId, onOpenCheckout }: Public
 
   // Calculate container dimensions based on isometric bounds
   const mapOriginX = (6 * (TILE_W / 2)) + 100;
-  const mapOriginY = 100;
-  const containerHeight = (9 + 6) * (TILE_H / 2) + 200;
+  const mapOriginY = 180;
+  const containerHeight = (9 + 6) * (TILE_H / 2) + 260;
 
   return (
     <section className="py-24 bg-cream relative overflow-hidden">
@@ -314,52 +343,66 @@ export default function PublicVirtualHouse({ weddingId, onOpenCheckout }: Public
                 );
               })}
 
-              {/* Walls Rendering */}
+              {/* Walls Rendering - Continuous Tall Loft Back Walls */}
               {wallsPaid && Array.from({ length: 10 }).map((_, x) => {
-                // Back-right wall (along y=0 edge). wall_right faces down-right.
+                // Back-right / North-East wall (along y=0 edge, x from 0 to 9)
                 const iso = getIsoCoords(x, 0, mapOriginX, mapOriginY);
+                // Windows in Kitchen (x=1) and Bedroom (x=8) if doors_windows paid
+                const hasWindow = doorsWindowsPaid && (x === 1 || x === 8);
+                const wallImg = hasWindow ? "wall_ne_window.png" : "wall_ne_plain.png";
+
                 return (
                   <div
-                    key={`wall-right-${x}`}
+                    key={`wall-ne-${x}`}
                     style={{
                       position: "absolute",
                       left: `${iso.x + TILE_W / 2}px`,
-                      top: `${iso.y - TILE_H}px`,
-                      width: `${TILE_W / 2}px`,
-                      height: `${TILE_W}px`,
+                      top: `${iso.y - 160}px`,
+                      width: "64px",
+                      height: "192px",
                       zIndex: iso.zIndex + 1,
                       pointerEvents: "none"
                     }}
                   >
-                    <img src="/assets/iso/wall_left_painted.png" className="w-full h-full object-contain" alt="wall" />
+                    <img src={`/assets/iso/${wallImg}`} className="w-full h-full object-contain" alt="wall" />
                   </div>
-                )
+                );
               })}
               {wallsPaid && Array.from({ length: 7 }).map((_, y) => {
-                // Back-left wall (along x=0 edge). wall_left faces down-left.
+                // Back-left / North-West wall (along x=0 edge, y from 0 to 6)
                 const iso = getIsoCoords(0, y, mapOriginX, mapOriginY);
+                // Window in Laundry (y=5) if doors_windows paid
+                const hasWindow = doorsWindowsPaid && (y === 5);
+                const wallImg = hasWindow ? "wall_nw_window.png" : "wall_nw_plain.png";
+
                 return (
                   <div
-                    key={`wall-left-${y}`}
+                    key={`wall-nw-${y}`}
                     style={{
                       position: "absolute",
                       left: `${iso.x}px`,
-                      top: `${iso.y - TILE_H}px`,
-                      width: `${TILE_W / 2}px`,
-                      height: `${TILE_W}px`,
+                      top: `${iso.y - 160}px`,
+                      width: "64px",
+                      height: "192px",
                       zIndex: iso.zIndex + 1,
                       pointerEvents: "none"
                     }}
                   >
-                    <img src="/assets/iso/wall_right_painted.png" className="w-full h-full object-contain" alt="wall" />
+                    <img src={`/assets/iso/${wallImg}`} className="w-full h-full object-contain" alt="wall" />
                   </div>
-                )
+                );
               })}
 
               {/* Placed Furniture */}
               {placedFurniture.map((furniture) => {
-                if (furniture.housePositionX === null || furniture.housePositionY === null) return null;
-                const iso = getIsoCoords(furniture.housePositionX, furniture.housePositionY, mapOriginX, mapOriginY);
+                if (furniture.housePositionX === null || furniture.housePositionY === null || !furniture.houseItemType) return null;
+                const placement = getFurniturePlacement(
+                  furniture.houseItemType,
+                  furniture.housePositionX,
+                  furniture.housePositionY,
+                  mapOriginX,
+                  mapOriginY
+                );
                 const buyerName = buyers[furniture.id];
                 
                 return (
@@ -367,11 +410,13 @@ export default function PublicVirtualHouse({ weddingId, onOpenCheckout }: Public
                     key={`furn-${furniture.id}`}
                     style={{
                       position: "absolute",
-                      left: `${iso.x}px`,
-                      top: `${iso.y - TILE_H}px`,
-                      zIndex: iso.zIndex + 10,
+                      left: `${placement.left}px`,
+                      top: `${placement.top}px`,
+                      width: `${placement.width}px`,
+                      height: `${placement.height}px`,
+                      zIndex: placement.zIndex,
                     }}
-                    className="group"
+                    className="group pointer-events-auto"
                   >
                     <img 
                       src={`/assets/iso/furniture_${furniture.houseItemType}.png`} 
@@ -390,18 +435,26 @@ export default function PublicVirtualHouse({ weddingId, onOpenCheckout }: Public
 
               {/* Ghost Unplaced Furniture Assets (Using the same PNG but filtered) */}
               {gifts.filter(g => g.houseItemType && !STRUCTURAL_ITEMS.includes(g.houseItemType) && !isGiftPaid(g) && g.housePositionX !== null && g.housePositionY !== null).map((furniture) => {
-                const iso = getIsoCoords(furniture.housePositionX!, furniture.housePositionY!, mapOriginX, mapOriginY);
+                const placement = getFurniturePlacement(
+                  furniture.houseItemType!,
+                  furniture.housePositionX!,
+                  furniture.housePositionY!,
+                  mapOriginX,
+                  mapOriginY
+                );
                 return (
                   <div
                     key={`ghost-img-${furniture.id}`}
                     onClick={() => handleGhostClick(furniture)}
                     style={{
                       position: "absolute",
-                      left: `${iso.x}px`,
-                      top: `${iso.y - TILE_H}px`,
-                      zIndex: iso.zIndex + 10,
+                      left: `${placement.left}px`,
+                      top: `${placement.top}px`,
+                      width: `${placement.width}px`,
+                      height: `${placement.height}px`,
+                      zIndex: placement.zIndex,
                     }}
-                    className="group cursor-pointer hover:brightness-125 transition-all"
+                    className="group cursor-pointer hover:brightness-125 transition-all pointer-events-auto"
                   >
                     <img 
                       src={`/assets/iso/furniture_${furniture.houseItemType}.png`} 

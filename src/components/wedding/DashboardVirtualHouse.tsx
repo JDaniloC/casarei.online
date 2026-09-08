@@ -10,7 +10,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { motion } from "framer-motion";
-import { getIsoCoords, TILE_W, TILE_H, ISO_ROOMS } from "@/utils/isometric";
+import { getIsoCoords, TILE_W, TILE_H, ISO_ROOMS, FURNITURE_SIZES, getFurniturePlacement } from "@/utils/isometric";
 
 interface DashboardVirtualHouseProps {
   weddingId: string;
@@ -34,31 +34,6 @@ const ROOM_DISPLAY = {
   bedroom: { name: "Quarto", ...ISO_ROOMS.bedroom },
   laundry: { name: "Área de Serviço", ...ISO_ROOMS.laundry },
   living_room: { name: "Sala de Estar", ...ISO_ROOMS.living_room },
-};
-
-const FURNITURE_SIZES: Record<string, { w: number; h: number }> = {
-  fridge: { w: 1, h: 1 },
-  stove: { w: 1, h: 1 },
-  microwave: { w: 1, h: 1 },
-  sink_counter: { w: 2, h: 1 },
-  dining_table: { w: 2, h: 2 },
-  kitchen_cabinet: { w: 2, h: 1 },
-  dishwasher: { w: 1, h: 1 },
-  sofa: { w: 2, h: 1 },
-  tv_rack: { w: 2, h: 1 },
-  coffee_table: { w: 1, h: 1 },
-  armchair: { w: 1, h: 1 },
-  bed: { w: 2, h: 2 },
-  wardrobe: { w: 2, h: 1 },
-  dresser: { w: 2, h: 1 },
-  vanity: { w: 1, h: 1 },
-  toilet: { w: 1, h: 1 },
-  bathroom_sink: { w: 1, h: 1 },
-  shower: { w: 1, h: 2 },
-  washing_machine: { w: 1, h: 1 },
-  dryer: { w: 1, h: 1 },
-  laundry_sink: { w: 1, h: 1 },
-  generic: { w: 1, h: 1 },
 };
 
 const STRUCTURAL_ITEMS = ["foundation", "floor_coverings", "walls", "painting", "doors_windows", "roof", "electric", "plumbing"];
@@ -287,8 +262,8 @@ export default function DashboardVirtualHouse({ weddingId }: DashboardVirtualHou
   // Calculate container dimensions based on isometric bounds
   // Grid X max = 9, Grid Y max = 6
   const mapOriginX = (6 * (TILE_W / 2)) + 100; // Offset enough to fit the left corner (y max)
-  const mapOriginY = 100;
-  const containerHeight = (9 + 6) * (TILE_H / 2) + 200; // rough bounds
+  const mapOriginY = 180;
+  const containerHeight = (9 + 6) * (TILE_H / 2) + 260; // rough bounds
 
   return (
     <div className="grid lg:grid-cols-12 gap-8 items-start animate-fade-in">
@@ -368,63 +343,79 @@ export default function DashboardVirtualHouse({ weddingId }: DashboardVirtualHou
               );
             })}
 
-            {/* Walls Rendering */}
+            {/* Walls Rendering - Continuous Tall Loft Back Walls */}
             {wallsPaid && Array.from({ length: 10 }).map((_, x) => {
-              // Back-right wall (along y=0 edge). wall_right faces down-right.
+              // Back-right / North-East wall (along y=0 edge, x from 0 to 9)
               const iso = getIsoCoords(x, 0, mapOriginX, mapOriginY);
+              // Windows in Kitchen (x=1) and Bedroom (x=8) if doors_windows paid
+              const hasWindow = doorsWindowsPaid && (x === 1 || x === 8);
+              const wallImg = hasWindow ? "wall_ne_window.png" : "wall_ne_plain.png";
+
               return (
                 <div
-                  key={`wall-right-${x}`}
+                  key={`wall-ne-${x}`}
                   style={{
                     position: "absolute",
                     left: `${iso.x + TILE_W / 2}px`,
-                    top: `${iso.y - TILE_H}px`,
-                    width: `${TILE_W / 2}px`,
-                    height: `${TILE_W}px`,
+                    top: `${iso.y - 160}px`,
+                    width: "64px",
+                    height: "192px",
                     zIndex: iso.zIndex + 1,
                     pointerEvents: "none"
                   }}
                 >
-                  <img src="/assets/iso/wall_left_painted.png" className="w-full h-full object-contain" alt="wall" />
+                  <img src={`/assets/iso/${wallImg}`} className="w-full h-full object-contain" alt="wall" />
                 </div>
-              )
+              );
             })}
             {wallsPaid && Array.from({ length: 7 }).map((_, y) => {
-              // Back-left wall (along x=0 edge). wall_left faces down-left.
+              // Back-left / North-West wall (along x=0 edge, y from 0 to 6)
               const iso = getIsoCoords(0, y, mapOriginX, mapOriginY);
+              // Window in Laundry (y=5) if doors_windows paid
+              const hasWindow = doorsWindowsPaid && (y === 5);
+              const wallImg = hasWindow ? "wall_nw_window.png" : "wall_nw_plain.png";
+
               return (
                 <div
-                  key={`wall-left-${y}`}
+                  key={`wall-nw-${y}`}
                   style={{
                     position: "absolute",
                     left: `${iso.x}px`,
-                    top: `${iso.y - TILE_H}px`,
-                    width: `${TILE_W / 2}px`,
-                    height: `${TILE_W}px`,
+                    top: `${iso.y - 160}px`,
+                    width: "64px",
+                    height: "192px",
                     zIndex: iso.zIndex + 1,
                     pointerEvents: "none"
                   }}
                 >
-                  <img src="/assets/iso/wall_right_painted.png" className="w-full h-full object-contain" alt="wall" />
+                  <img src={`/assets/iso/${wallImg}`} className="w-full h-full object-contain" alt="wall" />
                 </div>
-              )
+              );
             })}
 
             {/* Placed Furniture */}
             {placedFurniture.map((furniture) => {
-              if (furniture.house_position_x === null || furniture.house_position_y === null) return null;
-              const iso = getIsoCoords(furniture.house_position_x, furniture.house_position_y, mapOriginX, mapOriginY);
+              if (furniture.house_position_x === null || furniture.house_position_y === null || !furniture.house_item_type) return null;
+              const placement = getFurniturePlacement(
+                furniture.house_item_type,
+                furniture.house_position_x,
+                furniture.house_position_y,
+                mapOriginX,
+                mapOriginY
+              );
               
               return (
                 <div
                   key={`furn-${furniture.id}`}
                   style={{
                     position: "absolute",
-                    left: `${iso.x}px`,
-                    top: `${iso.y - TILE_H}px`, // Furniture is usually taller, offset visually
-                    zIndex: iso.zIndex + 10, // Ensure it draws above floor tiles at same coord
+                    left: `${placement.left}px`,
+                    top: `${placement.top}px`,
+                    width: `${placement.width}px`,
+                    height: `${placement.height}px`,
+                    zIndex: placement.zIndex,
                   }}
-                  className="group"
+                  className="group pointer-events-auto"
                 >
                   <img 
                     src={`/assets/iso/furniture_${furniture.house_item_type}.png`} 
