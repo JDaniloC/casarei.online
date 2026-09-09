@@ -23,7 +23,11 @@
 | Task 21: Brainstorming - Explorar contexto, grade e critérios de coesão do novo estilo pixel art | COMPLETED | Alinhado com o usuário: estilo Clean Cozy Pixel Art (Unpacking/Habbo moderno), 1px outline harmônico, manter pisos/paredes e focar 100% no catálogo de móveis |
 | Task 22: Brainstorming - Propor abordagens técnicas de geração e escala estrita | COMPLETED | Escolhida a Abordagem Híbrida Inteligente: motor Node.js com gabaritos matemáticos de losango, clamping na base, normalização de paleta e outline de 1px |
 | Task 23: Brainstorming - Apresentar design detalhado e obter aprovação | COMPLETED | Design de unificação Clean Cozy Pixel Art aprovado pelo usuário com correção dos 5 pontos críticos |
-| Task 24: Brainstorming - Documentar design doc e transicionar para plano de implementação | IN_PROGRESS | Escrevendo docs/plans/2026-09-09-isometric-pixel-art-design.md e invocando writing-plans |
+| Task 24: Brainstorming - Documentar design doc e transicionar para plano de implementação | COMPLETED | Design doc e plano de implementação documentados e commitados |
+| Task 25: Criar e rodar o gerador Clean Cozy Pixel Art (scripts/render_pixel_art_furniture.js) para os 21 assets | PENDING | Recuperação de sprites, normalização dimétrica 2:1 (0.866), outline 1px e clamping de footprint |
+| Task 26: Ajustar metadados e ancoragens em src/utils/isometric.ts | PENDING | Sincronizar FURNITURE_PIXEL_SIZES e ancoragem ao solo |
+| Task 27: Validação dos testes automatizados e compilação | PENDING | Rodar npm test (65/65) e npm run build (exit 0) |
+| Task 28: Validação visual no navegador com browser_subagent e captura de evidências | PENDING | Inspecionar demo, sofá reto 2x1, contornos nítidos de 1px e ângulos 2:1 |
 
 
 
