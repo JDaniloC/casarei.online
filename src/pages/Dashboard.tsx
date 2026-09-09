@@ -776,7 +776,7 @@ const Dashboard = () => {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${session?.access_token}`
         },
-        body: JSON.stringify({ url })
+        body: JSON.stringify({ url, weddingId })
       });
 
       if (!response.ok) {
