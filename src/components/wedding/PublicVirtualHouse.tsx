@@ -73,22 +73,22 @@ export const DEMO_HOUSE_GIFTS: DBGift[] = [
   // Cozinha
   { id: "demo-fridge", name: "Geladeira French Door", price: 4200, stock: 0, houseItemType: "fridge", houseRoom: "kitchen", housePositionX: 0, housePositionY: 0 },
   { id: "demo-stove", name: "Fogão Cooktop 4 Bocas Inox", price: 1650, stock: 0, houseItemType: "stove", houseRoom: "kitchen", housePositionX: 1, housePositionY: 0 },
-  { id: "demo-dishwasher", name: "Lava-Louças Inox 14 Serviços", price: 2800, stock: 0, houseItemType: "dishwasher", houseRoom: "kitchen", housePositionX: 3, housePositionY: 0 },
-  { id: "demo-sink", name: "Bancada com Pia & Torneira", price: 1850, stock: 0, houseItemType: "sink_counter", houseRoom: "kitchen", housePositionX: 0, housePositionY: 1 },
-  { id: "demo-coffee", name: "Cafeteira Expresso Italiana", price: 450, stock: 0, houseItemType: "coffee_maker", houseRoom: "kitchen", housePositionX: 0, housePositionY: 2 },
-  { id: "demo-cabinet", name: "Armários Planejados Cozinha", price: 3200, stock: 0, houseItemType: "kitchen_cabinet", houseRoom: "kitchen", housePositionX: 2, housePositionY: 1 },
+  { id: "demo-cabinet", name: "Armários Planejados Cozinha", price: 3200, stock: 0, houseItemType: "kitchen_cabinet", houseRoom: "kitchen", housePositionX: 2, housePositionY: 0 },
   { id: "demo-micro", name: "Micro-ondas Espelhado 30L", price: 650, stock: 0, houseItemType: "microwave", houseRoom: "kitchen", housePositionX: 2, housePositionY: 0 },
-  { id: "demo-airfryer", name: "Air Fryer Digital 4L", price: 390, stock: 0, houseItemType: "air_fryer", houseRoom: "kitchen", housePositionX: 3, housePositionY: 1 },
-  { id: "demo-table", name: "Mesa de Jantar 4 Lugares", price: 2100, stock: 0, houseItemType: "dining_table", houseRoom: "kitchen", housePositionX: 1, housePositionY: 2 },
+  { id: "demo-airfryer", name: "Air Fryer Digital 4L", price: 390, stock: 0, houseItemType: "air_fryer", houseRoom: "kitchen", housePositionX: 3, housePositionY: 0 },
+  { id: "demo-sink", name: "Bancada com Pia & Torneira", price: 1850, stock: 0, houseItemType: "sink_counter", houseRoom: "kitchen", housePositionX: 0, housePositionY: 1 },
+  { id: "demo-coffee", name: "Cafeteira Expresso Italiana", price: 450, stock: 0, houseItemType: "coffee_maker", houseRoom: "kitchen", housePositionX: 0, housePositionY: 1 },
+  { id: "demo-dishwasher", name: "Lava-Louças Inox 14 Serviços", price: 2800, stock: 0, houseItemType: "dishwasher", houseRoom: "kitchen", housePositionX: 2, housePositionY: 1 },
+  { id: "demo-table", name: "Mesa de Jantar 4 Lugares", price: 2100, stock: 0, houseItemType: "dining_table", houseRoom: "kitchen", housePositionX: 0, housePositionY: 2 },
 
   // Banheiro
   { id: "demo-shower", name: "Box Blindex & Chuveiro Ducha", price: 1100, stock: 0, houseItemType: "shower", houseRoom: "bathroom", housePositionX: 4, housePositionY: 0 },
+  { id: "demo-bath-sink", name: "Gabinete & Cuba Esculpida", price: 890, stock: 0, houseItemType: "bathroom_sink", houseRoom: "bathroom", housePositionX: 5, housePositionY: 0 },
   { id: "demo-toilet", name: "Vaso Sanitário Monobloco", price: 580, stock: 0, houseItemType: "toilet", houseRoom: "bathroom", housePositionX: 4, housePositionY: 2 },
-  { id: "demo-bath-sink", name: "Gabinete & Cuba Esculpida", price: 890, stock: 0, houseItemType: "bathroom_sink", houseRoom: "bathroom", housePositionX: 5, housePositionY: 2 },
 
   // Quarto
-  { id: "demo-wardrobe", name: "Guarda-Roupa Casal", price: 2800, stock: 0, houseItemType: "wardrobe", houseRoom: "bedroom", housePositionX: 6, housePositionY: 0 },
-  { id: "demo-bed", name: "Cama Queen Size", price: 2400, stock: 0, houseItemType: "bed", houseRoom: "bedroom", housePositionX: 7, housePositionY: 1 },
+  { id: "demo-wardrobe", name: "Guarda-Roupa Casal", price: 2800, stock: 0, houseItemType: "wardrobe", houseRoom: "bedroom", housePositionX: 8, housePositionY: 0 },
+  { id: "demo-bed", name: "Cama Queen Size", price: 2400, stock: 0, houseItemType: "bed", houseRoom: "bedroom", housePositionX: 6, housePositionY: 1 },
 
   // Área de Serviço
   { id: "demo-washer", name: "Máquina de Lavar 13kg Front-Load", price: 2200, stock: 0, houseItemType: "washing_machine", houseRoom: "laundry", housePositionX: 0, housePositionY: 4 },
@@ -98,7 +98,7 @@ export const DEMO_HOUSE_GIFTS: DBGift[] = [
   // Sala de Estar
   { id: "demo-tv", name: "Rack & Painel TV Smart OLED", price: 1950, stock: 0, houseItemType: "tv_rack", houseRoom: "living_room", housePositionX: 5, housePositionY: 4 },
   { id: "demo-sofa", name: "Sofá Retrátil Confort", price: 2200, stock: 0, houseItemType: "sofa", houseRoom: "living_room", housePositionX: 3, housePositionY: 5 },
-  { id: "demo-robot", name: "Robô Aspirador Inteligente", price: 1250, stock: 0, houseItemType: "robot_vacuum", houseRoom: "living_room", housePositionX: 2, housePositionY: 5 },
+  { id: "demo-robot", name: "Robô Aspirador Inteligente", price: 1250, stock: 0, houseItemType: "robot_vacuum", houseRoom: "living_room", housePositionX: 2, housePositionY: 6 },
   { id: "demo-generic", name: "Presente Surpresa para a Casa", price: 350, stock: 1, houseItemType: "generic", houseRoom: "living_room", housePositionX: 7, housePositionY: 5 },
 ];
 
@@ -287,7 +287,7 @@ export default function PublicVirtualHouse({ weddingId, onOpenCheckout }: Public
   }
 
   // Calculate container dimensions based on isometric bounds
-  const mapOriginX = (6 * (TILE_W / 2)) + 100;
+  const mapOriginX = 420;
   const mapOriginY = 180;
   const containerHeight = (9 + 6) * (TILE_H / 2) + 260;
 
@@ -327,7 +327,7 @@ export default function PublicVirtualHouse({ weddingId, onOpenCheckout }: Public
               dragConstraints={constraintsRef}
               dragElastic={0.1}
               className="relative mx-auto" 
-              style={{ width: '1200px', height: `${containerHeight}px` }}
+              style={{ width: '1240px', height: `${containerHeight}px` }}
             >
               
               {/* Grid Foundation & Cells */}

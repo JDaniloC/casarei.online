@@ -95,24 +95,24 @@ export const DEFAULT_FURNITURE_POSITIONS: Record<string, { x: number; y: number 
   // Cozinha (ISO_ROOMS.kitchen: x0-3, y0-3)
   fridge: { x: 0, y: 0 },
   stove: { x: 1, y: 0 },
-  microwave: { x: 2, y: 0 },
-  dishwasher: { x: 3, y: 0 },
+  kitchen_cabinet: { x: 2, y: 0 },
+  microwave: { x: 2, y: 0 }, // Senta no armário planejado
+  air_fryer: { x: 3, y: 0 }, // Senta no armário planejado
   sink_counter: { x: 0, y: 1 },
-  kitchen_cabinet: { x: 2, y: 1 },
-  coffee_maker: { x: 0, y: 2 },
-  air_fryer: { x: 3, y: 1 },
-  dining_table: { x: 1, y: 2 },
+  coffee_maker: { x: 0, y: 1 }, // Senta na bancada de pia
+  dishwasher: { x: 2, y: 1 },
+  dining_table: { x: 0, y: 2 }, // Ocupa (0,2), (1,2), (0,3), (1,3)
 
   // Banheiro (ISO_ROOMS.bathroom: x4-5, y0-3)
-  toilet: { x: 4, y: 0 },
-  bathroom_sink: { x: 5, y: 0 },
-  shower: { x: 4, y: 1 },
+  shower: { x: 4, y: 0 }, // Ocupa (4,0) e (4,1)
+  bathroom_sink: { x: 5, y: 0 }, // Na parede de fundo (5,0)
+  toilet: { x: 4, y: 2 }, // Ao lado da parede do chuveiro (4,2)
 
   // Quarto (ISO_ROOMS.bedroom: x6-9, y0-3)
-  bed: { x: 6, y: 0 },
-  wardrobe: { x: 8, y: 0 },
-  dresser: { x: 8, y: 1 },
-  vanity: { x: 6, y: 2 },
+  wardrobe: { x: 8, y: 0 }, // Ocupa (8,0) e (9,0)
+  bed: { x: 6, y: 1 }, // Ocupa (6,1), (7,1), (6,2), (7,2)
+  dresser: { x: 8, y: 2 },
+  vanity: { x: 6, y: 0 },
 
   // Área de Serviço (ISO_ROOMS.laundry: x0-1, y4-6)
   washing_machine: { x: 0, y: 4 },
@@ -120,11 +120,12 @@ export const DEFAULT_FURNITURE_POSITIONS: Record<string, { x: number; y: number 
   laundry_sink: { x: 0, y: 5 },
 
   // Sala de Estar (ISO_ROOMS.living_room: x2-9, y4-6)
-  sofa: { x: 2, y: 4 },
-  coffee_table: { x: 4, y: 4 },
   tv_rack: { x: 5, y: 4 },
+  sofa: { x: 3, y: 5 },
+  coffee_table: { x: 4, y: 4 },
   armchair: { x: 7, y: 4 },
-  robot_vacuum: { x: 4, y: 5 },
+  robot_vacuum: { x: 2, y: 6 },
+  generic: { x: 7, y: 5 },
 };
 
 // Eletrodomésticos de bancada — os únicos tipos com permissão de dividir célula
