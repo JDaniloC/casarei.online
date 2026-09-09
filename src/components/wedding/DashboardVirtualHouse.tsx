@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/dialog";
 import { motion } from "framer-motion";
 import { getIsoCoords, TILE_W, TILE_H, ISO_ROOMS, FURNITURE_SIZES, getFurniturePlacement } from "@/utils/isometric";
+import { getGiftFundingProgress, isGiftFundingComplete } from "@/utils/giftFunding";
 
 interface DashboardVirtualHouseProps {
   weddingId: string;
@@ -22,6 +23,8 @@ interface DBGift {
   price: number;
   stock: number | null;
   raised_amount?: number;
+  is_vaquinha?: boolean | null;
+  total_quotas?: number | null;
   house_item_type: string | null;
   house_room: string | null;
   house_position_x: number | null;
@@ -37,6 +40,14 @@ const ROOM_DISPLAY = {
 };
 
 const STRUCTURAL_ITEMS = ["foundation", "floor_coverings", "walls", "painting", "doors_windows", "roof", "electric", "plumbing"];
+
+const toFundable = (g: DBGift) => ({
+  price: g.price,
+  stock: g.stock,
+  totalQuotas: g.total_quotas,
+  isVaquinha: g.is_vaquinha || false,
+  raisedAmount: g.raised_amount,
+});
 
 export default function DashboardVirtualHouse({ weddingId }: DashboardVirtualHouseProps) {
   const [loading, setLoading] = useState(true);
@@ -56,11 +67,12 @@ export default function DashboardVirtualHouse({ weddingId }: DashboardVirtualHou
       if (!weddingId) return;
       try {
         setLoading(true);
+        // Carrega todos os presentes do casamento (não só os já vinculados à casa):
+        // o modal "Vincular Presente" precisa enxergar presentes ainda sem house_item_type.
         const { data, error } = await supabase
           .from("gifts")
-          .select("id, name, price, stock, house_item_type, house_room, house_position_x, house_position_y")
-          .eq("wedding_id", weddingId)
-          .not("house_item_type", "is", null);
+          .select("id, name, price, stock, raised_amount, is_vaquinha, total_quotas, house_item_type, house_room, house_position_x, house_position_y")
+          .eq("wedding_id", weddingId);
 
         if (error) throw error;
         setGifts(data as DBGift[]);
@@ -74,15 +86,13 @@ export default function DashboardVirtualHouse({ weddingId }: DashboardVirtualHou
     loadHouseData();
   }, [weddingId]);
 
-  const isGiftPaid = (g: DBGift) => {
-    return g.stock !== null && g.stock !== undefined && g.stock <= 0;
-  };
-
-  const unlinkedPaidGifts = gifts.filter((g) => !g.house_item_type && isGiftPaid(g));
+  // Presentes ainda não vinculados a nenhum móvel/etapa da casa, independente de já
+  // estarem financiados ou não — vincular não exige mais pagamento prévio.
+  const unlinkedGifts = gifts.filter((g) => !g.house_item_type);
 
   const getPaidStructural = (type: string) => {
     const item = gifts.find((g) => g.house_item_type === type);
-    return item ? isGiftPaid(item) : false;
+    return item ? isGiftFundingComplete(toFundable(item)) : false;
   };
 
   const foundationPaid = getPaidStructural("foundation");
@@ -94,11 +104,13 @@ export default function DashboardVirtualHouse({ weddingId }: DashboardVirtualHou
   const electricPaid = getPaidStructural("electric");
   const plumbingPaid = getPaidStructural("plumbing");
 
+  // Móveis já vinculados a um tipo/cômodo mas ainda sem posição no grid (hoje só
+  // acontece via "Vincular Presente", já que os itens do catálogo já nascem
+  // posicionados na posição padrão do cômodo).
   const placeableFurniture = gifts.filter((g) => {
     return (
       g.house_item_type &&
       !STRUCTURAL_ITEMS.includes(g.house_item_type) &&
-      isGiftPaid(g) &&
       g.house_position_x === null
     );
   });
@@ -326,6 +338,7 @@ export default function DashboardVirtualHouse({ weddingId }: DashboardVirtualHou
                     width: `${TILE_W}px`,
                     height: `${TILE_H}px`,
                     zIndex: iso.zIndex,
+                    clipPath: "polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)",
                   }}
                   className={`transition-all cursor-pointer flex items-center justify-center
                     ${!tileImg ? "border border-white/20 hover:bg-white/10" : ""}
@@ -418,7 +431,7 @@ export default function DashboardVirtualHouse({ weddingId }: DashboardVirtualHou
                   className="group pointer-events-auto"
                 >
                   <img 
-                    src={`/assets/iso/furniture_${furniture.house_item_type}.png`} 
+                    src={`/assets/iso/furniture_${furniture.house_item_type}.png?v=3`} 
                     alt={furniture.name}
                     className="w-full h-full object-contain drop-shadow-lg"
                   />
@@ -497,13 +510,14 @@ export default function DashboardVirtualHouse({ weddingId }: DashboardVirtualHou
           {placeableFurniture.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
               <HelpCircle className="w-8 h-8 text-muted-foreground/30 mx-auto mb-3" />
-              <p className="text-xs">Nenhum móvel essencial adquirido aguardando posicionamento no momento.</p>
+              <p className="text-xs">Nenhum presente vinculado aguardando posicionamento no momento.</p>
             </div>
           ) : (
             <div className="grid gap-3">
               {placeableFurniture.map((furniture) => {
                 const isSelected = selectedFurniture?.id === furniture.id;
                 const roomName = ROOM_DISPLAY[furniture.house_room as keyof typeof ROOM_DISPLAY]?.name || "";
+                const progress = Math.round(getGiftFundingProgress(toFundable(furniture)));
 
                 return (
                   <button
@@ -517,11 +531,13 @@ export default function DashboardVirtualHouse({ weddingId }: DashboardVirtualHou
                   >
                     <div className="flex items-center gap-3">
                       <div className="w-8 h-8 relative">
-                         <img src={`/assets/iso/furniture_${furniture.house_item_type}.png`} alt="icon" className="w-full h-full object-contain drop-shadow" />
+                          <img src={`/assets/iso/furniture_${furniture.house_item_type}.png?v=3`} alt="icon" className="w-full h-full object-contain drop-shadow" />
                       </div>
                       <div>
                         <h4 className="font-medium text-xs text-foreground leading-none">{furniture.name}</h4>
-                        <span className="text-[10px] text-muted-foreground mt-1 block">Colocar na: {roomName}</span>
+                        <span className="text-[10px] text-muted-foreground mt-1 block">
+                          Colocar na: {roomName} {progress > 0 && progress < 100 && `· ${progress}% financiado`}
+                        </span>
                       </div>
                     </div>
                     <Move className="w-3.5 h-3.5 text-gold animate-pulse" />
@@ -557,7 +573,7 @@ export default function DashboardVirtualHouse({ weddingId }: DashboardVirtualHou
                 onChange={e => setSelectedLinkGift(e.target.value)}
               >
                 <option value="">Selecione...</option>
-                {unlinkedPaidGifts.map(g => (
+                {unlinkedGifts.map(g => (
                   <option key={g.id} value={g.id}>{g.name}</option>
                 ))}
               </select>

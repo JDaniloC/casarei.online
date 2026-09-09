@@ -153,7 +153,7 @@ export function getFurniturePlacement(
 
   // Small countertop appliances sit on top of furniture in the same cell
   const isCountertopItem = COUNTERTOP_ITEM_TYPES.includes(itemType);
-  const zIndex = ((gridX + footprint.w - 1) + (gridY + footprint.h - 1)) * 2 + 10 + (isCountertopItem ? 3 : 0);
+  const zIndex = ((gridX + footprint.w - 1) + (gridY + footprint.h - 1)) * 2 + 100 + (isCountertopItem ? 3 : 0);
 
   return {
     left,

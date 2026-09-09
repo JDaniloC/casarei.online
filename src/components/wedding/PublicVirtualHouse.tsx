@@ -1,11 +1,14 @@
 import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 import { useCart } from "@/contexts/CartContext";
 import { Gift } from "@/contexts/WeddingContext";
 import { Loader2, ShoppingBag, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { motion, AnimatePresence } from "framer-motion";
 import { getIsoCoords, TILE_W, TILE_H, ISO_ROOMS, FURNITURE_SIZES, getFurniturePlacement } from "@/utils/isometric";
+import { getGiftFundingProgress, isGiftFundingComplete } from "@/utils/giftFunding";
 
 interface PublicVirtualHouseProps {
   weddingId: string;
@@ -30,16 +33,35 @@ const ROOM_DISPLAY = {
 const FURNITURE_ICONS: Record<string, string> = {
   fridge: "🧊",
   stove: "🔥",
+  microwave: "📻",
+  sink_counter: "🚰",
+  kitchen_cabinet: "🗄️",
+  dishwasher: "🍽️",
+  coffee_maker: "☕",
+  air_fryer: "🍟",
   dining_table: "🍽️",
   sofa: "🛋️",
+  tv_rack: "📺",
   tv: "📺",
+  coffee_table: "🪵",
+  armchair: "🪑",
+  robot_vacuum: "🤖",
   bed: "🛏️",
+  wardrobe: "🚪",
+  dresser: "🗄️",
+  vanity: "💄",
+  toilet: "🚽",
+  bathroom_sink: "🪞",
+  shower: "🚿",
+  washing_machine: "🧺",
+  dryer: "💨",
+  laundry_sink: "🧼",
   generic: "📦",
 };
 
 const STRUCTURAL_ITEMS = ["foundation", "floor_coverings", "walls", "painting", "doors_windows", "roof", "electric", "plumbing"];
 
-const DEMO_HOUSE_GIFTS: DBGift[] = [
+export const DEMO_HOUSE_GIFTS: DBGift[] = [
   { id: "demo-foundation", name: "Fundação e Alicerce", price: 1500, stock: 0, houseItemType: "foundation", housePositionX: null, housePositionY: null },
   { id: "demo-floors", name: "Pisos e Revestimentos", price: 1200, stock: 0, houseItemType: "floor_coverings", housePositionX: null, housePositionY: null },
   { id: "demo-walls", name: "Paredes e Estrutura", price: 1800, stock: 0, houseItemType: "walls", housePositionX: null, housePositionY: null },
@@ -48,23 +70,36 @@ const DEMO_HOUSE_GIFTS: DBGift[] = [
   { id: "demo-plumbing", name: "Instalação Hidráulica", price: 800, stock: 0, houseItemType: "plumbing", housePositionX: null, housePositionY: null },
   { id: "demo-electric", name: "Instalação Elétrica", price: 850, stock: 0, houseItemType: "electric", housePositionX: null, housePositionY: null },
 
-  { id: "demo-sink", name: "Bancada com Pia", price: 1200, stock: 0, houseItemType: "sink_counter", houseRoom: "kitchen", housePositionX: 0, housePositionY: 0 },
-  { id: "demo-cabinet", name: "Armário de Cozinha", price: 950, stock: 0, houseItemType: "kitchen_cabinet", houseRoom: "kitchen", housePositionX: 2, housePositionY: 0 },
-  { id: "demo-micro", name: "Micro-ondas Inox", price: 650, stock: 0, houseItemType: "microwave", houseRoom: "kitchen", housePositionX: 2, housePositionY: 1 },
-  { id: "demo-fridge", name: "Geladeira French Door", price: 4200, stock: 1, houseItemType: "fridge", houseRoom: "kitchen", housePositionX: 0, housePositionY: 2 },
+  // Cozinha
+  { id: "demo-fridge", name: "Geladeira French Door", price: 4200, stock: 0, houseItemType: "fridge", houseRoom: "kitchen", housePositionX: 0, housePositionY: 0 },
+  { id: "demo-stove", name: "Fogão Cooktop 4 Bocas Inox", price: 1650, stock: 0, houseItemType: "stove", houseRoom: "kitchen", housePositionX: 1, housePositionY: 0 },
+  { id: "demo-dishwasher", name: "Lava-Louças Inox 14 Serviços", price: 2800, stock: 0, houseItemType: "dishwasher", houseRoom: "kitchen", housePositionX: 3, housePositionY: 0 },
+  { id: "demo-sink", name: "Bancada com Pia & Torneira", price: 1850, stock: 0, houseItemType: "sink_counter", houseRoom: "kitchen", housePositionX: 0, housePositionY: 1 },
+  { id: "demo-coffee", name: "Cafeteira Expresso Italiana", price: 450, stock: 0, houseItemType: "coffee_maker", houseRoom: "kitchen", housePositionX: 0, housePositionY: 2 },
+  { id: "demo-cabinet", name: "Armários Planejados Cozinha", price: 3200, stock: 0, houseItemType: "kitchen_cabinet", houseRoom: "kitchen", housePositionX: 2, housePositionY: 1 },
+  { id: "demo-micro", name: "Micro-ondas Espelhado 30L", price: 650, stock: 0, houseItemType: "microwave", houseRoom: "kitchen", housePositionX: 2, housePositionY: 0 },
+  { id: "demo-airfryer", name: "Air Fryer Digital 4L", price: 390, stock: 0, houseItemType: "air_fryer", houseRoom: "kitchen", housePositionX: 3, housePositionY: 1 },
+  { id: "demo-table", name: "Mesa de Jantar 4 Lugares", price: 2100, stock: 0, houseItemType: "dining_table", houseRoom: "kitchen", housePositionX: 1, housePositionY: 2 },
 
-  { id: "demo-shower", name: "Box de Vidro com Chuveiro", price: 1100, stock: 0, houseItemType: "shower", houseRoom: "bathroom", housePositionX: 4, housePositionY: 0 },
-  { id: "demo-toilet", name: "Vaso Sanitário & Pia", price: 750, stock: 0, houseItemType: "toilet", houseRoom: "bathroom", housePositionX: 5, housePositionY: 2 },
+  // Banheiro
+  { id: "demo-shower", name: "Box Blindex & Chuveiro Ducha", price: 1100, stock: 0, houseItemType: "shower", houseRoom: "bathroom", housePositionX: 4, housePositionY: 0 },
+  { id: "demo-toilet", name: "Vaso Sanitário Monobloco", price: 580, stock: 0, houseItemType: "toilet", houseRoom: "bathroom", housePositionX: 4, housePositionY: 2 },
+  { id: "demo-bath-sink", name: "Gabinete & Cuba Esculpida", price: 890, stock: 0, houseItemType: "bathroom_sink", houseRoom: "bathroom", housePositionX: 5, housePositionY: 2 },
 
+  // Quarto
   { id: "demo-wardrobe", name: "Guarda-Roupa Casal", price: 2800, stock: 0, houseItemType: "wardrobe", houseRoom: "bedroom", housePositionX: 6, housePositionY: 0 },
   { id: "demo-bed", name: "Cama Queen Size", price: 2400, stock: 0, houseItemType: "bed", houseRoom: "bedroom", housePositionX: 7, housePositionY: 1 },
 
-  { id: "demo-dryer", name: "Secadora de Roupas", price: 1800, stock: 0, houseItemType: "dryer", houseRoom: "laundry", housePositionX: 0, housePositionY: 4 },
-  { id: "demo-washer", name: "Máquina de Lavar 13kg", price: 2100, stock: 0, houseItemType: "washing_machine", houseRoom: "laundry", housePositionX: 1, housePositionY: 4 },
+  // Área de Serviço
+  { id: "demo-washer", name: "Máquina de Lavar 13kg Front-Load", price: 2200, stock: 0, houseItemType: "washing_machine", houseRoom: "laundry", housePositionX: 0, housePositionY: 4 },
+  { id: "demo-dryer", name: "Secadora de Roupas Front-Load", price: 1800, stock: 0, houseItemType: "dryer", houseRoom: "laundry", housePositionX: 1, housePositionY: 4 },
+  { id: "demo-laundry-sink", name: "Tanque Inox com Gabinete", price: 680, stock: 0, houseItemType: "laundry_sink", houseRoom: "laundry", housePositionX: 0, housePositionY: 5 },
 
+  // Sala de Estar
+  { id: "demo-tv", name: "Rack & Painel TV Smart OLED", price: 1950, stock: 0, houseItemType: "tv_rack", houseRoom: "living_room", housePositionX: 5, housePositionY: 4 },
   { id: "demo-sofa", name: "Sofá Retrátil Confort", price: 2200, stock: 0, houseItemType: "sofa", houseRoom: "living_room", housePositionX: 3, housePositionY: 5 },
-  { id: "demo-tv", name: "Painel & Rack TV", price: 890, stock: 0, houseItemType: "tv_rack", houseRoom: "living_room", housePositionX: 6, housePositionY: 4 },
-  { id: "demo-generic", name: "Presente Surpresa para a Casa", price: 350, stock: 1, houseItemType: "generic", houseRoom: "living_room", housePositionX: 5, housePositionY: 5 },
+  { id: "demo-robot", name: "Robô Aspirador Inteligente", price: 1250, stock: 0, houseItemType: "robot_vacuum", houseRoom: "living_room", housePositionX: 2, housePositionY: 5 },
+  { id: "demo-generic", name: "Presente Surpresa para a Casa", price: 350, stock: 1, houseItemType: "generic", houseRoom: "living_room", housePositionX: 7, housePositionY: 5 },
 ];
 
 const DEMO_BUYERS: Record<string, string> = {
@@ -77,15 +112,23 @@ const DEMO_BUYERS: Record<string, string> = {
   "demo-electric": "Tia Cecília",
   "demo-sink": "Vovó Helena",
   "demo-cabinet": "Padrinho Gabriel",
+  "demo-stove": "Tia Cláudia & Tio Jorge",
   "demo-micro": "Bruna & Thiago",
+  "demo-dishwasher": "Padrinhos Marcelo & Bia",
+  "demo-coffee": "Camila & Renato",
+  "demo-airfryer": "Primos Lucas & Sofia",
+  "demo-table": "Vovô Antônio",
   "demo-shower": "Família Souza",
   "demo-toilet": "Amigos do Trabalho",
+  "demo-bath-sink": "Amigos de Infância",
   "demo-wardrobe": "Pais do Noivo",
   "demo-bed": "Irmãos e Cunhados",
-  "demo-dryer": "Madrinha Mariana",
   "demo-washer": "Família Costa",
-  "demo-sofa": "Padrinho Felipe",
+  "demo-dryer": "Madrinha Mariana",
+  "demo-laundry-sink": "Tia Regina",
   "demo-tv": "Tio Fernando",
+  "demo-sofa": "Padrinho Felipe",
+  "demo-robot": "Dindos Pedro & Laura",
 };
 
 export default function PublicVirtualHouse({ weddingId, onOpenCheckout }: PublicVirtualHouseProps) {
@@ -93,6 +136,7 @@ export default function PublicVirtualHouse({ weddingId, onOpenCheckout }: Public
   const [gifts, setGifts] = useState<DBGift[]>([]);
   const [buyers, setBuyers] = useState<Record<string, string>>({}); // Mapping from gift_id to buyer guest_name
   const [selectedGhost, setSelectedGhost] = useState<DBGift | null>(null);
+  const [contributionAmount, setContributionAmount] = useState("");
   const [activeCabinet, setActiveCabinet] = useState<keyof typeof ROOM_DISPLAY | null>(null);
   const [showRoof, setShowRoof] = useState(false);
   const constraintsRef = useRef(null);
@@ -160,9 +204,7 @@ export default function PublicVirtualHouse({ weddingId, onOpenCheckout }: Public
     loadHouseData();
   }, [weddingId]);
 
-  const isGiftPaid = (g: DBGift) => {
-    return g.stock === 0 || (g.raisedAmount !== undefined && g.raisedAmount >= g.price);
-  };
+  const isGiftPaid = (g: DBGift) => isGiftFundingComplete(g);
 
   const getPaidStructural = (type: string) => {
     const item = gifts.find((g) => g.houseItemType === type);
@@ -178,22 +220,11 @@ export default function PublicVirtualHouse({ weddingId, onOpenCheckout }: Public
   const electricPaid = getPaidStructural("electric");
   const plumbingPaid = getPaidStructural("plumbing");
 
-  const placedFurniture = gifts.filter((g) => {
-    return g.houseItemType && g.housePositionX !== null && g.housePositionY !== null && isGiftPaid(g);
+  // Todo móvel já posicionado no grid, independente de já estar 100% financiado —
+  // a revelação gradual acontece na própria renderização, via getGiftFundingProgress.
+  const positionedFurniture = gifts.filter((g) => {
+    return g.houseItemType && !STRUCTURAL_ITEMS.includes(g.houseItemType) && g.housePositionX !== null && g.housePositionY !== null;
   });
-
-  const getFurnitureAt = (x: number, y: number) => {
-    return placedFurniture.find((g) => {
-      if (g.housePositionX === null || g.housePositionY === null) return false;
-      const size = FURNITURE_SIZES[g.houseItemType || ""] || { w: 1, h: 1 };
-      return (
-        x >= g.housePositionX &&
-        x < g.housePositionX + size.w &&
-        y >= g.housePositionY &&
-        y < g.housePositionY + size.h
-      );
-    });
-  };
 
   const getGhostItemAt = (x: number, y: number, roomKey: string) => {
     return gifts.find((g) => {
@@ -209,11 +240,25 @@ export default function PublicVirtualHouse({ weddingId, onOpenCheckout }: Public
 
   const handleGhostClick = (gift: DBGift) => {
     setSelectedGhost(gift);
+    setContributionAmount("");
   };
 
   const handleBuyGhost = () => {
     if (!selectedGhost) return;
-    addItem(selectedGhost);
+
+    let priceToUse = selectedGhost.price;
+    if (selectedGhost.totalQuotas && selectedGhost.price > 0) {
+      priceToUse = selectedGhost.price / selectedGhost.totalQuotas;
+    } else if (selectedGhost.isOpenPrice) {
+      const amount = parseFloat(contributionAmount) || 0;
+      if (amount <= 0) {
+        toast.error("Por favor, insira um valor válido para presentear.");
+        return;
+      }
+      priceToUse = amount;
+    }
+
+    addItem(selectedGhost, priceToUse);
     onOpenCheckout();
     setSelectedGhost(null);
   };
@@ -314,10 +359,11 @@ export default function PublicVirtualHouse({ weddingId, onOpenCheckout }: Public
                       width: `${TILE_W}px`,
                       height: `${TILE_H}px`,
                       zIndex: iso.zIndex,
+                      clipPath: "polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)",
                     }}
                     className={`transition-all flex items-center justify-center
                       ${!tileImg ? "border border-white/20" : ""}
-                      ${ghostItem ? "cursor-pointer hover:brightness-125" : ""}
+                      ${ghostItem ? "cursor-pointer hover:brightness-110" : ""}
                     `}
                   >
                     {tileImg && (
@@ -326,18 +372,6 @@ export default function PublicVirtualHouse({ weddingId, onOpenCheckout }: Public
                     
                     {!tileImg && (
                       <div className="w-1 h-1 rounded-full bg-white/30 absolute pointer-events-none" />
-                    )}
-
-                    {/* Ghost item fallback icon (rendered behind if there's no img yet, or to show hover) */}
-                    {ghostItem && (
-                      <div className="absolute inset-0 flex items-center justify-center bg-gold/20 backdrop-blur-[1px] group z-20 pointer-events-none">
-                         <span className="text-3xl filter sepia saturate-200 drop-shadow-md">
-                           {FURNITURE_ICONS[ghostItem.houseItemType || ""] || "📦"}
-                         </span>
-                         <div className="absolute opacity-0 group-hover:opacity-100 bg-gold text-background text-[10px] font-bold py-1 px-2 rounded -top-8 whitespace-nowrap transition-opacity">
-                           Presentear {ghostItem.name}
-                         </div>
-                      </div>
                     )}
                   </div>
                 );
@@ -393,8 +427,11 @@ export default function PublicVirtualHouse({ weddingId, onOpenCheckout }: Public
                 );
               })}
 
-              {/* Placed Furniture */}
-              {placedFurniture.map((furniture) => {
+              {/* Móveis posicionados: revelação gradual conforme o financiamento avança.
+                  A camada "fantasma" (sépia/translúcida) fica sempre embaixo; a camada
+                  sólida é recortada por clip-path para mostrar só o progresso% de baixo
+                  pra cima — em 100% o fantasma some por baixo do móvel completo. */}
+              {positionedFurniture.map((furniture) => {
                 if (furniture.housePositionX === null || furniture.housePositionY === null || !furniture.houseItemType) return null;
                 const placement = getFurniturePlacement(
                   furniture.houseItemType,
@@ -403,11 +440,14 @@ export default function PublicVirtualHouse({ weddingId, onOpenCheckout }: Public
                   mapOriginX,
                   mapOriginY
                 );
+                const progress = getGiftFundingProgress(furniture);
+                const isComplete = progress >= 100;
                 const buyerName = buyers[furniture.id];
-                
+
                 return (
                   <div
                     key={`furn-${furniture.id}`}
+                    onClick={() => { if (!isComplete) handleGhostClick(furniture); }}
                     style={{
                       position: "absolute",
                       left: `${placement.left}px`,
@@ -416,53 +456,42 @@ export default function PublicVirtualHouse({ weddingId, onOpenCheckout }: Public
                       height: `${placement.height}px`,
                       zIndex: placement.zIndex,
                     }}
-                    className="group pointer-events-auto"
+                    className={`group pointer-events-auto ${!isComplete ? "cursor-pointer hover:brightness-125 transition-all" : ""}`}
                   >
-                    <img 
-                      src={`/assets/iso/furniture_${furniture.houseItemType}.png`} 
-                      alt={furniture.name}
-                      className="w-full h-full object-contain drop-shadow-lg"
-                    />
+                    {!isComplete && (
+                      <img
+                        src={`/assets/iso/furniture_${furniture.houseItemType}.png?v=3`}
+                        alt=""
+                        aria-hidden="true"
+                        className="absolute inset-0 w-full h-full object-contain filter sepia saturate-200 hue-rotate-[15deg] opacity-50 drop-shadow-[0_0_8px_rgba(255,215,0,0.5)] pointer-events-none"
+                      />
+                    )}
+                    {progress > 0 && (
+                      <img
+                        src={`/assets/iso/furniture_${furniture.houseItemType}.png?v=3`}
+                        alt={furniture.name}
+                        className="absolute inset-0 w-full h-full object-contain drop-shadow-lg pointer-events-none"
+                        style={{ clipPath: `inset(${100 - progress}% 0 0 0)` }}
+                      />
+                    )}
                     <div className="absolute bottom-[105%] left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 bg-black/90 text-white text-[9px] sm:text-xs py-1.5 px-3 rounded-lg shadow-soft whitespace-nowrap z-50 pointer-events-none border border-white/10">
-                      <strong>{furniture.name}</strong> <br />
-                      <span className="text-gold/90 font-light mt-0.5 block">
-                        {buyerName ? `Presenteado por ${buyerName}` : "Presenteado com carinho!"}
-                      </span>
-                    </div>
-                  </div>
-                );
-              })}
-
-              {/* Ghost Unplaced Furniture Assets (Using the same PNG but filtered) */}
-              {gifts.filter(g => g.houseItemType && !STRUCTURAL_ITEMS.includes(g.houseItemType) && !isGiftPaid(g) && g.housePositionX !== null && g.housePositionY !== null).map((furniture) => {
-                const placement = getFurniturePlacement(
-                  furniture.houseItemType!,
-                  furniture.housePositionX!,
-                  furniture.housePositionY!,
-                  mapOriginX,
-                  mapOriginY
-                );
-                return (
-                  <div
-                    key={`ghost-img-${furniture.id}`}
-                    onClick={() => handleGhostClick(furniture)}
-                    style={{
-                      position: "absolute",
-                      left: `${placement.left}px`,
-                      top: `${placement.top}px`,
-                      width: `${placement.width}px`,
-                      height: `${placement.height}px`,
-                      zIndex: placement.zIndex,
-                    }}
-                    className="group cursor-pointer hover:brightness-125 transition-all pointer-events-auto"
-                  >
-                    <img 
-                      src={`/assets/iso/furniture_${furniture.houseItemType}.png`} 
-                      alt={furniture.name}
-                      className="w-full h-full object-contain filter sepia saturate-200 hue-rotate-[15deg] opacity-60 drop-shadow-[0_0_8px_rgba(255,215,0,0.5)]"
-                    />
-                    <div className="absolute bottom-[105%] left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 bg-gold text-background text-[10px] font-bold py-1 px-2.5 rounded-md shadow-soft whitespace-nowrap z-50 transition-all pointer-events-none uppercase tracking-wide">
-                      Presentear {furniture.name}
+                      {isComplete ? (
+                        <>
+                          <strong>{furniture.name}</strong> <br />
+                          <span className="text-gold/90 font-light mt-0.5 block">
+                            {buyerName ? `Presenteado por ${buyerName}` : "Presenteado com carinho!"}
+                          </span>
+                        </>
+                      ) : (
+                        <>
+                          <strong>Presentear {furniture.name}</strong>
+                          {progress > 0 && (
+                            <span className="text-gold/90 font-light mt-0.5 block">
+                              {Math.round(progress)}% financiado
+                            </span>
+                          )}
+                        </>
+                      )}
                     </div>
                   </div>
                 );
@@ -559,7 +588,7 @@ export default function PublicVirtualHouse({ weddingId, onOpenCheckout }: Public
 
                 <div className="mx-auto w-24 h-24 rounded-xl bg-gold/10 flex items-center justify-center p-2 relative overflow-hidden">
                    <img 
-                      src={`/assets/iso/furniture_${selectedGhost.houseItemType}.png`} 
+                      src={`/assets/iso/furniture_${selectedGhost.houseItemType}.png?v=3`} 
                       alt={selectedGhost.name}
                       className="w-full h-full object-contain filter sepia saturate-200 hue-rotate-[15deg]"
                    />
@@ -577,16 +606,51 @@ export default function PublicVirtualHouse({ weddingId, onOpenCheckout }: Public
                   </p>
                 </div>
 
-                <p className="text-3xl font-serif text-gold font-bold">
-                  R$ {selectedGhost.price.toFixed(2).replace(".", ",")}
-                </p>
+                {(selectedGhost.totalQuotas || selectedGhost.isVaquinha) && (
+                  <div className="space-y-1.5 text-left">
+                    <div className="h-2 bg-muted rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-gold rounded-full transition-all"
+                        style={{ width: `${getGiftFundingProgress(selectedGhost)}%` }}
+                      />
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {selectedGhost.totalQuotas
+                        ? `${selectedGhost.totalQuotas - (selectedGhost.stock || 0)} de ${selectedGhost.totalQuotas} cotas adquiridas`
+                        : `Arrecadado: R$ ${(selectedGhost.raisedAmount || 0).toFixed(2).replace(".", ",")} de R$ ${selectedGhost.price.toFixed(2).replace(".", ",")}`}
+                    </p>
+                  </div>
+                )}
+
+                {selectedGhost.totalQuotas && selectedGhost.price > 0 ? (
+                  <p className="text-3xl font-serif text-gold font-bold">
+                    R$ {(selectedGhost.price / selectedGhost.totalQuotas).toFixed(2).replace(".", ",")}
+                    <span className="text-sm text-muted-foreground font-sans"> / cota</span>
+                  </p>
+                ) : selectedGhost.isOpenPrice ? (
+                  <div className="text-left space-y-1.5">
+                    <label className="text-xs font-medium text-muted-foreground">Com quanto deseja apoiar essa meta?</label>
+                    <Input
+                      type="number"
+                      min="1"
+                      value={contributionAmount}
+                      onChange={(e) => setContributionAmount(e.target.value)}
+                      placeholder="R$ 0,00"
+                      className="text-center text-lg"
+                    />
+                  </div>
+                ) : (
+                  <p className="text-3xl font-serif text-gold font-bold">
+                    R$ {selectedGhost.price.toFixed(2).replace(".", ",")}
+                  </p>
+                )}
 
                 <Button
                   onClick={handleBuyGhost}
                   className="w-full bg-gold hover:bg-gold-light text-background font-bold py-4 text-sm uppercase tracking-wider rounded-xl shadow-soft"
                 >
                   <ShoppingBag className="w-4 h-4 mr-2" />
-                  Presentear Agora
+                  {selectedGhost.totalQuotas ? "Adquirir Cota" : "Presentear Agora"}
                 </Button>
               </motion.div>
             </div>
