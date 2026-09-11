@@ -10,7 +10,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { motion } from "framer-motion";
-import { getIsoCoords, TILE_W, TILE_H, ISO_ROOMS, FURNITURE_SIZES, getFurniturePlacement } from "@/utils/isometric";
+import { getIsoCoords, TILE_W, TILE_H, ISO_ROOMS, FURNITURE_SIZES, getFurniturePlacement, isCountertopProperlyPlaced, COUNTERTOP_ITEM_TYPES, COUNTER_SURFACE_ITEM_TYPES } from "@/utils/isometric";
 import { getGiftFundingProgress, isGiftFundingComplete } from "@/utils/giftFunding";
 
 interface DashboardVirtualHouseProps {
@@ -119,8 +119,8 @@ export default function DashboardVirtualHouse({ weddingId }: DashboardVirtualHou
     return g.house_item_type && g.house_position_x !== null && g.house_position_y !== null;
   });
 
-  const getFurnitureAt = (x: number, y: number) => {
-    return placedFurniture.find((g) => {
+  const getFurnituresAt = (x: number, y: number) => {
+    return placedFurniture.filter((g) => {
       if (g.house_position_x === null || g.house_position_y === null) return false;
       const size = FURNITURE_SIZES[g.house_item_type || ""] || { w: 1, h: 1 };
       return (
@@ -146,18 +146,41 @@ export default function DashboardVirtualHouse({ weddingId }: DashboardVirtualHou
       return;
     }
 
-    let isOccupied = false;
-    for (let i = 0; i < size.w; i++) {
-      for (let j = 0; j < size.h; j++) {
-        if (getFurnitureAt(x + i, y + j)) {
-          isOccupied = true;
+    const isCountertop = COUNTERTOP_ITEM_TYPES.includes(selectedFurniture.house_item_type || "");
+
+    if (isCountertop) {
+      const placedItems = placedFurniture.map((g) => ({
+        id: g.id,
+        type: g.house_item_type || "",
+        x: g.house_position_x ?? 0,
+        y: g.house_position_y ?? 0,
+      }));
+      const check = isCountertopProperlyPlaced(
+        selectedFurniture.house_item_type || "",
+        x,
+        y,
+        placedItems,
+        selectedFurniture.id
+      );
+      if (!check.valid) {
+        toast.error(check.reason);
+        return;
+      }
+    } else {
+      let isOccupied = false;
+      for (let i = 0; i < size.w; i++) {
+        for (let j = 0; j < size.h; j++) {
+          const items = getFurnituresAt(x + i, y + j).filter((g) => g.id !== selectedFurniture.id);
+          if (items.length > 0) {
+            isOccupied = true;
+          }
         }
       }
-    }
 
-    if (isOccupied) {
-      toast.error("Este espaço já está ocupado por outro móvel");
-      return;
+      if (isOccupied) {
+        toast.error("Este espaço já está ocupado por outro móvel");
+        return;
+      }
     }
 
     try {
@@ -407,34 +430,45 @@ export default function DashboardVirtualHouse({ weddingId }: DashboardVirtualHou
             })}
 
             {/* Placed Furniture */}
-            {placedFurniture.map((furniture) => {
-              if (furniture.house_position_x === null || furniture.house_position_y === null || !furniture.house_item_type) return null;
-              const placement = getFurniturePlacement(
-                furniture.house_item_type,
-                furniture.house_position_x,
-                furniture.house_position_y,
-                mapOriginX,
-                mapOriginY
-              );
-              
-              return (
-                <div
-                  key={`furn-${furniture.id}`}
-                  style={{
-                    position: "absolute",
-                    left: `${placement.left}px`,
-                    top: `${placement.top}px`,
-                    width: `${placement.width}px`,
-                    height: `${placement.height}px`,
-                    zIndex: placement.zIndex,
-                  }}
-                  className="group pointer-events-auto"
-                >
-                  <img 
-                    src={`/assets/iso/furniture_${furniture.house_item_type}.png?v=3`} 
-                    alt={furniture.name}
-                    className="w-full h-full object-contain drop-shadow-lg"
-                  />
+            {(() => {
+              const allPlacedItemsList = placedFurniture
+                .filter((f) => f.house_position_x !== null && f.house_position_y !== null && f.house_item_type)
+                .map((f) => ({
+                  type: f.house_item_type as string,
+                  x: f.house_position_x as number,
+                  y: f.house_position_y as number,
+                }));
+
+              return placedFurniture.map((furniture) => {
+                if (furniture.house_position_x === null || furniture.house_position_y === null || !furniture.house_item_type) return null;
+                const placement = getFurniturePlacement(
+                  furniture.house_item_type,
+                  furniture.house_position_x,
+                  furniture.house_position_y,
+                  mapOriginX,
+                  mapOriginY,
+                  allPlacedItemsList
+                );
+                
+                return (
+                  <div
+                    key={`furn-${furniture.id}`}
+                    style={{
+                      position: "absolute",
+                      left: `${placement.left}px`,
+                      top: `${placement.top}px`,
+                      width: `${placement.width}px`,
+                      height: `${placement.height}px`,
+                      zIndex: placement.zIndex,
+                    }}
+                    className="group pointer-events-auto"
+                  >
+                    <img 
+                      src={`/assets/iso/furniture_${furniture.house_item_type}.png?v=16`} 
+                      alt={furniture.name}
+                      className="w-full h-full object-contain drop-shadow-lg"
+                      style={{ imageRendering: "pixelated" }}
+                    />
                   {/* Tooltip Overlay */}
                   <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 bg-background/95 rounded-lg flex flex-col items-center justify-center p-2 text-center transition-opacity border border-border shadow-soft z-50">
                       <span className="text-[10px] font-bold text-foreground whitespace-nowrap">{furniture.name}</span>
@@ -451,7 +485,8 @@ export default function DashboardVirtualHouse({ weddingId }: DashboardVirtualHou
                   </div>
                 </div>
               );
-            })}
+            });
+          })()}
 
             {/* Roof Overlay */}
             {showRoof && roofPaid && (() => {

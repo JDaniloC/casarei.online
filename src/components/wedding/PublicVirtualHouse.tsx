@@ -40,6 +40,7 @@ const FURNITURE_ICONS: Record<string, string> = {
   coffee_maker: "☕",
   air_fryer: "🍟",
   dining_table: "🍽️",
+  dining_table_simple: "🪵",
   sofa: "🛋️",
   tv_rack: "📺",
   tv: "📺",
@@ -72,14 +73,14 @@ export const DEMO_HOUSE_GIFTS: DBGift[] = [
 
   // Cozinha
   { id: "demo-fridge", name: "Geladeira French Door", price: 4200, stock: 0, houseItemType: "fridge", houseRoom: "kitchen", housePositionX: 0, housePositionY: 0 },
-  { id: "demo-stove", name: "Fogão Cooktop 4 Bocas Inox", price: 1650, stock: 0, houseItemType: "stove", houseRoom: "kitchen", housePositionX: 1, housePositionY: 0 },
-  { id: "demo-cabinet", name: "Armários Planejados Cozinha", price: 3200, stock: 0, houseItemType: "kitchen_cabinet", houseRoom: "kitchen", housePositionX: 2, housePositionY: 0 },
-  { id: "demo-micro", name: "Micro-ondas Espelhado 30L", price: 650, stock: 0, houseItemType: "microwave", houseRoom: "kitchen", housePositionX: 2, housePositionY: 0 },
-  { id: "demo-airfryer", name: "Air Fryer Digital 4L", price: 390, stock: 0, houseItemType: "air_fryer", houseRoom: "kitchen", housePositionX: 3, housePositionY: 0 },
-  { id: "demo-sink", name: "Bancada com Pia & Torneira", price: 1850, stock: 0, houseItemType: "sink_counter", houseRoom: "kitchen", housePositionX: 0, housePositionY: 1 },
-  { id: "demo-coffee", name: "Cafeteira Expresso Italiana", price: 450, stock: 0, houseItemType: "coffee_maker", houseRoom: "kitchen", housePositionX: 0, housePositionY: 1 },
-  { id: "demo-dishwasher", name: "Lava-Louças Inox 14 Serviços", price: 2800, stock: 0, houseItemType: "dishwasher", houseRoom: "kitchen", housePositionX: 2, housePositionY: 1 },
-  { id: "demo-table", name: "Mesa de Jantar 4 Lugares", price: 2100, stock: 0, houseItemType: "dining_table", houseRoom: "kitchen", housePositionX: 0, housePositionY: 2 },
+  { id: "demo-dishwasher", name: "Lava-Louças Inox 14 Serviços", price: 2800, stock: 0, houseItemType: "dishwasher", houseRoom: "kitchen", housePositionX: 0, housePositionY: 2 },
+  { id: "demo-sink", name: "Bancada com Pia & Torneira", price: 1850, stock: 0, houseItemType: "sink_counter", houseRoom: "kitchen", housePositionX: 1, housePositionY: 0 },
+  { id: "demo-coffee", name: "Cafeteira Expresso Italiana", price: 450, stock: 0, houseItemType: "coffee_maker", houseRoom: "kitchen", housePositionX: 1, housePositionY: 0 },
+  { id: "demo-stove", name: "Fogão Cooktop 4 Bocas Inox", price: 1650, stock: 0, houseItemType: "stove", houseRoom: "kitchen", housePositionX: 3, housePositionY: 0 },
+  { id: "demo-cabinet", name: "Armários Planejados Cozinha", price: 3200, stock: 0, houseItemType: "kitchen_cabinet", houseRoom: "kitchen", housePositionX: 2, housePositionY: 2 },
+  { id: "demo-airfryer", name: "Air Fryer Digital 4L", price: 390, stock: 0, houseItemType: "air_fryer", houseRoom: "kitchen", housePositionX: 2, housePositionY: 2 },
+  { id: "demo-micro", name: "Micro-ondas Espelhado 30L", price: 650, stock: 0, houseItemType: "microwave", houseRoom: "kitchen", housePositionX: 3, housePositionY: 2 },
+  { id: "demo-table", name: "Mesa de Jantar 4 Lugares", price: 2100, stock: 0, houseItemType: "dining_table", houseRoom: "kitchen", housePositionX: 2, housePositionY: 4 },
 
   // Banheiro
   { id: "demo-shower", name: "Box Blindex & Chuveiro Ducha", price: 1100, stock: 0, houseItemType: "shower", houseRoom: "bathroom", housePositionX: 4, housePositionY: 0 },
@@ -87,19 +88,23 @@ export const DEMO_HOUSE_GIFTS: DBGift[] = [
   { id: "demo-toilet", name: "Vaso Sanitário Monobloco", price: 580, stock: 0, houseItemType: "toilet", houseRoom: "bathroom", housePositionX: 4, housePositionY: 2 },
 
   // Quarto
-  { id: "demo-wardrobe", name: "Guarda-Roupa Casal", price: 2800, stock: 0, houseItemType: "wardrobe", houseRoom: "bedroom", housePositionX: 8, housePositionY: 0 },
-  { id: "demo-bed", name: "Cama Queen Size", price: 2400, stock: 0, houseItemType: "bed", houseRoom: "bedroom", housePositionX: 6, housePositionY: 1 },
+  { id: "demo-wardrobe", name: "Guarda-Roupa Casal 3 Portas", price: 2800, stock: 0, houseItemType: "wardrobe", houseRoom: "bedroom", housePositionX: 8, housePositionY: 0 },
+  { id: "demo-bed", name: "Cama Queen Size", price: 2400, stock: 0, houseItemType: "bed", houseRoom: "bedroom", housePositionX: 6, housePositionY: 0 },
+  { id: "demo-vanity", name: "Penteadeira com Espelho Camarim", price: 950, stock: 0, houseItemType: "vanity", houseRoom: "bedroom", housePositionX: 8, housePositionY: 2 },
+  { id: "demo-dresser", name: "Cômoda 6 Gavetas Carvalho", price: 1200, stock: 0, houseItemType: "dresser", houseRoom: "bedroom", housePositionX: 6, housePositionY: 3 },
 
   // Área de Serviço
   { id: "demo-washer", name: "Máquina de Lavar 13kg Front-Load", price: 2200, stock: 0, houseItemType: "washing_machine", houseRoom: "laundry", housePositionX: 0, housePositionY: 4 },
-  { id: "demo-dryer", name: "Secadora de Roupas Front-Load", price: 1800, stock: 0, houseItemType: "dryer", houseRoom: "laundry", housePositionX: 1, housePositionY: 4 },
-  { id: "demo-laundry-sink", name: "Tanque Inox com Gabinete", price: 680, stock: 0, houseItemType: "laundry_sink", houseRoom: "laundry", housePositionX: 0, housePositionY: 5 },
+  { id: "demo-dryer", name: "Secadora de Roupas Front-Load", price: 1800, stock: 0, houseItemType: "dryer", houseRoom: "laundry", housePositionX: 0, housePositionY: 5 },
+  { id: "demo-laundry-sink", name: "Tanque Inox com Gabinete", price: 680, stock: 0, houseItemType: "laundry_sink", houseRoom: "laundry", housePositionX: 0, housePositionY: 6 },
 
   // Sala de Estar
-  { id: "demo-tv", name: "Rack & Painel TV Smart OLED", price: 1950, stock: 0, houseItemType: "tv_rack", houseRoom: "living_room", housePositionX: 5, housePositionY: 4 },
-  { id: "demo-sofa", name: "Sofá Retrátil Confort", price: 2200, stock: 0, houseItemType: "sofa", houseRoom: "living_room", housePositionX: 3, housePositionY: 5 },
-  { id: "demo-robot", name: "Robô Aspirador Inteligente", price: 1250, stock: 0, houseItemType: "robot_vacuum", houseRoom: "living_room", housePositionX: 2, housePositionY: 6 },
-  { id: "demo-generic", name: "Presente Surpresa para a Casa", price: 350, stock: 1, houseItemType: "generic", houseRoom: "living_room", housePositionX: 7, housePositionY: 5 },
+  { id: "demo-tv", name: "Rack & Painel TV Smart OLED", price: 1950, stock: 0, houseItemType: "tv_rack", houseRoom: "living_room", housePositionX: 7, housePositionY: 4 },
+  { id: "demo-sofa", name: "Sofá Retrátil Confort", price: 2200, stock: 0, houseItemType: "sofa", houseRoom: "living_room", housePositionX: 4, housePositionY: 5 },
+  { id: "demo-coffee-table", name: "Mesa de Centro Tampo Vidro", price: 550, stock: 0, houseItemType: "coffee_table", houseRoom: "living_room", housePositionX: 6, housePositionY: 5 },
+  { id: "demo-armchair", name: "Poltrona Sala de Estar", price: 850, stock: 0, houseItemType: "armchair", houseRoom: "living_room", housePositionX: 7, housePositionY: 6 },
+  { id: "demo-robot", name: "Robô Aspirador Inteligente", price: 1250, stock: 0, houseItemType: "robot_vacuum", houseRoom: "living_room", housePositionX: 5, housePositionY: 6 },
+  { id: "demo-generic", name: "Presente Surpresa para a Casa", price: 350, stock: 1, houseItemType: "generic", houseRoom: "living_room", housePositionX: 9, housePositionY: 4 },
 ];
 
 const DEMO_BUYERS: Record<string, string> = {
@@ -122,11 +127,15 @@ const DEMO_BUYERS: Record<string, string> = {
   "demo-toilet": "Amigos do Trabalho",
   "demo-bath-sink": "Amigos de Infância",
   "demo-wardrobe": "Pais do Noivo",
+  "demo-vanity": "Madrinha Juliana",
   "demo-bed": "Irmãos e Cunhados",
+  "demo-dresser": "Tia Marisa & Tio Carlos",
   "demo-washer": "Família Costa",
   "demo-dryer": "Madrinha Mariana",
   "demo-laundry-sink": "Tia Regina",
   "demo-tv": "Tio Fernando",
+  "demo-coffee-table": "Colegas de Trabalho",
+  "demo-armchair": "Família Barreto",
   "demo-sofa": "Padrinho Felipe",
   "demo-robot": "Dindos Pedro & Laura",
 };
@@ -287,7 +296,7 @@ export default function PublicVirtualHouse({ weddingId, onOpenCheckout }: Public
   }
 
   // Calculate container dimensions based on isometric bounds
-  const mapOriginX = 420;
+  const mapOriginX = 400;
   const mapOriginY = 180;
   const containerHeight = (9 + 6) * (TILE_H / 2) + 260;
 
@@ -303,7 +312,7 @@ export default function PublicVirtualHouse({ weddingId, onOpenCheckout }: Public
           </p>
         </div>
 
-        <div className="bg-[#4a5f41] p-4 sm:p-8 rounded-3xl border-[6px] border-[#3e5036] shadow-elevated relative overflow-hidden max-w-5xl mx-auto">
+        <div className="bg-[#141614] p-3 sm:p-6 rounded-3xl border border-white/10 shadow-elevated relative overflow-hidden max-w-5xl mx-auto">
           <div className="absolute top-4 right-4 z-30 flex gap-2">
             {roofPaid && (
               <Button
@@ -327,7 +336,7 @@ export default function PublicVirtualHouse({ weddingId, onOpenCheckout }: Public
               dragConstraints={constraintsRef}
               dragElastic={0.1}
               className="relative mx-auto" 
-              style={{ width: '1240px', height: `${containerHeight}px` }}
+              style={{ width: '1160px', height: `${containerHeight}px` }}
             >
               
               {/* Grid Foundation & Cells */}
@@ -431,49 +440,60 @@ export default function PublicVirtualHouse({ weddingId, onOpenCheckout }: Public
                   A camada "fantasma" (sépia/translúcida) fica sempre embaixo; a camada
                   sólida é recortada por clip-path para mostrar só o progresso% de baixo
                   pra cima — em 100% o fantasma some por baixo do móvel completo. */}
-              {positionedFurniture.map((furniture) => {
-                if (furniture.housePositionX === null || furniture.housePositionY === null || !furniture.houseItemType) return null;
-                const placement = getFurniturePlacement(
-                  furniture.houseItemType,
-                  furniture.housePositionX,
-                  furniture.housePositionY,
-                  mapOriginX,
-                  mapOriginY
-                );
-                const progress = getGiftFundingProgress(furniture);
-                const isComplete = progress >= 100;
-                const buyerName = buyers[furniture.id];
+              {(() => {
+                const allPlacedItemsList = positionedFurniture
+                  .filter((f) => f.housePositionX !== null && f.housePositionY !== null && f.houseItemType)
+                  .map((f) => ({
+                    type: f.houseItemType as string,
+                    x: f.housePositionX as number,
+                    y: f.housePositionY as number,
+                  }));
 
-                return (
-                  <div
-                    key={`furn-${furniture.id}`}
-                    onClick={() => { if (!isComplete) handleGhostClick(furniture); }}
-                    style={{
-                      position: "absolute",
-                      left: `${placement.left}px`,
-                      top: `${placement.top}px`,
-                      width: `${placement.width}px`,
-                      height: `${placement.height}px`,
-                      zIndex: placement.zIndex,
-                    }}
-                    className={`group pointer-events-auto ${!isComplete ? "cursor-pointer hover:brightness-125 transition-all" : ""}`}
-                  >
-                    {!isComplete && (
-                      <img
-                        src={`/assets/iso/furniture_${furniture.houseItemType}.png?v=3`}
-                        alt=""
-                        aria-hidden="true"
-                        className="absolute inset-0 w-full h-full object-contain filter sepia saturate-200 hue-rotate-[15deg] opacity-50 drop-shadow-[0_0_8px_rgba(255,215,0,0.5)] pointer-events-none"
-                      />
-                    )}
-                    {progress > 0 && (
-                      <img
-                        src={`/assets/iso/furniture_${furniture.houseItemType}.png?v=3`}
-                        alt={furniture.name}
-                        className="absolute inset-0 w-full h-full object-contain drop-shadow-lg pointer-events-none"
-                        style={{ clipPath: `inset(${100 - progress}% 0 0 0)` }}
-                      />
-                    )}
+                return positionedFurniture.map((furniture) => {
+                  if (furniture.housePositionX === null || furniture.housePositionY === null || !furniture.houseItemType) return null;
+                  const placement = getFurniturePlacement(
+                    furniture.houseItemType,
+                    furniture.housePositionX,
+                    furniture.housePositionY,
+                    mapOriginX,
+                    mapOriginY,
+                    allPlacedItemsList
+                  );
+                  const progress = getGiftFundingProgress(furniture);
+                  const isComplete = progress >= 100;
+                  const buyerName = buyers[furniture.id];
+
+                  return (
+                    <div
+                      key={`furn-${furniture.id}`}
+                      onClick={() => { if (!isComplete) handleGhostClick(furniture); }}
+                      style={{
+                        position: "absolute",
+                        left: `${placement.left}px`,
+                        top: `${placement.top}px`,
+                        width: `${placement.width}px`,
+                        height: `${placement.height}px`,
+                        zIndex: placement.zIndex,
+                      }}
+                      className={`group pointer-events-auto ${!isComplete ? "cursor-pointer hover:brightness-125 transition-all" : ""}`}
+                    >
+                      {!isComplete && (
+                        <img
+                          src={`/assets/iso/furniture_${furniture.houseItemType}.png?v=16`}
+                          alt=""
+                          aria-hidden="true"
+                          className="absolute inset-0 w-full h-full object-contain filter sepia saturate-200 hue-rotate-[15deg] opacity-50 drop-shadow-[0_0_8px_rgba(255,215,0,0.5)] pointer-events-none"
+                          style={{ imageRendering: "pixelated" }}
+                        />
+                      )}
+                      {progress > 0 && (
+                        <img
+                          src={`/assets/iso/furniture_${furniture.houseItemType}.png?v=16`}
+                          alt={furniture.name}
+                          className="absolute inset-0 w-full h-full object-contain drop-shadow-lg pointer-events-none"
+                          style={{ clipPath: `inset(${100 - progress}% 0 0 0)`, imageRendering: "pixelated" }}
+                        />
+                      )}
                     <div className="absolute bottom-[105%] left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 bg-black/90 text-white text-[9px] sm:text-xs py-1.5 px-3 rounded-lg shadow-soft whitespace-nowrap z-50 pointer-events-none border border-white/10">
                       {isComplete ? (
                         <>
@@ -495,7 +515,8 @@ export default function PublicVirtualHouse({ weddingId, onOpenCheckout }: Public
                     </div>
                   </div>
                 );
-              })}
+              });
+            })()}
 
               {/* Room Cabinet Buttons */}
               {foundationPaid && (

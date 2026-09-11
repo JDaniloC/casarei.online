@@ -543,11 +543,18 @@ const Dashboard = () => {
 
       // Save gifts - only insert new ones and update existing ones, delete removed ones
       const currentGiftsIds = config.gifts.map(g => g.id).filter(id => id.length > 20); // valid UUIDs
-      
-      // Find gifts to delete (in DB but not in current config)
-      const { data: dbGifts } = await supabase.from("gifts").select("id").eq("wedding_id", weddingId);
+
+      // Find gifts to delete (in DB but not in current config). Presentes vinculados
+      // à Casa Virtual (house_item_type preenchido) NUNCA entram nesse diff: eles são
+      // geridos à parte pelo Catálogo da Casa/"Vincular Presente", que gravam direto
+      // no Supabase sem passar por config.gifts — tratá-los aqui os apagaria sempre
+      // que o estado local estivesse desatualizado em relação ao banco.
+      const { data: dbGifts } = await supabase.from("gifts").select("id, house_item_type").eq("wedding_id", weddingId);
       if (dbGifts) {
-        const idsToDelete = dbGifts.map(g => g.id).filter(id => !currentGiftsIds.includes(id));
+        const idsToDelete = dbGifts
+          .filter(g => !g.house_item_type)
+          .map(g => g.id)
+          .filter(id => !currentGiftsIds.includes(id));
         if (idsToDelete.length > 0) {
           await supabase.from("gifts").delete().in("id", idsToDelete);
         }

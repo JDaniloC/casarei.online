@@ -38,6 +38,7 @@ export const FURNITURE_SIZES: Record<string, FurnitureFootprint> = {
   microwave: { w: 1, h: 1 },
   sink_counter: { w: 2, h: 1 },
   dining_table: { w: 2, h: 2 },
+  dining_table_simple: { w: 2, h: 1 },
   kitchen_cabinet: { w: 2, h: 1 },
   dishwasher: { w: 1, h: 1 },
   sofa: { w: 2, h: 1 },
@@ -50,7 +51,7 @@ export const FURNITURE_SIZES: Record<string, FurnitureFootprint> = {
   vanity: { w: 1, h: 1 },
   toilet: { w: 1, h: 1 },
   bathroom_sink: { w: 1, h: 1 },
-  shower: { w: 1, h: 2 },
+  shower: { w: 1, h: 1 },
   washing_machine: { w: 1, h: 1 },
   dryer: { w: 1, h: 1 },
   laundry_sink: { w: 1, h: 1 },
@@ -62,29 +63,30 @@ export const FURNITURE_SIZES: Record<string, FurnitureFootprint> = {
 
 export const FURNITURE_PIXEL_SIZES: Record<string, FurniturePixelSize> = {
   fridge: { w: 128, h: 160 },
-  stove: { w: 128, h: 128 },
-  microwave: { w: 72, h: 54, offsetX: 28, offsetY: -34 },
+  stove: { w: 128, h: 128, offsetX: 2, offsetY: -2 },
+  microwave: { w: 72, h: 54, offsetX: 36, offsetY: -74 },
   sink_counter: { w: 192, h: 128 },
   dining_table: { w: 256, h: 192, offsetX: -64 },
-  kitchen_cabinet: { w: 192, h: 128 },
+  dining_table_simple: { w: 192, h: 128 },
+  kitchen_cabinet: { w: 192, h: 128, offsetX: 16, offsetY: 8 },
   dishwasher: { w: 128, h: 128 },
-  sofa: { w: 192, h: 128 },
+  sofa: { w: 192, h: 160 },
   tv_rack: { w: 192, h: 160 },
   coffee_table: { w: 128, h: 80 },
   armchair: { w: 128, h: 128 },
-  bed: { w: 256, h: 192, offsetX: -64 },
-  wardrobe: { w: 192, h: 160 },
+  bed: { w: 256, h: 192, offsetX: -64, offsetY: -4 },
+  wardrobe: { w: 192, h: 186 },
   dresser: { w: 192, h: 128 },
   vanity: { w: 128, h: 128 },
-  toilet: { w: 128, h: 128 },
-  bathroom_sink: { w: 128, h: 128 },
-  shower: { w: 192, h: 160, offsetX: -64 },
+  toilet: { w: 128, h: 128, offsetX: 0, offsetY: 0 },
+  bathroom_sink: { w: 128, h: 160, offsetX: -14 },
+  shower: { w: 128, h: 186 },
   washing_machine: { w: 128, h: 128 },
   dryer: { w: 128, h: 128 },
   laundry_sink: { w: 128, h: 128 },
-  coffee_maker: { w: 64, h: 56, offsetX: 32, offsetY: -34 },
-  air_fryer: { w: 64, h: 56, offsetX: 32, offsetY: -34 },
-  robot_vacuum: { w: 64, h: 40, offsetX: 32 },
+  coffee_maker: { w: 64, h: 56, offsetX: 32, offsetY: -66 },
+  air_fryer: { w: 64, h: 56, offsetX: 40, offsetY: -62 },
+  robot_vacuum: { w: 64, h: 48, offsetX: 32, offsetY: 0 },
   generic: { w: 128, h: 128 },
 };
 
@@ -94,52 +96,54 @@ export const FURNITURE_PIXEL_SIZES: Record<string, FurniturePixelSize> = {
 export const DEFAULT_FURNITURE_POSITIONS: Record<string, { x: number; y: number }> = {
   // Cozinha (ISO_ROOMS.kitchen: x0-3, y0-3)
   fridge: { x: 0, y: 0 },
-  stove: { x: 1, y: 0 },
-  kitchen_cabinet: { x: 2, y: 0 },
-  microwave: { x: 2, y: 0 }, // Senta no armário planejado
-  air_fryer: { x: 3, y: 0 }, // Senta no armário planejado
-  sink_counter: { x: 0, y: 1 },
-  coffee_maker: { x: 0, y: 1 }, // Senta na bancada de pia
-  dishwasher: { x: 2, y: 1 },
-  dining_table: { x: 0, y: 2 }, // Ocupa (0,2), (1,2), (0,3), (1,3)
+  dishwasher: { x: 0, y: 2 }, // Parede lateral na linha da ilha, liberando 100% da visão da geladeira e corredor livre em y=1
+  sink_counter: { x: 1, y: 0 },
+  coffee_maker: { x: 1, y: 0 }, // Senta na bancada da pia (1,0) sob a janela
+  stove: { x: 3, y: 0 },
+  kitchen_cabinet: { x: 2, y: 2 }, // Ilha gourmet central (2,2) e (3,2) com corredor de circulação livre em y=1
+  air_fryer: { x: 2, y: 2 }, // Senta na metade esquerda da ilha gourmet (2,2)
+  microwave: { x: 3, y: 2 }, // Senta na metade direita da ilha gourmet (3,2)
+  dining_table: { x: 2, y: 4 }, // Sala de jantar integrada entre cozinha e living
+  dining_table_simple: { x: 2, y: 4 },
 
   // Banheiro (ISO_ROOMS.bathroom: x4-5, y0-3)
-  shower: { x: 4, y: 0 }, // Ocupa (4,0) e (4,1)
-  bathroom_sink: { x: 5, y: 0 }, // Na parede de fundo (5,0)
-  toilet: { x: 4, y: 2 }, // Ao lado da parede do chuveiro (4,2)
+  shower: { x: 4, y: 0 }, // Box shower no canto reservado
+  bathroom_sink: { x: 5, y: 0 }, // Na parede de fundo com espelho LED (5,0)
+  toilet: { x: 4, y: 2 }, // Encostado na parede lateral divisória (4,2), deixando cuba e circulação 100% livres e longe do quarto
 
   // Quarto (ISO_ROOMS.bedroom: x6-9, y0-3)
-  wardrobe: { x: 8, y: 0 }, // Ocupa (8,0) e (9,0)
-  bed: { x: 6, y: 1 }, // Ocupa (6,1), (7,1), (6,2), (7,2)
-  dresser: { x: 8, y: 2 },
-  vanity: { x: 6, y: 0 },
+  wardrobe: { x: 8, y: 0 }, // Guarda-roupa 3 portas na parede de fundo
+  bed: { x: 6, y: 0 }, // Cama queen size encostada na parede de fundo (6,0)..(7,1)
+  vanity: { x: 8, y: 2 }, // Penteadeira com espelho camarim no closet ao lado do guarda-roupa
+  dresser: { x: 6, y: 3 }, // Cômoda 6 gavetas baixa na divisória, pés da cama livres e zero sobreposição com a TV
 
   // Área de Serviço (ISO_ROOMS.laundry: x0-1, y4-6)
   washing_machine: { x: 0, y: 4 },
-  dryer: { x: 1, y: 4 },
-  laundry_sink: { x: 0, y: 5 },
+  dryer: { x: 0, y: 5 }, // Sob a janela da área de serviço
+  laundry_sink: { x: 0, y: 6 }, // Tanque inox no canto
 
   // Sala de Estar (ISO_ROOMS.living_room: x2-9, y4-6)
-  tv_rack: { x: 5, y: 4 },
-  sofa: { x: 3, y: 5 },
-  coffee_table: { x: 4, y: 4 },
-  armchair: { x: 7, y: 4 },
-  robot_vacuum: { x: 2, y: 6 },
-  generic: { x: 7, y: 5 },
+  tv_rack: { x: 7, y: 4 }, // Centralizado na parede divisória do quarto
+  sofa: { x: 4, y: 5 }, // Sofá confortável
+  coffee_table: { x: 6, y: 5 }, // Mesa de centro integrada no living
+  armchair: { x: 7, y: 6 }, // Poltrona em ângulo aconchegante na frente
+  robot_vacuum: { x: 5, y: 6 }, // Robô aspirador no piso livre
+  generic: { x: 9, y: 4 }, // Presente surpresa decorativo no canto
 };
 
 // Eletrodomésticos de bancada — os únicos tipos com permissão de dividir célula
-// com um balcão/armário (sentam "em cima" dele). Qualquer outra sobreposição
+// com um balcão/armário/mesa (sentam "em cima" dele). Qualquer outra sobreposição
 // entre dois itens é considerada colisão indevida — ver findCollisions().
 export const COUNTERTOP_ITEM_TYPES = ['microwave', 'coffee_maker', 'air_fryer'];
-export const COUNTER_SURFACE_ITEM_TYPES = ['sink_counter', 'kitchen_cabinet'];
+export const COUNTER_SURFACE_ITEM_TYPES = ['sink_counter', 'kitchen_cabinet', 'dining_table', 'dining_table_simple'];
 
 export function getFurniturePlacement(
   itemType: string,
   gridX: number,
   gridY: number,
   mapOriginX = 0,
-  mapOriginY = 0
+  mapOriginY = 0,
+  allPlacedItems?: PlacedItem[]
 ) {
   const footprint = FURNITURE_SIZES[itemType] || { w: 1, h: 1 };
   const pixels = FURNITURE_PIXEL_SIZES[itemType] || { w: 128, h: 128 };
@@ -148,13 +152,50 @@ export function getFurniturePlacement(
   const left = iso.x + (pixels.offsetX || 0);
 
   // The base of the footprint sits at the bottom vertex of (gridX + w - 1, gridY + h - 1)
-  const bottomGridSum = (gridX + footprint.w - 1) + (gridY + footprint.h - 1);
+  const frontX = gridX + footprint.w - 1;
+  const frontY = gridY + footprint.h - 1;
+  const bottomGridSum = frontX + frontY;
   const bottomY = bottomGridSum * (TILE_H / 2 - TILE_Y_OFFSET) + TILE_H + mapOriginY;
   const top = bottomY - pixels.h + (pixels.offsetY || 0);
 
   // Small countertop appliances sit on top of furniture in the same cell
   const isCountertopItem = COUNTERTOP_ITEM_TYPES.includes(itemType);
-  const zIndex = ((gridX + footprint.w - 1) + (gridY + footprint.h - 1)) * 2 + 100 + (isCountertopItem ? 3 : 0);
+
+  // Depth sorting:
+  // Strictly guarantees that furniture further to the back (smaller Y) is COVERED
+  // by furniture closer to the camera (larger Y):
+  // 1. Primary depth: total distance along the isometric camera viewing axis (frontX + frontY)
+  // 2. Secondary depth (tie-breaker for same distance): frontY (items with larger frontY
+  //    are closer to the camera and must render on top — e.g. vanity at gridY=2 covers
+  //    bed whose back reaches gridY=0, even when both share the same frontSum)
+  // 3. Countertop elevation: countertop appliances (microwave, coffee_maker, air_fryer) sit on top of their host counter (+10)
+  let hostFrontX = frontX;
+  let hostFrontY = frontY;
+  if (isCountertopItem) {
+    if (allPlacedItems && allPlacedItems.length > 0) {
+      const host = allPlacedItems.find((item) => {
+        if (item.type === itemType) return false;
+        if (!COUNTER_SURFACE_ITEM_TYPES.includes(item.type)) return false;
+        const cells = getOccupiedCells(item.type, item.x, item.y);
+        return cells.some((c) => c.x === gridX && c.y === gridY);
+      });
+      if (host) {
+        const hostFootprint = FURNITURE_SIZES[host.type] || { w: 1, h: 1 };
+        hostFrontX = host.x + hostFootprint.w - 1;
+        hostFrontY = host.y + hostFootprint.h - 1;
+      }
+    } else {
+      if (itemType === 'air_fryer' && gridX === 2) hostFrontX = 3;
+      if (itemType === 'coffee_maker' && gridX === 1) hostFrontX = 2;
+      if (itemType === 'coffee_maker' && gridX === 0) hostFrontX = 1;
+      if (itemType === 'microwave' && gridX === 2) hostFrontX = 3;
+    }
+  }
+
+  const baseDepth = (hostFrontX + hostFrontY) * 10000;
+  const horizontalTier = hostFrontY * 100;
+  const countertopBoost = isCountertopItem ? 50 : 0;
+  const zIndex = baseDepth + horizontalTier + countertopBoost + 100;
 
   return {
     left,
@@ -211,5 +252,50 @@ export function findCollisions(items: PlacedItem[]): [PlacedItem, PlacedItem][] 
   }
 
   return collisions;
+}
+
+/**
+ * Valida se um eletrodoméstico de bancada (micro-ondas, cafeteira, air fryer) está
+ * obrigatoriamente posicionado sobre uma superfície adequada (bancada, armário ou mesa)
+ * e não em chão puro ou sobreposto a outro eletrodoméstico.
+ */
+export function isCountertopProperlyPlaced(
+  itemType: string,
+  gridX: number,
+  gridY: number,
+  allPlacedItems: PlacedItem[],
+  currentItemId?: string
+): { valid: boolean; reason?: string } {
+  if (!COUNTERTOP_ITEM_TYPES.includes(itemType)) {
+    return { valid: true };
+  }
+
+  const surfaceItems = allPlacedItems.filter((item) => {
+    if (currentItemId && (item as any).id === currentItemId) return false;
+    const cells = getOccupiedCells(item.type, item.x, item.y);
+    return cells.some((c) => c.x === gridX && c.y === gridY) && COUNTER_SURFACE_ITEM_TYPES.includes(item.type);
+  });
+
+  if (surfaceItems.length === 0) {
+    return {
+      valid: false,
+      reason: "Eletrodomésticos como micro-ondas, air fryer e cafeteira devem ser colocados obrigatoriamente sobre uma bancada, armário ou mesa.",
+    };
+  }
+
+  const conflictingAppliances = allPlacedItems.filter((item) => {
+    if (currentItemId && (item as any).id === currentItemId) return false;
+    const cells = getOccupiedCells(item.type, item.x, item.y);
+    return cells.some((c) => c.x === gridX && c.y === gridY) && COUNTERTOP_ITEM_TYPES.includes(item.type);
+  });
+
+  if (conflictingAppliances.length > 0) {
+    return {
+      valid: false,
+      reason: "Já existe outro eletrodoméstico neste ponto da bancada ou mesa.",
+    };
+  }
+
+  return { valid: true };
 }
 

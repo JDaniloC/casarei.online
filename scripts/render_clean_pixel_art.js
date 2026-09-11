@@ -167,8 +167,10 @@ export async function processItem(filename, targetW, targetH, outFilename, optio
     .png()
     .toBuffer();
 
-  // Aspect-preserving scaling (DO NOT SQUASH)
-  const scale = Math.min(targetW / cropW, targetH / cropH);
+  // 1. Aspect-preserving scaling with diamond safety inset (92%) so base sits cleanly inside cell lines
+  const isCompact = (targetW <= 72);
+  const insetFactor = isCompact ? 1.0 : 0.92;
+  const scale = Math.min((targetW * insetFactor) / cropW, (targetH * insetFactor) / cropH);
   const scaledW = Math.max(1, Math.round(cropW * scale));
   const scaledH = Math.max(1, Math.round(cropH * scale));
 
@@ -178,7 +180,9 @@ export async function processItem(filename, targetW, targetH, outFilename, optio
     .toBuffer();
 
   const leftPad = Math.max(0, Math.floor((targetW - scaledW) / 2));
-  const topPad = Math.max(0, targetH - scaledH); // BOTTOM ANCHORED
+  // Inset bottom by 4px so front vertex does not touch or exceed the cell boundary
+  const bottomInset = isCompact ? 0 : 4;
+  const topPad = Math.max(0, targetH - scaledH - bottomInset);
 
   // Composite into target size canvas
   const canvas = await sharp({
@@ -192,8 +196,37 @@ export async function processItem(filename, targetW, targetH, outFilename, optio
     { input: scaledPng, left: leftPad, top: topPad }
   ]).png().toBuffer();
 
-  // Apply crisp 1px outline
+  // 2. Strict Geometric Base Clamping:
+  // Zero pixels may ever exist below the bottom isometric floor diamond boundary of the cell
   const { data: cData, info: cInfo } = await sharp(canvas).raw().toBuffer({ resolveWithObject: true });
+  
+  const is1x1 = (targetW === 128);
+  const is2x1 = (targetW === 192);
+  const is2x2 = (targetW === 256);
+
+  if (is1x1 || is2x1 || is2x2) {
+    for (let y = 0; y < cInfo.height; y++) {
+      for (let x = 0; x < cInfo.width; x++) {
+        let maxAllowedY = cInfo.height;
+        if (is1x1) {
+          // 1x1 floor diamond: bottom vertex at (64, H-2), edges go up to (0, H-34) and (128, H-34)
+          maxAllowedY = (x <= 64) ? (cInfo.height - 34 + 0.5 * x) : (cInfo.height - 34 + 0.5 * (128 - x));
+        } else if (is2x1) {
+          // 2x1 floor diamond: bottom vertex at (128, H-2), edges to (0, H-66) and (192, H-34)
+          maxAllowedY = (x <= 128) ? (cInfo.height - 66 + 0.5 * x) : (cInfo.height - 2 - 0.5 * (x - 128));
+        } else if (is2x2) {
+          // 2x2 floor diamond: bottom vertex at (128, H-2), edges to (0, H-66) and (256, H-66)
+          maxAllowedY = (x <= 128) ? (cInfo.height - 66 + 0.5 * x) : (cInfo.height - 2 - 0.5 * (x - 128));
+        }
+        if (y > maxAllowedY) {
+          const idx = (y * cInfo.width + x) * 4;
+          cData[idx + 3] = 0; // Cut off any stray pixel spilling below the cell's diamond
+        }
+      }
+    }
+  }
+
+  // 3. Apply crisp 1px outline
   const outlined = applyOutline(cData, cInfo.width, cInfo.height, [30, 35, 42]);
   const finalPng = await sharp(outlined, { raw: cInfo }).png().toBuffer();
 
