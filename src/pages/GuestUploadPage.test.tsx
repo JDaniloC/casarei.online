@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import GuestUploadPage from './GuestUploadPage';
 import * as api from '@/lib/guestUploadApi';
@@ -88,12 +88,20 @@ afterEach(() => {
 // Utilidades
 // ---------------------------------------------------------------------------
 
+/** Caminho atual do roteador, lido sem escrever nada no DOM (o token não pode aparecer nele). */
+let currentPath = '';
+function LocationProbe() {
+  currentPath = useLocation().pathname;
+  return null;
+}
+
 function renderPage() {
   return render(
     <MemoryRouter
       initialEntries={[`/fotos/${TOKEN}`]}
       future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
     >
+      <LocationProbe />
       <Routes>
         <Route path="/fotos/:token" element={<GuestUploadPage />} />
         <Route path="/privacidade" element={<div>Página de privacidade</div>} />
@@ -747,6 +755,169 @@ describe('erros e nova tentativa', () => {
     await settle(() => uploads[0].reject(new engine.FatalUploadError('sem rede', 0)));
 
     expect(retryButton()).toHaveClass('min-h-11');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Erros definitivos, anúncio por arquivo e link de privacidade
+// ---------------------------------------------------------------------------
+
+describe('botão "Tentar novamente" só quando repetir pode dar certo', () => {
+  // Erros da API que voltam sempre iguais: a própria mensagem diz para falar com os noivos ou
+  // conferir o arquivo/link. A mensagem fica; o botão não.
+  it.each([
+    ['file_type', 400],
+    ['file_too_large', 400],
+    ['invalid_input', 400],
+    ['not_found', 404],
+    ['forbidden_origin', 403],
+  ] as const)('erro definitivo %s: mostra a mensagem e esconde o botão', async (code, status) => {
+    const error = new api.GuestUploadApiError(code, status);
+    createSession.mockRejectedValueOnce(error);
+    await renderReady();
+    selectFiles([makeFile('foto.jpg')]);
+
+    const list = await screen.findByRole('list');
+    expect(await within(list).findByText(api.messageForUploadError(error))).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /tentar novamente/i })).not.toBeInTheDocument();
+    expect(upload).not.toHaveBeenCalled();
+    // Continua contando como erro no resumo.
+    expect(document.querySelector('[aria-live="polite"]')).toHaveTextContent('1 com erro');
+  });
+
+  it.each([
+    ['disabled', 409],
+    ['rate_limited', 429],
+    ['unavailable', 503],
+    ['storage_full', 507],
+    ['network', 0],
+    ['unknown', 500],
+  ] as const)('erro transitório %s: mostra a mensagem e mantém o botão', async (code, status) => {
+    const error = new api.GuestUploadApiError(code, status);
+    createSession.mockRejectedValueOnce(error);
+    await renderReady();
+    selectFiles([makeFile('foto.jpg')]);
+
+    const list = await screen.findByRole('list');
+    expect(await within(list).findByText(api.messageForUploadError(error))).toBeInTheDocument();
+    expect(retryButton('foto.jpg')).toBeInTheDocument();
+  });
+
+  it.each([
+    ['FatalUploadError retentável (rede)', () => new engine.FatalUploadError('sem rede', 0)],
+    ['FatalUploadError não retentável (403)', () => new engine.FatalUploadError('recusado', 403)],
+    ['FatalUploadError 400 do Google', () => new engine.FatalUploadError('requisição inválida', 400)],
+  ])('erro do motor (%s) mantém o botão', async (_name, makeError) => {
+    await renderReady();
+    selectFiles([makeFile('foto.jpg')]);
+    await waitFor(() => expect(uploads).toHaveLength(1));
+    await settle(() => uploads[0].reject(makeError()));
+
+    expect(retryButton('foto.jpg')).toBeInTheDocument();
+  });
+
+  it('SessionExpiredError que sobra depois da sessão nova também mantém o botão', async () => {
+    await renderReady();
+    selectFiles([makeFile('foto.jpg')]);
+    await waitFor(() => expect(uploads).toHaveLength(1));
+    await settle(() => uploads[0].reject(new engine.SessionExpiredError()));
+    await waitFor(() => expect(uploads).toHaveLength(2));
+    await settle(() => uploads[1].reject(new engine.SessionExpiredError()));
+
+    expect(await screen.findByRole('button', { name: /tentar novamente/i })).toBeInTheDocument();
+  });
+
+  it('num erro definitivo o botão dos outros arquivos continua aparecendo', async () => {
+    createSession.mockRejectedValueOnce(new api.GuestUploadApiError('file_type', 400));
+    await renderReady();
+    selectFiles([makeFile('a.jpg'), makeFile('b.jpg')]);
+    await waitFor(() => expect(uploads).toHaveLength(1)); // b.jpg segue para o envio
+    await settle(() => uploads[0].reject(new engine.FatalUploadError('sem rede', 0)));
+
+    expect(within(rowOf('a.jpg')).queryByRole('button')).not.toBeInTheDocument();
+    expect(within(rowOf('b.jpg')).getByRole('button', { name: /tentar novamente/i })).toBeInTheDocument();
+  });
+});
+
+describe('anúncio do erro de cada arquivo', () => {
+  it('o texto do erro fica numa região role="status" que já existe (vazia) antes do erro', async () => {
+    await renderReady();
+    selectFiles([makeFile('foto.jpg')]);
+    await waitFor(() => expect(uploads).toHaveLength(1));
+
+    const row = rowOf('foto.jpg');
+    const region = within(row).getByRole('status');
+    expect(region).toBeEmptyDOMElement();
+
+    await settle(() => uploads[0].reject(new engine.FatalUploadError('sem rede', 0)));
+
+    // A mesma região recebeu a mensagem, então o leitor de tela a anuncia; o nome do arquivo
+    // vai junto, para quem não vê a linha saber de qual arquivo é o erro.
+    expect(within(row).getByRole('status')).toBe(region);
+    expect(within(region).getByText(NETWORK_MESSAGE)).toBeInTheDocument();
+    expect(region).toHaveTextContent('foto.jpg');
+  });
+
+  it('só a linha com erro tem texto na região; as outras ficam vazias', async () => {
+    await renderReady();
+    selectFiles([makeFile('a.jpg'), makeFile('b.jpg')]);
+    await waitFor(() => expect(uploads).toHaveLength(2));
+    await settle(() => uploads[0].reject(new engine.FatalUploadError('sem rede', 0)));
+
+    expect(within(rowOf('a.jpg')).getByRole('status')).not.toBeEmptyDOMElement();
+    expect(within(rowOf('b.jpg')).getByRole('status')).toBeEmptyDOMElement();
+  });
+
+  it('não repete o resumo da página: a região da linha só tem a mensagem do arquivo', async () => {
+    await renderReady();
+    selectFiles([makeFile('foto.jpg')]);
+    await waitFor(() => expect(uploads).toHaveLength(1));
+    await settle(() => uploads[0].reject(new engine.FatalUploadError('sem rede', 0)));
+
+    const region = within(rowOf('foto.jpg')).getByRole('status');
+    expect(region).not.toHaveTextContent(/enviados?/);
+    expect(region).not.toHaveTextContent('com erro');
+  });
+});
+
+describe('link de privacidade', () => {
+  it('é uma âncora que abre em nova aba com noopener e noreferrer', async () => {
+    await renderReady();
+    selectFiles([makeFile('foto.jpg')]);
+    await waitFor(() => expect(uploads).toHaveLength(1));
+
+    const link = screen.getByRole('link', { name: 'Política de privacidade' });
+    expect(link.tagName).toBe('A');
+    expect(link).toHaveAttribute('href', '/privacidade');
+    expect(link).toHaveAttribute('target', '_blank');
+    const rel = (link.getAttribute('rel') ?? '').split(/\s+/);
+    expect(rel).toEqual(expect.arrayContaining(['noopener', 'noreferrer']));
+  });
+
+  it('tocar no link durante um envio não navega dentro do app nem aborta o envio', async () => {
+    await renderReady();
+    selectFiles([makeFile('foto.jpg')]);
+    await waitFor(() => expect(uploads).toHaveLength(1));
+    const pathBefore = currentPath;
+    expect(pathBefore).toBe(`/fotos/${TOKEN}`);
+
+    fireEvent.click(screen.getByRole('link', { name: 'Política de privacidade' }));
+    await act(async () => {});
+
+    expect(currentPath).toBe(pathBefore); // o roteador não saiu da página
+    expect(screen.queryByText('Página de privacidade')).not.toBeInTheDocument();
+    expect(uploads[0].opts.signal?.aborted).toBe(false);
+    expect(within(rowOf('foto.jpg')).getByText(/Enviando/)).toBeInTheDocument();
+
+    // E o envio continua normalmente até o fim.
+    await settle(() => uploads[0].resolve());
+    expect(within(rowOf('foto.jpg')).getByText('Enviado')).toBeInTheDocument();
+  });
+
+  it('a página não tem outro link além da política de privacidade', async () => {
+    await renderReady();
+
+    expect(screen.getAllByRole('link')).toHaveLength(1);
   });
 });
 

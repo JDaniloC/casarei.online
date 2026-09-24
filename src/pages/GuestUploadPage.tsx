@@ -14,7 +14,7 @@
 
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ChangeEvent, ReactNode } from "react";
-import { Link, useParams } from "react-router-dom";
+import { useParams } from "react-router-dom";
 import { AlertCircle, CheckCircle2, Clock, ImagePlus, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,6 +25,7 @@ import {
   getUploadPageInfo,
   GuestUploadApiError,
   messageForUploadError,
+  type GuestUploadErrorCode,
   type UploadPageInfo,
 } from "@/lib/guestUploadApi";
 import { FatalUploadError, SessionExpiredError, uploadFile } from "@/lib/driveResumableUpload";
@@ -35,6 +36,25 @@ const MAX_GUEST_NAME_LENGTH = 60;
 const MAX_PARALLEL_UPLOADS = 2;
 /** Intervalo mínimo entre duas atualizações visuais de progresso (cerca de 5 por segundo). */
 const PROGRESS_FLUSH_MS = 200;
+
+/**
+ * Erros da API que voltam sempre iguais se o mesmo arquivo for reenviado (tipo recusado,
+ * tamanho, requisição inválida, link inexistente ou origem bloqueada): a mensagem já diz o
+ * que fazer, e um botão "Tentar novamente" só levaria o convidado a falhar de novo.
+ * Falhas transitórias (rede, limite de envios, indisponibilidade) e erros do motor de upload
+ * mantêm o botão.
+ */
+const DEFINITIVE_ERROR_CODES: ReadonlySet<GuestUploadErrorCode> = new Set<GuestUploadErrorCode>([
+  "file_type",
+  "file_too_large",
+  "invalid_input",
+  "not_found",
+  "forbidden_origin",
+]);
+
+function isDefinitiveError(error: unknown): boolean {
+  return error instanceof GuestUploadApiError && DEFINITIVE_ERROR_CODES.has(error.code);
+}
 
 // ---------------------------------------------------------------------------
 // Utilidades
@@ -243,6 +263,8 @@ interface QueueItem {
   /** 0 a 100. */
   progress: number;
   error?: string;
+  /** Com `status === "error"`: `false` quando repetir só falharia igual (sem botão). */
+  canRetry?: boolean;
 }
 
 /** O que o arquivo precisa lembrar entre tentativas. Fica só em memória. */
@@ -263,7 +285,9 @@ interface ItemRuntime {
  *    Google já guardou;
  *  - qualquer outra falha (sessão expirada, 4xx, ou erro ao criar a sessão): esquece a URL,
  *    cria uma sessão nova e envia do zero;
- *  - `SessionExpiredError` durante uma execução cria UMA sessão nova sozinha.
+ *  - `SessionExpiredError` durante uma execução cria UMA sessão nova sozinha;
+ *  - erros definitivos da API (`DEFINITIVE_ERROR_CODES`) não oferecem "Tentar novamente":
+ *    `canRetry: false` no item, e a linha só mostra a mensagem.
  *
  * A fonte da verdade é `itemsRef`; `items` (estado) é o espelho que a tela desenha. O
  * progresso chega por `onProgress` muitas vezes por segundo, então é acumulado num mapa e
@@ -376,7 +400,7 @@ function useUploadQueue(token: string) {
         runtime.controller = undefined;
         runtime.resume = error instanceof FatalUploadError && error.retryable && runtime.uploadUrl !== undefined;
         if (!runtime.resume) runtime.uploadUrl = undefined;
-        patch(id, { status: "error", error: messageForUploadError(error) });
+        patch(id, { status: "error", error: messageForUploadError(error), canRetry: !isDefinitiveError(error) });
       }
     },
     [token, patch, reportProgress],
@@ -474,43 +498,54 @@ const FileRow = memo(function FileRow({ item, onRetry }: { item: QueueItem; onRe
         aria-valuetext={`${progress}%`}
         className={`mt-2.5 h-1.5 bg-foreground/10 ${barColor}`}
       />
-      <div className="mt-2.5 text-sm">
-        {status === "waiting" && (
-          <p className="flex items-center gap-2 text-muted-foreground">
-            <Clock className="h-4 w-4 shrink-0" aria-hidden="true" />
-            Aguardando
-          </p>
-        )}
-        {status === "uploading" && (
-          <p className="flex items-center gap-2 text-foreground">
-            <Loader2 className="h-4 w-4 shrink-0 animate-spin motion-reduce:animate-none" aria-hidden="true" />
-            {`Enviando ${progress}%`}
-          </p>
-        )}
-        {status === "done" && (
-          <p className="flex items-center gap-2 text-emerald-700">
-            <CheckCircle2 className="h-4 w-4 shrink-0" aria-hidden="true" />
-            Enviado
-          </p>
-        )}
-        {status === "error" && (
-          <div>
-            <p className="flex items-start gap-2 text-red-700">
-              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-              <span>{item.error}</span>
+      {status !== "error" && (
+        <div className="mt-2.5 text-sm">
+          {status === "waiting" && (
+            <p className="flex items-center gap-2 text-muted-foreground">
+              <Clock className="h-4 w-4 shrink-0" aria-hidden="true" />
+              Aguardando
             </p>
-            <Button
-              type="button"
-              variant="outline"
-              className="mt-3 min-h-11 w-full border-gold/70 px-5 text-base sm:w-auto"
-              aria-label={`Tentar novamente: ${file.name}`}
-              onClick={() => onRetry(item.id)}
-            >
-              Tentar novamente
-            </Button>
-          </div>
+          )}
+          {status === "uploading" && (
+            <p className="flex items-center gap-2 text-foreground">
+              <Loader2 className="h-4 w-4 shrink-0 animate-spin motion-reduce:animate-none" aria-hidden="true" />
+              {`Enviando ${progress}%`}
+            </p>
+          )}
+          {status === "done" && (
+            <p className="flex items-center gap-2 text-emerald-700">
+              <CheckCircle2 className="h-4 w-4 shrink-0" aria-hidden="true" />
+              Enviado
+            </p>
+          )}
+        </div>
+      )}
+      {/*
+        Região de anúncio só do erro deste arquivo. Ela existe (vazia) em toda linha, desde o
+        início, porque leitores de tela só anunciam mudanças numa região que já estava na
+        página. O andamento ("Enviando 42%") fica de fora de propósito: mudaria várias vezes
+        por segundo. O resumo geral continua na região aria-live da página.
+      */}
+      <div role="status">
+        {status === "error" && (
+          <p className="mt-2.5 flex items-start gap-2 text-sm text-red-700">
+            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+            <span className="sr-only">{`Erro em ${file.name}: `}</span>
+            <span>{item.error}</span>
+          </p>
         )}
       </div>
+      {status === "error" && item.canRetry !== false && (
+        <Button
+          type="button"
+          variant="outline"
+          className="mt-3 min-h-11 w-full border-gold/70 px-5 text-base sm:w-auto"
+          aria-label={`Tentar novamente: ${file.name}`}
+          onClick={() => onRetry(item.id)}
+        >
+          Tentar novamente
+        </Button>
+      )}
     </li>
   );
 });
@@ -521,12 +556,18 @@ function PageShell({ children }: { children: ReactNode }) {
       <div className="mx-auto flex min-h-screen w-full max-w-lg flex-col px-5 pb-6 pt-12 sm:pt-16">
         <div className="flex-1">{children}</div>
         <footer className="mt-12 text-center">
-          <Link
-            to="/privacidade"
+          {/*
+            Âncora comum em nova aba, não `<Link>`: navegar dentro do app desmontaria a página e
+            abortaria os envios em andamento (e `beforeunload` não dispara nesse caso).
+          */}
+          <a
+            href="/privacidade"
+            target="_blank"
+            rel="noopener noreferrer"
             className="inline-flex min-h-11 items-center px-3 text-sm text-muted-foreground underline underline-offset-4 hover:text-foreground"
           >
             Política de privacidade
-          </Link>
+          </a>
         </footer>
       </div>
     </main>
