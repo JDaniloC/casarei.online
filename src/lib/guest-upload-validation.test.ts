@@ -90,6 +90,14 @@ describe('resolveMime', () => {
     expect(resolveMime('foto.jpg', 'application/pdf')).toBeNull();
     expect(resolveMime('foto.jpg', 'text/html')).toBeNull();
   });
+
+  // Chaves herdadas de Object.prototype não podem passar pela allowlist.
+  describe.each(['constructor', '__proto__', 'toString', 'hasOwnProperty'])('extensão herdada .%s', (extensao) => {
+    it.each(['', 'image/jpeg'])('devolve null sem lançar erro com tipo declarado "%s"', (declarado) => {
+      expect(() => resolveMime(`x.${extensao}`, declarado)).not.toThrow();
+      expect(resolveMime(`x.${extensao}`, declarado)).toBeNull();
+    });
+  });
 });
 
 describe('sanitizeFileName', () => {
@@ -98,11 +106,11 @@ describe('sanitizeFileName', () => {
   });
 
   it('remove o caractere bidi que disfarça a extensão', () => {
-    expect(sanitizeFileName('foto‮gpj.exe')).toBe('fotogpj.exe');
+    expect(sanitizeFileName('foto\u202Egpj.exe')).toBe('fotogpj.exe');
   });
 
   it('remove todos os caracteres bidi', () => {
-    expect(sanitizeFileName('a‪b‫c‬d‭l‮e⁦f⁧g⁨h⁩i.png')).toBe(
+    expect(sanitizeFileName('a\u202Ab\u202Bc\u202Cd\u202Dl\u202Ee\u2066f\u2067g\u2068h\u2069i.png')).toBe(
       'abcdlefghi.png',
     );
   });
@@ -113,6 +121,12 @@ describe('sanitizeFileName', () => {
 
   it('remove barras e barras invertidas', () => {
     expect(sanitizeFileName('../fotos\\casamento/foto.jpg')).toBe('..fotoscasamentofoto.jpg');
+  });
+
+  it('remove BOM e os demais caracteres invisíveis', () => {
+    expect(sanitizeFileName('foto\uFEFF.jpg')).toBe('foto.jpg');
+    expect(sanitizeFileName('foto\uFEFFfinal.jpg')).toBe('fotofinal.jpg');
+    expect(sanitizeFileName('a\u200Bb\u200Ec\u200Fd\u2060e\u061Cf\uFEFF.jpg')).toBe('abcdef.jpg');
   });
 
   it('colapsa espaços e faz trim', () => {
@@ -158,7 +172,7 @@ describe('sanitizeFileName', () => {
 
   it('usa "arquivo" quando só sobra a extensão', () => {
     expect(sanitizeFileName('.jpg')).toBe('arquivo.jpg');
-    expect(sanitizeFileName('/\\ ‮.jpg')).toBe('arquivo.jpg');
+    expect(sanitizeFileName('/\\ \u202E.jpg')).toBe('arquivo.jpg');
   });
 
   it('usa só "arquivo" quando nada sobra', () => {
@@ -180,11 +194,37 @@ describe('sanitizeGuestName', () => {
   });
 
   it('remove controle, bidi e barras', () => {
-    expect(sanitizeGuestName('Ma\u0000ri‮a⁧ /Sil\\va')).toBe('Maria Silva');
+    expect(sanitizeGuestName('Ma\u0000ri\u202Ea\u2067 /Sil\\va')).toBe('Maria Silva');
   });
 
   it('colapsa espaços e faz trim', () => {
     expect(sanitizeGuestName('  Maria   Silva  ')).toBe('Maria Silva');
+  });
+
+  it('remove marcas de direção invisíveis no fim do nome', () => {
+    expect(sanitizeGuestName('Ana\u200E')).toBe('Ana');
+    expect(sanitizeGuestName('Ana\u200F')).toBe('Ana');
+  });
+
+  it('remove espaço de largura zero, word joiner, marca de letra árabe e BOM', () => {
+    expect(sanitizeGuestName('M\u200Ba\u200Er\u200Fi\u2060a\u061C\uFEFF')).toBe('Maria');
+  });
+
+  it('devolve vazio quando só sobram caracteres invisíveis', () => {
+    expect(sanitizeGuestName('\u200B\u200B\uFEFF')).toBe('');
+  });
+
+  it('remove ponto inicial escondido atrás de um caractere invisível', () => {
+    expect(sanitizeGuestName('\u200B.oculto')).toBe('oculto');
+  });
+
+  it('preserva a sequência de emoji com ZWJ', () => {
+    const familia = '\u{1F468}\u200D\u{1F469}\u200D\u{1F467}';
+    expect(sanitizeGuestName(familia)).toBe(familia);
+  });
+
+  it('preserva o ZWNJ', () => {
+    expect(sanitizeGuestName('a\u200Cb')).toBe('a\u200Cb');
   });
 
   it('normaliza para NFC', () => {
@@ -232,6 +272,17 @@ describe('normalizeGuestKey', () => {
     expect(normalizeGuestKey('María Silva')).toBe(chave);
     expect(normalizeGuestKey('  MARIA   SILVA ')).toBe(chave);
     expect(normalizeGuestKey('Maria Silva')).toBe(chave);
+  });
+
+  it('ignora caracteres invisíveis no meio do nome', () => {
+    expect(normalizeGuestKey('Maria\u200BSilva')).toBe(normalizeGuestKey('MariaSilva'));
+    expect(normalizeGuestKey('Maria\uFEFFSilva')).toBe(normalizeGuestKey('MariaSilva'));
+    expect(normalizeGuestKey('Ma\u2060ria\uFEFF Sil\u200Fva')).toBe('maria silva');
+  });
+
+  it('não deixa um caractere invisível esconder o anônimo', () => {
+    expect(normalizeGuestKey('Anonimo\u200B')).toBe('');
+    expect(normalizeGuestKey('\u200B')).toBe('');
   });
 
   it('trata acento composto e decomposto como o mesmo nome', () => {

@@ -16,24 +16,30 @@ const MAX_EXTENSION_LENGTH = 10;
 const FALLBACK_FILE_NAME = "arquivo";
 
 // Extensões aceitas e o mime que o Drive deve receber para cada uma.
-const MIME_BY_EXTENSION: Record<string, string> = {
-  jpg: "image/jpeg",
-  jpeg: "image/jpeg",
-  png: "image/png",
-  heic: "image/heic",
-  heif: "image/heif",
-  webp: "image/webp",
-  gif: "image/gif",
-  mp4: "video/mp4",
-  mov: "video/quicktime",
-  m4v: "video/x-m4v",
-  "3gp": "video/3gpp",
-  webm: "video/webm",
-};
+// É um Map (e não um objeto literal) para que chaves herdadas de
+// Object.prototype, como "constructor" ou "__proto__", nunca passem pela allowlist.
+const MIME_BY_EXTENSION = new Map<string, string>([
+  ["jpg", "image/jpeg"],
+  ["jpeg", "image/jpeg"],
+  ["png", "image/png"],
+  ["heic", "image/heic"],
+  ["heif", "image/heif"],
+  ["webp", "image/webp"],
+  ["gif", "image/gif"],
+  ["mp4", "video/mp4"],
+  ["mov", "video/quicktime"],
+  ["m4v", "video/x-m4v"],
+  ["3gp", "video/3gpp"],
+  ["webm", "video/webm"],
+]);
 
-// Controle (C0 e C1), marcas bidi (U+202A-202E e U+2066-2069) e barras.
+// Removidos de nomes de arquivo e de convidado: controle (C0 e C1), marcas bidi
+// (U+202A a U+202E e U+2066 a U+2069), caracteres invisíveis (U+200B, U+200E,
+// U+200F, U+2060, U+061C e U+FEFF) e barras. U+200C e U+200D ficam, pois compõem
+// sequências de emoji e algumas escritas. Tudo escrito como escape \uXXXX: um
+// caractere invisível literal aqui esconderia a regra de quem revisa o código.
 // eslint-disable-next-line no-control-regex
-const UNSAFE_CHARS = /[\u0000-\u001F\u007F-\u009F‪-‮⁦-⁩/\\]/g;
+const UNSAFE_CHARS = /[\u0000-\u001F\u007F-\u009F\u061C\u200B\u200E\u200F\u2060\uFEFF\u202A-\u202E\u2066-\u2069/\\]/g;
 
 const category = (mime: string) => mime.slice(0, mime.indexOf("/"));
 
@@ -45,7 +51,7 @@ const category = (mime: string) => mime.slice(0, mime.indexOf("/"));
 export function resolveMime(fileName: string, declaredType: string): string | null {
   const dot = fileName.lastIndexOf(".");
   if (dot === -1) return null;
-  const extensionMime = MIME_BY_EXTENSION[fileName.slice(dot + 1).toLowerCase()];
+  const extensionMime = MIME_BY_EXTENSION.get(fileName.slice(dot + 1).toLowerCase());
   if (!extensionMime) return null;
 
   const declared = declaredType.trim().toLowerCase();
@@ -56,7 +62,7 @@ export function resolveMime(fileName: string, declaredType: string): string | nu
   return null;
 }
 
-// NFC, sem controle/bidi/barras, espaços colapsados e sem espaço nas pontas.
+// NFC, sem os caracteres de UNSAFE_CHARS, espaços colapsados e sem espaço nas pontas.
 function cleanText(value: string): string {
   return value.normalize("NFC").replace(UNSAFE_CHARS, "").replace(/\s+/g, " ").trim();
 }
