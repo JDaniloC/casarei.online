@@ -285,20 +285,20 @@ describe('guest-upload: GET', () => {
     }
   });
 
-  it('rate limit guest_upload_page: 120 por minuto por IP; 429 rate_limited antes da consulta ao banco', async () => {
+  it('rate limit guest_upload_page: 300 por minuto por IP; 429 rate_limited antes da consulta ao banco', async () => {
     const h = makeHarness();
-    seedRateRows(h, CLIENT_IP, 'guest_upload_page', 120);
+    seedRateRows(h, CLIENT_IP, 'guest_upload_page', 300);
     const res = await h.handler(getReq());
     await expectError(res, 429, 'rate_limited');
     expect(h.calls).toEqual(['rate:count:guest_upload_page']);
   });
 
-  it('a 120ª requisição ainda passa (limite é >= 120 já registradas) e é registrada', async () => {
+  it('a 300ª requisição ainda passa (limite é >= 300 já registradas) e é registrada', async () => {
     const h = makeHarness();
-    seedRateRows(h, CLIENT_IP, 'guest_upload_page', 119);
+    seedRateRows(h, CLIENT_IP, 'guest_upload_page', 299);
     const res = await h.handler(getReq());
     expect(res.status).toBe(200);
-    expect(h.rateRows.filter((r) => r.action === 'guest_upload_page')).toHaveLength(120);
+    expect(h.rateRows.filter((r) => r.action === 'guest_upload_page')).toHaveLength(300);
   });
 
   it('a janela do rate limit do GET é de 1 minuto, contada pelo relógio injetado', async () => {
@@ -712,9 +712,9 @@ describe('guest-upload: POST (5) tamanho e (6) tipo', () => {
 });
 
 describe('guest-upload: POST (7) rate limits', () => {
-  it('limite por IP: 300 em 10 minutos, 429 rate_limited; o limite por casamento nem é consultado', async () => {
+  it('limite por IP: 1000 em 10 minutos, 429 rate_limited; o limite por casamento nem é consultado', async () => {
     const h = makeHarness();
-    seedRateRows(h, CLIENT_IP, 'guest_upload_ip', 300);
+    seedRateRows(h, CLIENT_IP, 'guest_upload_ip', 1000);
     const res = await h.handler(postReq(validBody()));
     await expectError(res, 429, 'rate_limited');
     expect(h.calls).toEqual(['findConnection', 'rate:count:guest_upload_ip']);
@@ -736,11 +736,11 @@ describe('guest-upload: POST (7) rate limits', () => {
 
   it('um IP abaixo do limite passa e os dois limites são registrados', async () => {
     const h = makeHarness();
-    seedRateRows(h, CLIENT_IP, 'guest_upload_ip', 299);
+    seedRateRows(h, CLIENT_IP, 'guest_upload_ip', 999);
     seedRateRows(h, `wedding:${WEDDING_ID}`, 'guest_upload_wedding', 2999);
     const res = await h.handler(postReq(validBody()));
     expect(res.status).toBe(200);
-    expect(h.rateRows.filter((r) => r.action === 'guest_upload_ip')).toHaveLength(300);
+    expect(h.rateRows.filter((r) => r.action === 'guest_upload_ip')).toHaveLength(1000);
     expect(h.rateRows.filter((r) => r.action === 'guest_upload_wedding')).toHaveLength(3000);
   });
 

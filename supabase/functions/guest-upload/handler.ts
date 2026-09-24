@@ -108,8 +108,10 @@ const MAX_MIME_TYPE_CHARS = 100;
 const MAX_GUEST_NAME_CHARS = 200;
 const MAX_IDENTIFIER_CHARS = 64;
 
-const PAGE_LIMIT = { action: "guest_upload_page", windowMs: 60_000, max: 120 };
-const IP_LIMIT = { action: "guest_upload_ip", windowMs: 10 * 60_000, max: 300 };
+// Cada arquivo custa um POST, e os convidados de um salão dividem o mesmo IP (NAT),
+// então os limites por IP são folgados: quem protege de verdade é o do casamento.
+const PAGE_LIMIT = { action: "guest_upload_page", windowMs: 60_000, max: 300 };
+const IP_LIMIT = { action: "guest_upload_ip", windowMs: 10 * 60_000, max: 1000 };
 const WEDDING_LIMIT = { action: "guest_upload_wedding", windowMs: 60 * 60_000, max: 3000 };
 
 // Mensagens fixas em pt-BR: é só o que o cliente vê de erro.
