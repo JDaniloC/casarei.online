@@ -4,6 +4,7 @@ import { parseAllowedOrigins } from "../_shared/cors.ts";
 import { refreshAccessToken, type FetchFn } from "../_shared/google-drive.ts";
 import { getThumbnails, listGuestFiles, summarizeGuestFiles } from "../_shared/google-drive-read.ts";
 import {
+  classifyAuthError,
   createHandler,
   generateUploadToken,
   type DriveConnectionRow,
@@ -42,7 +43,13 @@ async function authenticate(authHeader: string): Promise<{ userId: string } | nu
     auth: { persistSession: false, autoRefreshToken: false },
   });
   const { data, error } = await anonClient.auth.getUser(jwt);
-  if (error || !data?.user) return null;
+  // Só erro de cliente (4xx) é "não autenticado" (401). Queda do Auth (rede, 5xx,
+  // status 0 ou sem status) lança: o handler responde 503 e o casal não é deslogado.
+  if (error) {
+    if (classifyAuthError(error) === "unavailable") throw new Error("auth_unavailable");
+    return null;
+  }
+  if (!data?.user) return null;
   return { userId: data.user.id };
 }
 

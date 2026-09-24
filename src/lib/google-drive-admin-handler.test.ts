@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   base64UrlEncode,
+  classifyAuthError,
   createHandler,
   generateUploadToken,
   UPLOAD_TOKEN_BYTES,
@@ -468,6 +469,18 @@ describe('google-drive-admin: autenticação', () => {
     const res = await call(h, { action: 'status' });
     await expectError(res, 401, 'unauthorized');
     expect(h.mocks.getWeddingIdForUser).not.toHaveBeenCalled();
+  });
+
+  // O index.ts lança um Error de mensagem fixa quando o Auth cai (rede, 5xx): o
+  // casal vê "indisponível" e não é deslogado como se a sessão tivesse expirado.
+  it('authenticate lançando "auth_unavailable" (queda do Auth): 503 unavailable, e NÃO 401', async () => {
+    const h = makeHarness();
+    h.mocks.authenticate.mockRejectedValueOnce(new Error('auth_unavailable'));
+    const res = await call(h, { action: 'status' });
+    await expectError(res, 503, 'unavailable');
+    expect(h.mocks.getWeddingIdForUser).not.toHaveBeenCalled();
+    expect(h.mocks.get).not.toHaveBeenCalled();
+    expect(loggedText()).not.toContain(JWT_A);
   });
 
   it('authenticate lançando erro (falha de infraestrutura): 503 unavailable, sem acesso a dados e sem vazar o JWT', async () => {
@@ -1405,6 +1418,51 @@ describe('google-drive-admin: generateUploadToken', () => {
     expect(generateUploadToken(realFill)).not.toBe(generateUploadToken(realFill));
     const many = new Set(Array.from({ length: 200 }, () => generateUploadToken(realFill)));
     expect(many.size).toBe(200);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// classifyAuthError: erro do auth.getUser() => "não autenticado" ou "Auth fora do ar"
+// ---------------------------------------------------------------------------
+
+describe('google-drive-admin: classifyAuthError', () => {
+  it.each([
+    ['400 (requisição inválida)', 400],
+    ['401 (JWT inválido ou expirado)', 401],
+    ['403 (usuário do JWT não existe mais)', 403],
+    ['404', 404],
+    ['499', 499],
+  ])('erro de cliente %s: unauthorized (o casal precisa entrar de novo)', (_label, status) => {
+    expect(classifyAuthError({ status })).toBe('unauthorized');
+  });
+
+  it.each([
+    ['500', 500],
+    ['502', 502],
+    ['503', 503],
+    ['504', 504],
+    ['599', 599],
+    ['0 (falha de rede do fetch)', 0],
+    ['NaN', Number.NaN],
+    ['3xx', 302],
+  ])('queda do Auth (status %s): unavailable, sem deslogar o casal', (_label, status) => {
+    expect(classifyAuthError({ status })).toBe('unavailable');
+  });
+
+  it.each([
+    ['sem status', {}],
+    ['status undefined', { status: undefined }],
+    ['status null', { status: null }],
+    ['status em texto', { status: '401' }],
+    ['status objeto', { status: { code: 401 } }],
+    ['Error comum (sem status)', new Error('fetch failed')],
+    ['TypeError de rede', new TypeError('fetch failed')],
+    ['undefined', undefined],
+    ['null', null],
+    ['texto', 'boom'],
+    ['número', 401],
+  ])('sem status numérico (%s): unavailable', (_label, error) => {
+    expect(classifyAuthError(error)).toBe('unavailable');
   });
 });
 
