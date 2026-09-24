@@ -730,8 +730,8 @@ function GuestUpload({ token }: { token: string }) {
         <Headline>{names}</Headline>
         <span aria-hidden="true" className="mx-auto mt-6 block h-px w-14 bg-gold" />
         <p className="mx-auto mt-6 max-w-sm text-base leading-relaxed text-muted-foreground">
-          Envie suas fotos e vídeos do casamento. Os arquivos vão direto para o álbum dos noivos; só eles veem o que
-          você enviar.
+          Envie suas fotos e vídeos do casamento. Seus arquivos não ficam públicos: os noivos veem o que você enviar
+          no painel deles.
         </p>
       </header>
 

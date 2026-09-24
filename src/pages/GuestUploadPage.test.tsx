@@ -206,9 +206,13 @@ describe('estados da página', () => {
     expect(screen.getByRole('heading', { level: 1, name: 'Ana & Bruno' })).toBeInTheDocument();
     expect(
       screen.getByText(
-        'Envie suas fotos e vídeos do casamento. Os arquivos vão direto para o álbum dos noivos; só eles veem o que você enviar.',
+        'Envie suas fotos e vídeos do casamento. Seus arquivos não ficam públicos: os noivos veem o que você enviar no painel deles.',
       ),
     ).toBeInTheDocument();
+    // A política de privacidade diz que a plataforma tem acesso técnico ao armazenamento:
+    // a página não pode prometer que só os noivos veem os arquivos.
+    expect(screen.queryByText(/só eles veem/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/direto para o álbum/i)).not.toBeInTheDocument();
     expect(screen.getByLabelText('Seu nome (opcional)')).toBeInTheDocument();
     expect(
       screen.getByText(
