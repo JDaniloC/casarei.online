@@ -70,6 +70,16 @@ async function readBody(res: Response): Promise<unknown> {
   }
 }
 
+// Descarta o corpo de uma resposta que não será lida, cancelando o stream em vez
+// de baixá-lo, para não segurar a conexão no runtime. Best effort: nunca lança.
+async function discard(res: Response): Promise<void> {
+  try {
+    await res.body?.cancel();
+  } catch {
+    // corpo já travado ou consumido: nada a fazer
+  }
+}
+
 // Reúne os "reasons" que o Google pode colocar em error.errors[], error.details[]
 // e error.status. Aceita qualquer formato de corpo (inclusive não-objeto).
 function extractReasons(body: unknown): string[] {
@@ -185,6 +195,9 @@ export async function ensureFolder(
       const body = await readBody(res);
       if (!res.ok) throw mapDriveError(res.status, body);
       if (!isRecord(body) || body.trashed !== true) return opts.folderId;
+    } else {
+      // A pasta sumiu: o corpo do 404 não interessa, e não pode ficar preso.
+      await discard(res);
     }
   }
   return createFolder(fetchFn, accessToken, opts);
@@ -291,6 +304,9 @@ export async function initResumableSession(
 
   if (!res.ok) throw mapDriveError(res.status, await readBody(res));
   const location = res.headers.get("Location");
+  // O corpo da resposta de sucesso não é usado: só o Location importa. Descartá-lo
+  // solta a conexão (vale também quando o Location falta e o erro sobe logo abaixo).
+  await discard(res);
   if (!location) throw new DriveApiError(UNEXPECTED_RESPONSE, 502, true);
   return location;
 }

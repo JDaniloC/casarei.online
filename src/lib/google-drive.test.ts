@@ -28,6 +28,7 @@ interface Call {
 
 function createFakeFetch(handler: (call: Call, index: number) => Response | Promise<Response>) {
   const calls: Call[] = [];
+  const responses: Response[] = [];
   const fetchFn: FetchFn = async (input, init) => {
     const call: Call = {
       url: input,
@@ -36,9 +37,19 @@ function createFakeFetch(handler: (call: Call, index: number) => Response | Prom
       body: typeof init?.body === 'string' ? init.body : undefined,
     };
     calls.push(call);
-    return handler(call, calls.length - 1);
+    const res = await handler(call, calls.length - 1);
+    responses.push(res);
+    return res;
   };
-  return { fetchFn, calls };
+  return { fetchFn, calls, responses };
+}
+
+// Todo corpo que chegou do fetch precisa ter sido lido ou cancelado (senão a
+// conexão fica presa no runtime do Deno). Corpo nulo não tem o que consumir.
+function expectBodiesConsumed(responses: Response[]) {
+  for (const res of responses) {
+    if (res.body !== null) expect(res.bodyUsed).toBe(true);
+  }
 }
 
 // Devolve as respostas na ordem; uma chamada além do roteiro derruba o teste.
@@ -63,7 +74,7 @@ const parseBody = (call: Call) => JSON.parse(call.body as string);
 
 const TOKEN = 'ya29.token';
 const AUTH = { Authorization: `Bearer ${TOKEN}` };
-const WEDDING = '771e4eca-0000-4000-8000-000000000001';
+const WEDDING = '0a0b0c0d-0000-4000-8000-000000000001';
 const ROOT = 'root-folder';
 
 const utf8Bytes = (value: string) => new TextEncoder().encode(value).length;
@@ -258,6 +269,16 @@ describe('ensureFolder', () => {
 
     expect(id).toBe('folder-2');
     expect(calls.map((c) => c.method)).toEqual(['GET', 'POST']);
+  });
+
+  it('no 404 da consulta o corpo da resposta é descartado (a conexão não fica presa) antes de criar a pasta', async () => {
+    const { fetchFn, responses } = scripted(driveError(404, 'notFound'), json({ id: 'folder-2' }));
+
+    await ensureFolder(fetchFn, TOKEN, { weddingId: WEDDING, name: 'Casal', folderId: 'folder-1' });
+
+    expect(responses).toHaveLength(2);
+    expect(responses[0].body).not.toBeNull();
+    expectBodiesConsumed(responses);
   });
 
   it('cria a pasta direto quando não há folderId', async () => {
@@ -784,6 +805,27 @@ describe('initResumableSession', () => {
     expect(error.message).toBe('Resposta inesperada do Google');
     expect(error.status).toBe(502);
     expect(error.retryable).toBe(true);
+  });
+
+  it('depois de ler o Location, o corpo da resposta de sucesso é descartado', async () => {
+    const withBody = () => new Response('{"id":"arquivo-1"}', { status: 200, headers: { Location: SESSION_URL } });
+    const { fetchFn, responses } = scripted(withBody());
+
+    const uploadUrl = await initResumableSession(fetchFn, TOKEN, base);
+
+    expect(uploadUrl).toBe(SESSION_URL);
+    expect(responses[0].body).not.toBeNull();
+    expectBodiesConsumed(responses);
+  });
+
+  it('sem Location, o corpo da resposta de sucesso também é descartado antes de lançar', async () => {
+    const { fetchFn, responses } = scripted(new Response('{"id":"arquivo-1"}', { status: 200 }));
+
+    const error = await initResumableSession(fetchFn, TOKEN, base).catch((e) => e);
+
+    expect(error).toBeInstanceOf(DriveApiError);
+    expect(responses[0].body).not.toBeNull();
+    expectBodiesConsumed(responses);
   });
 
   it('403 de cota vira QuotaExceededError', async () => {

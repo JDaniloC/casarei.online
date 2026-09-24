@@ -60,7 +60,7 @@ const json = (body: unknown, status = 200) =>
 
 const TOKEN = 'ya29.super-secret-token';
 const AUTH = { Authorization: `Bearer ${TOKEN}` };
-const WEDDING = '771e4eca-0000-4000-8000-000000000001';
+const WEDDING = '0a0b0c0d-0000-4000-8000-000000000001';
 const OTHER_WEDDING = '9b2f6c1d-1111-4222-8333-000000000002';
 const FILES_URL = 'https://www.googleapis.com/drive/v3/files';
 const ABOUT_URL = 'https://www.googleapis.com/drive/v3/about';
@@ -87,7 +87,7 @@ function collectKeys(value: unknown, keys: string[] = []): string[] {
 const INVALID_WEDDING_IDS = [
   '',
   'not-a-uuid',
-  '771e4eca-0000-4000-8000-00000000000g',
+  '0a0b0c0d-0000-4000-8000-00000000000g',
   `${WEDDING} `,
   `${WEDDING}' } or trashed=true or appProperties has { key='w' and value='x`,
   "x' or 1=1 or 'a'='a",
