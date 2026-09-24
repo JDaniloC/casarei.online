@@ -38,3 +38,6 @@ entrypoint = "./functions/scrape-gift/index.ts"
 
 [functions.guest-upload]
 verify_jwt = false
+
+[functions.google-drive-admin]
+verify_jwt = true
