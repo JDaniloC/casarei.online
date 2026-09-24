@@ -31,6 +31,7 @@ describe('Página de política de privacidade', () => {
     'Quais dados tratamos',
     'Para que usamos os dados',
     'Onde os arquivos ficam',
+    'Como protegemos os dados',
     'Uso de dados do Google',
     'Com quem compartilhamos',
     'Por quanto tempo guardamos',
@@ -40,6 +41,24 @@ describe('Página de política de privacidade', () => {
   ])('tem a seção "%s"', (heading) => {
     renderPage();
     expect(screen.getByRole('heading', { level: 2, name: heading })).toBeInTheDocument();
+  });
+
+  it('mantém as seções nesta ordem, com a proteção dos dados logo depois de onde os arquivos ficam', () => {
+    renderPage();
+    const headings = screen.getAllByRole('heading', { level: 2 }).map((heading) => heading.textContent);
+    expect(headings).toEqual([
+      'Quem somos',
+      'Quais dados tratamos',
+      'Para que usamos os dados',
+      'Onde os arquivos ficam',
+      'Como protegemos os dados',
+      'Uso de dados do Google',
+      'Com quem compartilhamos',
+      'Por quanto tempo guardamos',
+      'Seus direitos como titular (LGPD)',
+      'Crianças',
+      'Contato',
+    ]);
   });
 
   it('mostra a data da última atualização', () => {
@@ -63,6 +82,17 @@ describe('Página de política de privacidade', () => {
     expect(within(section).getByText(/lista com miniaturas do seu painel privado/)).toBeInTheDocument();
   });
 
+  it('admite que quem opera o casarei.online tem acesso técnico à conta de armazenamento', () => {
+    renderPage();
+    const section = screen.getByRole('region', { name: 'Onde os arquivos ficam' });
+    // Frase completa (só o texto do parágrafo, sem o trecho em negrito): sumir ou ser suavizada quebra o teste.
+    expect(
+      within(section).getByText(
+        'O casal do evento os vê em uma lista com miniaturas do seu painel privado. Quem opera o casarei.online tem acesso técnico à conta de armazenamento.',
+      ),
+    ).toBeInTheDocument();
+  });
+
   it('descreve o nome opcional do convidado e a pasta Anônimo', () => {
     renderPage();
     const section = screen.getByRole('region', { name: 'Quais dados tratamos' });
@@ -77,6 +107,18 @@ describe('Página de política de privacidade', () => {
     expect(within(section).getByText('Endereço IP.')).toBeInTheDocument();
     expect(within(section).getByText('Registros técnicos básicos.')).toBeInTheDocument();
     expect(within(section).getByText(/dados da conta do casal/i)).toBeInTheDocument();
+  });
+
+  it('diz que o endereço IP fica num registro de limite de envios, por período limitado, para prevenir abusos', () => {
+    renderPage();
+    const data = screen.getByRole('region', { name: 'Quais dados tratamos' });
+    expect(
+      within(data).getByText('Fica em um registro de limite de envios, por período limitado, para prevenir abusos.'),
+    ).toBeInTheDocument();
+    const purpose = screen.getByRole('region', { name: 'Para que usamos os dados' });
+    expect(
+      within(purpose).getByText('O endereço IP e os registros técnicos servem para prevenir abusos e manter o serviço seguro.'),
+    ).toBeInTheDocument();
   });
 
   it('cita a LGPD e os direitos do titular, inclusive a reclamação à ANPD', () => {
@@ -139,6 +181,67 @@ describe('Página de política de privacidade', () => {
     const section = screen.getByRole('region', { name: 'Com quem compartilhamos' });
     expect(within(section).getByText(/Não vendemos dados pessoais/)).toBeInTheDocument();
     expect(within(section).getByText(/Google, provedor de armazenamento/)).toBeInTheDocument();
+  });
+
+  it('diz que o casal vê (e não recebe) os arquivos enviados ao seu evento e o nome informado', () => {
+    const { container } = renderPage();
+    const section = screen.getByRole('region', { name: 'Com quem compartilhamos' });
+    expect(
+      within(section).getByText(
+        'O casal do evento vê os arquivos enviados ao seu evento (lista com miniaturas no painel) e o nome que o convidado informou.',
+      ),
+    ).toBeInTheDocument();
+    // Nada na página pode sugerir entrega, download ou transferência de propriedade dos arquivos.
+    expect(container.textContent).not.toMatch(/\breceb(e|em|er)\b|baix|download|entreg|propriedade/i);
+  });
+
+  describe('proteção dos dados', () => {
+    const protectionSection = () => screen.getByRole('region', { name: 'Como protegemos os dados' });
+
+    it('explica o caminho do envio: HTTPS, direto para o Google Drive, com endereço temporário por arquivo', () => {
+      renderPage();
+      expect(
+        within(protectionSection()).getByText(
+          'Os arquivos vão do navegador do convidado direto para o Google Drive, por conexão HTTPS, usando um endereço de envio temporário criado para cada arquivo.',
+        ),
+      ).toBeInTheDocument();
+    });
+
+    it('diz que os arquivos não são públicos e que o painel não oferece link para o Drive', () => {
+      renderPage();
+      expect(
+        within(protectionSection()).getByText(
+          'Os arquivos não são públicos, e o painel do casal não oferece nenhum link para o Drive.',
+        ),
+      ).toBeInTheDocument();
+    });
+
+    it('diz que o casal vê apenas os arquivos do próprio evento', () => {
+      renderPage();
+      expect(
+        within(protectionSection()).getByText('O casal vê apenas os arquivos enviados ao seu próprio evento.'),
+      ).toBeInTheDocument();
+    });
+
+    it('reconhece que a segurança também depende do Google e que nenhum sistema é completamente seguro', () => {
+      renderPage();
+      const section = protectionSection();
+      expect(
+        within(section).getByText('A segurança do armazenamento também depende dos controles do próprio Google.'),
+      ).toBeInTheDocument();
+      expect(
+        within(section).getByText(
+          'Nenhum sistema é completamente seguro, por isso não podemos prometer proteção absoluta.',
+        ),
+      ).toBeInTheDocument();
+    });
+
+    it('não promete medidas que não podem ser verificadas', () => {
+      renderPage();
+      const text = protectionSection().textContent ?? '';
+      expect(text).not.toMatch(/criptograf|cifra|backup|cópia de segurança|auditor|certifica|acesso registrado|registro de acesso/i);
+      expect(text).not.toMatch(/\d+\s*(dias|meses|anos|horas)/i);
+    });
   });
 
   it('descreve a retenção sem prometer prazos que não podem ser verificados', () => {

@@ -152,6 +152,20 @@ const Privacy = () => {
           </p>
         </Section>
 
+        <Section id="protecao" title="Como protegemos os dados">
+          <p>Estas medidas protegem o envio e a guarda das fotos e dos vídeos:</p>
+          <ul className={LIST_CLASS}>
+            <li>
+              Os arquivos vão do navegador do convidado direto para o Google Drive, por conexão HTTPS, usando um
+              endereço de envio temporário criado para cada arquivo.
+            </li>
+            <li>Os arquivos não são públicos, e o painel do casal não oferece nenhum link para o Drive.</li>
+            <li>O casal vê apenas os arquivos enviados ao seu próprio evento.</li>
+            <li>A segurança do armazenamento também depende dos controles do próprio Google.</li>
+          </ul>
+          <p>Nenhum sistema é completamente seguro, por isso não podemos prometer proteção absoluta.</p>
+        </Section>
+
         <Section id="dados-google" title="Uso de dados do Google">
           <p>
             O casarei.online usa a API do Google Drive para criar as pastas do casal, guardar os arquivos enviados pelos
@@ -186,7 +200,10 @@ const Privacy = () => {
           <p>
             Compartilhamos dados apenas com quem é necessário para o serviço funcionar: o Google, provedor de
             armazenamento dos arquivos enviados, e os provedores de infraestrutura que hospedam e operam a plataforma.
-            O casal do evento também recebe os arquivos enviados ao seu evento e o nome que o convidado informou.
+          </p>
+          <p>
+            O casal do evento vê os arquivos enviados ao seu evento (lista com miniaturas no painel) e o nome que o
+            convidado informou.
           </p>
         </Section>
 
