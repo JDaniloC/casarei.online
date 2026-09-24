@@ -169,12 +169,32 @@ const deps: GuestUploadDeps = {
     };
   },
 
-  async saveRootFolder(weddingId, folderId) {
-    const { error } = await supabase
+  // Gravação condicional (compare-and-set) num único UPDATE: só vale se folder_id
+  // ainda for o `expected` lido pela requisição (IS NULL na primeira raiz). O
+  // Postgres reavalia o WHERE depois de esperar o lock da linha, então de várias
+  // requisições simultâneas só uma atualiza; as outras recebem 0 linhas e adotam a
+  // raiz que já está gravada. Devolve a raiz vencedora.
+  async saveRootFolder(weddingId, expected, newId) {
+    const update = supabase
       .from("wedding_drive_connections")
-      .update({ folder_id: folderId })
+      .update({ folder_id: newId })
       .eq("wedding_id", weddingId);
+    const { data: updated, error } = await (expected === null
+      ? update.is("folder_id", null)
+      : update.eq("folder_id", expected)
+    ).select("folder_id");
     if (error) throw new Error("Falha ao gravar a pasta raiz");
+    if (updated && updated.length > 0) return updated[0].folder_id;
+
+    // 0 linhas: outra requisição gravou antes (ou a linha sumiu). Lê a vencedora.
+    const { data: current, error: selectError } = await supabase
+      .from("wedding_drive_connections")
+      .select("folder_id")
+      .eq("wedding_id", weddingId)
+      .maybeSingle();
+    if (selectError) throw new Error("Falha ao ler a pasta raiz gravada");
+    if (!current?.folder_id) throw new Error("Pasta raiz não encontrada após a gravação condicional");
+    return current.folder_id;
   },
 
   async clearGuestFolders(weddingId) {

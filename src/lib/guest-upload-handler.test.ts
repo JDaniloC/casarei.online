@@ -97,8 +97,10 @@ function makeHarness(options: HarnessOptions = {}) {
       calls.push('getCoupleNames');
       return names;
     }),
-    saveRootFolder: vi.fn<GuestUploadDeps['saveRootFolder']>(async () => {
+    // Por padrão esta requisição vence a gravação condicional e recebe o próprio id.
+    saveRootFolder: vi.fn<GuestUploadDeps['saveRootFolder']>(async (_weddingId, _expected, newId) => {
       calls.push('saveRootFolder');
+      return newId;
     }),
     clearGuestFolders: vi.fn<GuestUploadDeps['clearGuestFolders']>(async () => {
       calls.push('clearGuestFolders');
@@ -678,28 +680,72 @@ describe('guest-upload: POST (10) pasta raiz', () => {
     expect(h.mocks.clearGuestFolders).not.toHaveBeenCalled();
   });
 
-  it('raiz que mudou de id (a antiga foi apagada): grava a nova e depois limpa as pastas de convidado', async () => {
-    const h = makeHarness();
+  // A raiz que o Drive devolve para esta requisição (id novo = a antiga não existe mais).
+  const ensureReturns = (h: Harness, id: string) =>
     h.mocks.ensureRootFolder.mockImplementationOnce(async () => {
       h.calls.push('drive:ensureRootFolder');
-      return 'root-2';
+      return id;
     });
+  const firstRoot: GuestUploadConnection = { weddingId: WEDDING_ID, uploadsEnabled: true, folderId: null };
+  const rootSteps = (h: Harness) =>
+    h.calls.filter((c) =>
+      ['drive:ensureRootFolder', 'saveRootFolder', 'clearGuestFolders', 'drive:resolveGuestFolder'].includes(c),
+    );
+
+  it('raiz substituída (a antiga foi apagada) e esta requisição vence: grava com o id esperado e depois limpa as pastas de convidado', async () => {
+    const h = makeHarness();
+    ensureReturns(h, 'root-2');
     const res = await h.handler(postReq(validBody()));
     expect(res.status).toBe(200);
-    expect(h.mocks.saveRootFolder).toHaveBeenCalledWith(WEDDING_ID, 'root-2');
+    expect(h.mocks.saveRootFolder).toHaveBeenCalledTimes(1);
+    expect(h.mocks.saveRootFolder).toHaveBeenCalledWith(WEDDING_ID, 'root-1', 'root-2');
     expect(h.mocks.clearGuestFolders).toHaveBeenCalledWith(WEDDING_ID);
-    const order = h.calls.filter((c) => ['drive:ensureRootFolder', 'saveRootFolder', 'clearGuestFolders', 'drive:resolveGuestFolder'].includes(c));
-    expect(order).toEqual(['drive:ensureRootFolder', 'saveRootFolder', 'clearGuestFolders', 'drive:resolveGuestFolder']);
-    // a pasta do convidado é resolvida dentro da raiz nova
+    // gravar primeiro, limpar depois, só então resolver a pasta do convidado
+    expect(rootSteps(h)).toEqual([
+      'drive:ensureRootFolder',
+      'saveRootFolder',
+      'clearGuestFolders',
+      'drive:resolveGuestFolder',
+    ]);
     expect(h.mocks.resolveGuestFolder.mock.calls[0][2].rootFolderId).toBe('root-2');
   });
 
-  it('primeira raiz (casamento sem folderId): grava e limpa', async () => {
-    const h = makeHarness({ connection: { weddingId: WEDDING_ID, uploadsEnabled: true, folderId: null } });
+  it('raiz substituída mas outra requisição gravou antes: usa a raiz vencedora e não limpa nada', async () => {
+    const h = makeHarness();
+    ensureReturns(h, 'root-2');
+    h.mocks.saveRootFolder.mockImplementationOnce(async () => {
+      h.calls.push('saveRootFolder');
+      return 'root-vencedora';
+    });
     const res = await h.handler(postReq(validBody()));
     expect(res.status).toBe(200);
-    expect(h.mocks.saveRootFolder).toHaveBeenCalledWith(WEDDING_ID, 'root-novo');
-    expect(h.mocks.clearGuestFolders).toHaveBeenCalledWith(WEDDING_ID);
+    expect(h.mocks.saveRootFolder).toHaveBeenCalledWith(WEDDING_ID, 'root-1', 'root-2');
+    expect(h.mocks.clearGuestFolders).not.toHaveBeenCalled();
+    expect(h.mocks.resolveGuestFolder.mock.calls[0][2].rootFolderId).toBe('root-vencedora');
+  });
+
+  it('primeira raiz (folderId nulo) e esta requisição vence: grava com expected nulo e NUNCA limpa', async () => {
+    const h = makeHarness({ connection: firstRoot });
+    const res = await h.handler(postReq(validBody()));
+    expect(res.status).toBe(200);
+    expect(h.mocks.saveRootFolder).toHaveBeenCalledTimes(1);
+    expect(h.mocks.saveRootFolder).toHaveBeenCalledWith(WEDDING_ID, null, 'root-novo');
+    expect(h.mocks.clearGuestFolders).not.toHaveBeenCalled();
+    expect(h.mocks.resolveGuestFolder.mock.calls[0][2].rootFolderId).toBe('root-novo');
+  });
+
+  it('primeira raiz e outra requisição gravou antes: usa a raiz vencedora e NUNCA limpa', async () => {
+    const h = makeHarness({ connection: firstRoot });
+    h.mocks.saveRootFolder.mockImplementationOnce(async () => {
+      h.calls.push('saveRootFolder');
+      return 'root-vencedora';
+    });
+    const res = await h.handler(postReq(validBody()));
+    expect(res.status).toBe(200);
+    expect(h.mocks.saveRootFolder).toHaveBeenCalledWith(WEDDING_ID, null, 'root-novo');
+    expect(h.mocks.clearGuestFolders).not.toHaveBeenCalled();
+    expect(h.mocks.resolveGuestFolder.mock.calls[0][2].rootFolderId).toBe('root-vencedora');
+    expect(rootSteps(h)).toEqual(['drive:ensureRootFolder', 'saveRootFolder', 'drive:resolveGuestFolder']);
   });
 
   it('DriveApiError ao garantir a raiz: 503 unavailable', async () => {
@@ -709,17 +755,26 @@ describe('guest-upload: POST (10) pasta raiz', () => {
     expect(h.mocks.resolveGuestFolder).not.toHaveBeenCalled();
   });
 
-  it('falha ao gravar a nova raiz: 503 e nenhuma sessão é criada', async () => {
-    const h = makeHarness({ connection: { weddingId: WEDDING_ID, uploadsEnabled: true, folderId: null } });
+  it.each([
+    ['primeira raiz', firstRoot],
+    ['raiz substituída', { weddingId: WEDDING_ID, uploadsEnabled: true, folderId: 'root-1' }],
+  ])('%s: saveRootFolder rejeitado vira 503 e nenhuma etapa seguinte roda', async (_label, connection) => {
+    const h = makeHarness({ connection });
+    ensureReturns(h, 'root-2');
     h.mocks.saveRootFolder.mockRejectedValueOnce(new Error('banco fora do ar'));
     await expectError(await h.handler(postReq(validBody())), 503, 'unavailable');
+    expect(h.mocks.clearGuestFolders).not.toHaveBeenCalled();
+    expect(h.mocks.resolveGuestFolder).not.toHaveBeenCalled();
+    expect(h.mocks.getQuota).not.toHaveBeenCalled();
     expect(h.mocks.initSession).not.toHaveBeenCalled();
   });
 
-  it('falha ao limpar as pastas de convidado: 503 e nenhuma sessão é criada', async () => {
-    const h = makeHarness({ connection: { weddingId: WEDDING_ID, uploadsEnabled: true, folderId: null } });
+  it('falha ao limpar as pastas de convidado (raiz substituída, esta requisição venceu): 503 e nenhuma sessão é criada', async () => {
+    const h = makeHarness();
+    ensureReturns(h, 'root-2');
     h.mocks.clearGuestFolders.mockRejectedValueOnce(new Error('banco fora do ar'));
     await expectError(await h.handler(postReq(validBody())), 503, 'unavailable');
+    expect(h.mocks.resolveGuestFolder).not.toHaveBeenCalled();
     expect(h.mocks.initSession).not.toHaveBeenCalled();
   });
 

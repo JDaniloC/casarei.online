@@ -83,8 +83,13 @@ export interface GuestUploadDeps {
   findConnection(token: string): Promise<GuestUploadConnection | null>;
   /** Nomes do casal; `null` se o casamento não existir. */
   getCoupleNames(weddingId: string): Promise<CoupleNames | null>;
-  /** Grava a pasta raiz do casal em `wedding_drive_connections.folder_id`. */
-  saveRootFolder(weddingId: string, folderId: string): Promise<void>;
+  /**
+   * Grava a pasta raiz do casal em `wedding_drive_connections.folder_id` SÓ se a
+   * raiz gravada ainda for `expected` (null = ainda sem raiz). Devolve a raiz
+   * vencedora: `newId` se esta chamada gravou, senão a que outra requisição gravou.
+   * Lança se não houver linha ou em qualquer erro do banco.
+   */
+  saveRootFolder(weddingId: string, expected: string | null, newId: string): Promise<string>;
   /** Apaga todas as linhas de `wedding_drive_guest_folders` do casamento. */
   clearGuestFolders(weddingId: string): Promise<void>;
   /** Tabela `rate_limit_log`. */
@@ -300,17 +305,24 @@ async function handlePost(
     const accessToken = await deps.drive.getAccessToken();
 
     // 10. Pasta raiz do casal. Se o id mudou (primeiro envio ou a pasta foi
-    // apagada), grava o novo e limpa as pastas de convidado, que apontavam para
-    // a raiz antiga.
+    // apagada), a gravação é CONDICIONAL: só vale se a raiz gravada ainda for a
+    // que esta requisição leu. Várias requisições simultâneas criam uma raiz cada,
+    // mas só uma grava; as outras adotam a raiz vencedora (a que criaram fica
+    // vazia no Drive). As pastas de convidado só são limpas por quem venceu E
+    // substituiu uma raiz anterior: sem raiz anterior não há pasta legítima, e
+    // limpar apagaria linhas que outra requisição acabou de inserir.
     stage = "post:root_folder";
-    const rootFolderId = await deps.drive.ensureRootFolder(accessToken, {
+    const ensuredRootId = await deps.drive.ensureRootFolder(accessToken, {
       weddingId: connection.weddingId,
       name: sanitizeFileName(`${names.coupleName} – casarei.online`),
       folderId: connection.folderId,
     });
-    if (rootFolderId !== connection.folderId) {
-      await deps.saveRootFolder(connection.weddingId, rootFolderId);
-      await deps.clearGuestFolders(connection.weddingId);
+    let rootFolderId = ensuredRootId;
+    if (ensuredRootId !== connection.folderId) {
+      rootFolderId = await deps.saveRootFolder(connection.weddingId, connection.folderId, ensuredRootId);
+      if (rootFolderId === ensuredRootId && connection.folderId !== null) {
+        await deps.clearGuestFolders(connection.weddingId);
+      }
     }
 
     // 11. Pasta do convidado dentro da raiz.
