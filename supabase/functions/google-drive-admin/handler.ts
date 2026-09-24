@@ -131,16 +131,19 @@ export function generateUploadToken(fillRandom: (bytes: Uint8Array) => void): st
 /**
  * Decide o que um erro de `auth.getUser()` significa. Só erro de CLIENTE (status
  * 4xx: JWT inválido, expirado, usuário que não existe mais) quer dizer "não
- * autenticado" (`unauthorized`, 401). Todo o resto é o Auth fora do ar, e não pode
- * parecer sessão expirada (deslogaria o casal por uma queda que não é dele):
- * `unavailable`, sem `status` numérico (falha de rede, erro não tipado), status 0
- * (fetch que nem chegou ao servidor), 5xx ou qualquer valor fora de 400-499. Quem
- * chama (index.ts) lança um Error de mensagem fixa nesse caso, e o handler responde 503.
+ * autenticado" (`unauthorized`, 401), com duas exceções: 408 (timeout) e 429 (limite
+ * de taxa do Auth) são 4xx, mas dizem que o Auth está lento ou sobrecarregado, não
+ * que a sessão expirou. Todo o resto também é o Auth fora do ar, e não pode parecer
+ * sessão expirada (deslogaria o casal por uma queda que não é dele): `unavailable`,
+ * sem `status` numérico (falha de rede, erro não tipado), status 0 (fetch que nem
+ * chegou ao servidor), 408, 429, 5xx ou qualquer valor fora de 400-499. Quem chama
+ * (index.ts) lança um Error de mensagem fixa nesse caso, e o handler responde 503.
  */
 export function classifyAuthError(error: unknown): "unauthorized" | "unavailable" {
   const status = typeof error === "object" && error !== null ? (error as { status?: unknown }).status : undefined;
-  const isClientError = typeof status === "number" && Number.isInteger(status) && status >= 400 && status < 500;
-  return isClientError ? "unauthorized" : "unavailable";
+  const isSessionError =
+    typeof status === "number" && Number.isInteger(status) && status >= 400 && status < 500 && status !== 408 && status !== 429;
+  return isSessionError ? "unauthorized" : "unavailable";
 }
 
 // ---------------------------------------------------------------------------

@@ -1431,9 +1431,21 @@ describe('google-drive-admin: classifyAuthError', () => {
     ['401 (JWT inválido ou expirado)', 401],
     ['403 (usuário do JWT não existe mais)', 403],
     ['404', 404],
+    ['407', 407],
+    ['409', 409],
+    ['422', 422],
     ['499', 499],
   ])('erro de cliente %s: unauthorized (o casal precisa entrar de novo)', (_label, status) => {
     expect(classifyAuthError({ status })).toBe('unauthorized');
+  });
+
+  // 408 (timeout) e 429 (limite de taxa do Auth) são 4xx, mas não dizem que a sessão
+  // expirou: o Auth só está sobrecarregado ou lento, e o casal não pode ser deslogado.
+  it.each([
+    ['408 (timeout)', 408],
+    ['429 (limite de taxa do Auth)', 429],
+  ])('%s: unavailable, sem deslogar o casal', (_label, status) => {
+    expect(classifyAuthError({ status })).toBe('unavailable');
   });
 
   it.each([
