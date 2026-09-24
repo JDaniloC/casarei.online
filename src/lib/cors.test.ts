@@ -121,13 +121,39 @@ describe('isOriginAllowed', () => {
   });
 });
 
+// Mesmo valor das demais edge functions do repositório: os quatro primeiros são os
+// cabeçalhos clássicos do supabase-js e os quatro últimos, os que versões novas dele
+// passam a enviar (sem eles o preflight da aba do painel falharia entre origens).
+const CLASSIC_HEADERS = ['authorization', 'x-client-info', 'apikey', 'content-type'];
+const SUPABASE_CLIENT_HEADERS = [
+  'x-supabase-client-platform',
+  'x-supabase-client-platform-version',
+  'x-supabase-client-runtime',
+  'x-supabase-client-runtime-version',
+];
+const ALLOW_HEADERS = [...CLASSIC_HEADERS, ...SUPABASE_CLIENT_HEADERS].join(', ');
+
 describe('corsHeadersFor', () => {
   const allowed = ['https://casarei.online', 'http://localhost:8080'];
+
+  it('Allow-Headers é uma única string separada por vírgula, com os quatro clássicos primeiro', () => {
+    const value = corsHeadersFor('https://casarei.online', allowed)['Access-Control-Allow-Headers'];
+    expect(typeof value).toBe('string');
+    expect(value).toBe(ALLOW_HEADERS);
+    expect(value.split(', ').slice(0, 4)).toEqual(CLASSIC_HEADERS);
+  });
+
+  it.each(SUPABASE_CLIENT_HEADERS)('Allow-Headers inclui %s (paridade com as demais edge functions)', (name) => {
+    for (const origin of ['https://casarei.online', 'https://evil.example', null]) {
+      const value = corsHeadersFor(origin, allowed)['Access-Control-Allow-Headers'];
+      expect(value.split(',').map((item) => item.trim())).toContain(name);
+    }
+  });
 
   it('com origem permitida devolve os headers completos, inclusive Allow-Origin', () => {
     expect(corsHeadersFor('https://casarei.online', allowed)).toEqual({
       'Access-Control-Allow-Origin': 'https://casarei.online',
-      'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+      'Access-Control-Allow-Headers': ALLOW_HEADERS,
       'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
       Vary: 'Origin',
       'X-Content-Type-Options': 'nosniff',
@@ -146,7 +172,7 @@ describe('corsHeadersFor', () => {
 
     expect(headers).not.toHaveProperty('Access-Control-Allow-Origin');
     expect(headers).toEqual({
-      'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+      'Access-Control-Allow-Headers': ALLOW_HEADERS,
       'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
       Vary: 'Origin',
       'X-Content-Type-Options': 'nosniff',

@@ -20,7 +20,11 @@ export function isOriginAllowed(origin: string | null, allowed: string[]): boole
 
 export function corsHeadersFor(origin: string | null, allowed: string[]): Record<string, string> {
   const headers: Record<string, string> = {
-    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+    // Mesma lista das demais edge functions do repositório: os quatro cabeçalhos clássicos
+    // do supabase-js mais os x-supabase-client-* que as versões novas dele passam a enviar
+    // (sem eles, o preflight das chamadas entre origens do painel falharia).
+    "Access-Control-Allow-Headers":
+      "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
     "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
     Vary: "Origin",
     ...securityHeaders(),
