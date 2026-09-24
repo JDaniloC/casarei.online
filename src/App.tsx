@@ -11,6 +11,7 @@ import Dashboard from "./pages/Dashboard";
 import Preview from "./pages/Preview";
 import Demo from "./pages/Demo";
 import WeddingPage from "./pages/WeddingPage";
+import GuestUploadPage from "./pages/GuestUploadPage";
 import PaymentSuccess from "./pages/PaymentSuccess";
 import PaymentFailure from "./pages/PaymentFailure";
 import PaymentPending from "./pages/PaymentPending";
@@ -50,6 +51,8 @@ const App = () => (
                 </ProtectedRoute>
               } 
             />
+            {/* Public guest photo upload page (QR code): must stay above the /:slug routes */}
+            <Route path="/fotos/:token" element={<GuestUploadPage />} />
             {/* Public wedding pages with slug */}
             <Route path="/:slug" element={<WeddingPage />} />
             <Route path="/:slug/convite" element={<WeddingPage />} />
