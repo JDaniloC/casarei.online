@@ -231,8 +231,12 @@ function makeHarness(options: HarnessOptions = {}) {
       // Objeto sem protótipo, como o helper real.
       const result: Record<string, string | null> = Object.create(null);
       for (const id of fileIds) {
-        result[id] = owned.has(id) ? `data:image/jpeg;base64,${btoa(`miniatura-de-${weddingId}-${id}`)}` : null;
+        if (!owned.has(id)) result[id] = null;
+        else if (leaky) result[id] = `https://drive.google.com/thumbnail?id=${id}&sz=w400`;
+        else result[id] = `data:image/jpeg;base64,${btoa(`miniatura-de-${weddingId}-${id}`)}`;
       }
+      // Dependência vazadora: uma chave que ninguém pediu, com um link do Drive.
+      if (leaky) result['nao-pedido'] = 'https://drive.google.com/file/d/nao-pedido/view';
       return result;
     }),
   };
@@ -945,6 +949,56 @@ describe('google-drive-admin: thumbnails', () => {
     const body = await bodyOf(res);
     expect(Object.keys(body.thumbnails).sort()).toEqual(['__proto__', 'constructor']);
     expect(Object.getOwnPropertyDescriptor(body.thumbnails, 'constructor')?.value).toBe('data:image/png;base64,AAAA');
+  });
+
+  it('reconstrói a resposta a partir dos ids pedidos: uma chave por id, na ordem do pedido, e nada além disso', async () => {
+    const h = makeHarness();
+    h.mocks.getThumbnails.mockImplementationOnce(async () => {
+      const result: Record<string, string | null> = Object.create(null);
+      result['nao-pedido'] = 'data:image/png;base64,AAAA';
+      result.b = 'data:image/png;base64,BBBB';
+      result.a = 'data:image/png;base64,AAAA';
+      return result;
+    });
+    const res = await call(h, { action: 'thumbnails', fileIds: ['a', 'b', 'c'] });
+    const body = await bodyOf(res);
+    // 'c' não veio da dependência: vira null; 'nao-pedido' não sai.
+    expect(Object.keys(body.thumbnails)).toEqual(['a', 'b', 'c']);
+    expect(body.thumbnails).toEqual({
+      a: 'data:image/png;base64,AAAA',
+      b: 'data:image/png;base64,BBBB',
+      c: null,
+    });
+  });
+
+  it('só data URL de imagem passa: URL (drive.google.com ou qualquer outra), texto e não-string viram null', async () => {
+    const h = makeHarness();
+    h.mocks.getThumbnails.mockImplementationOnce(async () => {
+      const result: Record<string, unknown> = Object.create(null);
+      result.drive = 'https://drive.google.com/thumbnail?id=abc';
+      result.cdn = 'https://lh3.googleusercontent.com/abc=s400';
+      result.html = 'data:text/html;base64,PGI+';
+      result.texto = 'olá';
+      result.numero = 7;
+      result.objeto = { url: 'https://drive.google.com/x' };
+      result.ok = 'data:image/webp;base64,UklGRg==';
+      return result as Record<string, string | null>;
+    });
+    const res = await call(h, {
+      action: 'thumbnails',
+      fileIds: ['drive', 'cdn', 'html', 'texto', 'numero', 'objeto', 'ok'],
+    });
+    const body = await bodyOf(res);
+    expect(body.thumbnails).toEqual({
+      drive: null,
+      cdn: null,
+      html: null,
+      texto: null,
+      numero: null,
+      objeto: null,
+      ok: 'data:image/webp;base64,UklGRg==',
+    });
+    expect(findLeaks(body)).toEqual([]);
   });
 
   it('exatamente 24 ids é aceito; 200 caracteres por id é aceito', async () => {

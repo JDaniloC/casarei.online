@@ -270,6 +270,26 @@ function fileBody(file: DriveFileSummary): DriveFileSummary {
   };
 }
 
+const THUMBNAIL_DATA_URL_PREFIX = "data:image/";
+
+// Monta a resposta de miniaturas a partir dos ids PEDIDOS, não do que a dependência
+// devolveu: uma chave por id, na ordem do pedido, e só data URL de imagem sobrevive.
+// Qualquer outro valor (URL, inclusive de drive.google.com, texto, não-string) ou id
+// ausente vira null; chaves que ninguém pediu não saem. Objeto sem protótipo porque os
+// ids vêm do cliente ("__proto__" e "constructor" são chaves comuns), e a leitura da
+// dependência olha só propriedades próprias.
+function thumbnailsBody(returned: unknown, requestedIds: string[]): Record<string, string | null> {
+  const body: Record<string, string | null> = Object.create(null);
+  for (const id of requestedIds) {
+    const value =
+      typeof returned === "object" && returned !== null && Object.prototype.hasOwnProperty.call(returned, id)
+        ? (returned as Record<string, unknown>)[id]
+        : null;
+    body[id] = typeof value === "string" && value.startsWith(THUMBNAIL_DATA_URL_PREFIX) ? value : null;
+  }
+  return body;
+}
+
 // Token novo da dependência; recusa o que a função pública não aceitaria (falha fechada).
 function newUploadToken(deps: GoogleDriveAdminDeps): string {
   const token = deps.generateToken();
@@ -348,8 +368,8 @@ async function runAction(
 
     case "thumbnails": {
       trace.stage = "drive:thumbnails";
-      const thumbnails = await deps.drive.getThumbnails(accessToken, weddingId, request.fileIds);
-      return json(200, { thumbnails }, cors);
+      const returned = await deps.drive.getThumbnails(accessToken, weddingId, request.fileIds);
+      return json(200, { thumbnails: thumbnailsBody(returned, request.fileIds) }, cors);
     }
   }
 }
