@@ -1,18 +1,39 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import Dashboard from './Dashboard';
-import { BrowserRouter } from 'react-router-dom';
+import { BrowserRouter, MemoryRouter } from 'react-router-dom';
 
 // Mock dependências externas
 vi.mock('@/components/wedding/DashboardHistory', () => ({
   default: () => <div data-testid="mock-dashboard-history">DashboardHistory</div>
 }));
+// A visão de convidados é pesada e tem testes próprios: aqui só interessa que a aba a monta.
+vi.mock('@/components/wedding/DashboardGuests', () => ({
+  default: ({ weddingId }: { weddingId: string }) => (
+    <div data-testid="mock-dashboard-guests" data-wedding-id={weddingId}>DashboardGuests</div>
+  ),
+}));
+// Cliente da API do painel de fotos: o painel de verdade é montado, o backend não.
+const driveApi = vi.hoisted(() => ({
+  getStatus: vi.fn(),
+  enable: vi.fn(),
+  setEnabled: vi.fn(),
+  rotateToken: vi.fn(),
+  listFiles: vi.fn(),
+  getSummary: vi.fn(),
+  getThumbnails: vi.fn(),
+}));
+vi.mock('@/lib/driveAdminApi', () => driveApi);
 vi.mock('@/components/ui/tooltip', () => ({
   Tooltip: ({ children }: any) => <div>{children}</div>,
   TooltipTrigger: ({ children }: any) => <div>{children}</div>,
   TooltipContent: ({ children }: any) => <div>{children}</div>,
   TooltipProvider: ({ children }: any) => <div>{children}</div>,
 }));
+
+// Casamento que a consulta da carga inicial devolve. `null` (o padrão) mantém o
+// comportamento dos testes de CSV: sem casamento carregado e sem weddingId.
+const dashboardState = vi.hoisted(() => ({ wedding: null as Record<string, unknown> | null }));
 
 const mockAddGift = vi.fn();
 const mockUpdateConfig = vi.fn();
@@ -66,6 +87,7 @@ vi.mock('@/integrations/supabase/client', () => ({
     from: vi.fn().mockReturnValue({
       select: vi.fn().mockReturnValue({
         eq: vi.fn().mockReturnValue({
+          maybeSingle: vi.fn(() => Promise.resolve({ data: dashboardState.wedding, error: null })),
           single: vi.fn().mockResolvedValue({
             data: {
               couple_name: 'Danilo & Maria',
@@ -233,5 +255,76 @@ Jogo de Panelas Antiaderente,Cozinha,499.00,,
         title: 'Presente Importado!',
       }));
     });
+  });
+});
+
+describe('Dashboard: aba "Fotos dos Convidados"', () => {
+  const WEDDING_ID = 'wedding-uuid-1';
+  const notEnabled = { enabled: false, uploadsEnabled: false, uploadToken: null };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    dashboardState.wedding = {
+      id: WEDDING_ID,
+      slug: 'danilo-e-maria',
+      couple_name: 'Danilo & Maria',
+      layout: 'classic',
+    };
+    driveApi.getStatus.mockResolvedValue(notEnabled);
+  });
+
+  afterEach(() => {
+    dashboardState.wedding = null;
+  });
+
+  it('clicar na aba renderiza o painel e dispara a consulta inicial de status', async () => {
+    renderDashboard();
+    // Aba padrão é o Painel Geral: o painel de fotos nem foi montado.
+    expect(screen.getByTestId('mock-dashboard-history')).toBeInTheDocument();
+    expect(driveApi.getStatus).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Fotos dos Convidados' }));
+
+    expect(await screen.findByRole('button', { name: 'Ativar envio de fotos' })).toBeInTheDocument();
+    expect(driveApi.getStatus).toHaveBeenCalledTimes(1);
+    expect(screen.queryByTestId('mock-dashboard-history')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('mock-dashboard-guests')).not.toBeInTheDocument();
+  });
+
+  it('location.state.activeTab === "photos" abre a aba direto, sem clicar', async () => {
+    render(
+      <MemoryRouter initialEntries={[{ pathname: '/dashboard', state: { activeTab: 'photos' } }]}>
+        <Dashboard />
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByRole('button', { name: 'Ativar envio de fotos' })).toBeInTheDocument();
+    expect(driveApi.getStatus).toHaveBeenCalledTimes(1);
+    expect(screen.queryByTestId('mock-dashboard-history')).not.toBeInTheDocument();
+  });
+
+  it('a aba "Convidados" continua renderizando a visão de convidados, sem o painel de fotos', async () => {
+    renderDashboard();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Convidados' }));
+
+    expect(await screen.findByTestId('mock-dashboard-guests')).toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.getByTestId('mock-dashboard-guests')).toHaveAttribute('data-wedding-id', WEDDING_ID)
+    );
+    expect(screen.queryByRole('button', { name: 'Ativar envio de fotos' })).not.toBeInTheDocument();
+    expect(driveApi.getStatus).not.toHaveBeenCalled();
+  });
+
+  it('trocar de "Convidados" para "Fotos dos Convidados" monta o painel de fotos e desmonta a visão de convidados', async () => {
+    renderDashboard();
+    fireEvent.click(screen.getByRole('button', { name: 'Convidados' }));
+    expect(await screen.findByTestId('mock-dashboard-guests')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Fotos dos Convidados' }));
+
+    expect(await screen.findByRole('button', { name: 'Ativar envio de fotos' })).toBeInTheDocument();
+    expect(screen.queryByTestId('mock-dashboard-guests')).not.toBeInTheDocument();
+    expect(driveApi.getStatus).toHaveBeenCalledTimes(1);
   });
 });

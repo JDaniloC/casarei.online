@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { QRCodeCanvas } from "qrcode.react";
@@ -502,6 +502,29 @@ export default function DashboardGuestUploads({ weddingId }: DashboardGuestUploa
     }
   };
 
+  // O QR code precisa ser calculado antes dos retornos antecipados abaixo (regra dos hooks).
+  // O QRCodeCanvas redesenha um canvas de 1024 x devicePixelRatio a cada render (o efeito dele
+  // não tem lista de dependências), e o painel renderiza a cada lote de miniaturas, a cada
+  // início e fim de atualização, no "copiado" e na chave pendente. Por isso o elemento é
+  // memorizado só pela URL de envio: mesma URL, mesmo elemento, e o React não o renderiza de novo.
+  const uploadToken = status.phase === "ready" && status.connection.enabled ? status.connection.uploadToken : null;
+  const uploadUrl = uploadToken ? `${window.location.origin}/fotos/${encodeURIComponent(uploadToken)}` : null;
+  const qrCode = useMemo(
+    () =>
+      uploadUrl === null ? null : (
+        <QRCodeCanvas
+          value={uploadUrl}
+          size={1024}
+          level="M"
+          marginSize={4}
+          role="img"
+          aria-label="QR code para os convidados enviarem fotos e vídeos"
+          style={{ width: "100%", height: "auto", display: "block" }}
+        />
+      ),
+    [uploadUrl],
+  );
+
   // ----- telas --------------------------------------------------------------
 
   if (!weddingId) {
@@ -576,9 +599,6 @@ export default function DashboardGuestUploads({ weddingId }: DashboardGuestUploa
     );
   }
 
-  const uploadUrl = connection.uploadToken
-    ? `${window.location.origin}/fotos/${encodeURIComponent(connection.uploadToken)}`
-    : null;
   const receiving = pendingUploads ?? connection.uploadsEnabled;
   const busy = refreshing || loadingMore;
 
@@ -593,17 +613,7 @@ export default function DashboardGuestUploads({ weddingId }: DashboardGuestUploa
                 {VIEWFINDER_CORNERS.map((corner) => (
                   <span key={corner} aria-hidden="true" className={cn("absolute h-4 w-4 border-gold", corner)} />
                 ))}
-                <div ref={qrBoxRef}>
-                  <QRCodeCanvas
-                    value={uploadUrl}
-                    size={1024}
-                    level="M"
-                    marginSize={4}
-                    role="img"
-                    aria-label="QR code para os convidados enviarem fotos e vídeos"
-                    style={{ width: "100%", height: "auto", display: "block" }}
-                  />
-                </div>
+                <div ref={qrBoxRef}>{qrCode}</div>
               </div>
               <Button className={cn(TOUCH, "w-full")} onClick={handleDownload}>
                 <Download />
@@ -659,7 +669,8 @@ export default function DashboardGuestUploads({ weddingId }: DashboardGuestUploa
                 <Switch
                   id="guest-upload-receiving"
                   checked={receiving}
-                  disabled={pendingUploads !== null}
+                  // Trava também durante "Gerar novo link": uma troca nesse intervalo seria ignorada em silêncio.
+                  disabled={pendingUploads !== null || rotating}
                   onCheckedChange={(next) => void handleToggleUploads(next)}
                   // A chave tem 24 px de altura: o ::after estende a área de toque para 44 px sem mudar o visual.
                   className="relative after:absolute after:-inset-x-0.5 after:-inset-y-3 after:content-['']"

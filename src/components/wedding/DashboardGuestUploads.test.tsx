@@ -20,17 +20,24 @@ vi.mock('@/lib/driveAdminApi', () => api);
 const mockToast = vi.hoisted(() => vi.fn());
 vi.mock('@/hooks/use-toast', () => ({ useToast: () => ({ toast: mockToast }) }));
 
+// Quantas vezes o QRCodeCanvas foi renderizado: o de verdade redesenha um canvas de
+// 1024 x devicePixelRatio a cada render, então o painel não pode recriá-lo à toa.
+const qr = vi.hoisted(() => ({ renders: 0 }));
+
 // jsdom não tem canvas: o mock renderiza um <canvas> comum, com as props em data-*.
 vi.mock('qrcode.react', () => ({
-  QRCodeCanvas: (props: { value: string; size?: number; level?: string; marginSize?: number }) => (
-    <canvas
-      data-testid="qr-canvas"
-      data-value={props.value}
-      data-size={props.size}
-      data-level={props.level}
-      data-margin={props.marginSize}
-    />
-  ),
+  QRCodeCanvas: (props: { value: string; size?: number; level?: string; marginSize?: number }) => {
+    qr.renders += 1;
+    return (
+      <canvas
+        data-testid="qr-canvas"
+        data-value={props.value}
+        data-size={props.size}
+        data-level={props.level}
+        data-margin={props.marginSize}
+      />
+    );
+  },
 }));
 
 // ---------------------------------------------------------------------------
@@ -87,6 +94,7 @@ let writeText: ReturnType<typeof vi.fn>;
 beforeEach(() => {
   Object.values(api).forEach((fn) => fn.mockReset());
   mockToast.mockReset();
+  qr.renders = 0;
 
   api.getStatus.mockResolvedValue(connection());
   api.enable.mockResolvedValue(connection());
@@ -332,6 +340,69 @@ describe('cartão do QR code', () => {
     ).toBeInTheDocument();
   });
 
+  describe('não redesenha o QR code à toa', () => {
+    it('o estado "copiado" liga e desliga sem recriar o QR code', async () => {
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+      await renderEnabled();
+      const before = qr.renders;
+      expect(before).toBeGreaterThan(0);
+
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: 'Copiar link' }));
+      });
+      expect(screen.getByRole('button', { name: 'Link copiado' })).toBeInTheDocument();
+      expect(qr.renders).toBe(before);
+
+      // O "copiado" some sozinho depois de 2 s: outra renderização do painel, sem QR novo.
+      await act(async () => {
+        vi.advanceTimersByTime(2100);
+      });
+      expect(screen.getByRole('button', { name: 'Copiar link' })).toBeInTheDocument();
+      expect(qr.renders).toBe(before);
+    });
+
+    it('"Atualizar" (início, fim e miniaturas) não recria o QR code', async () => {
+      api.listFiles.mockResolvedValue({ files: files(1, 3), nextPageToken: null });
+      await renderEnabled();
+      const before = qr.renders;
+
+      fireEvent.click(screen.getByRole('button', { name: 'Atualizar' }));
+      await waitFor(() => expect(screen.getByRole('button', { name: 'Atualizar' })).toBeEnabled());
+
+      expect(api.listFiles).toHaveBeenCalledTimes(2);
+      expect(qr.renders).toBe(before);
+    });
+
+    it('o estado pendente da chave "Receber envios" não recria o QR code', async () => {
+      const pending = deferred<ReturnType<typeof connection>>();
+      api.setEnabled.mockReturnValue(pending.promise);
+      await renderEnabled();
+      const before = qr.renders;
+      const toggle = screen.getByRole('switch', { name: 'Receber envios' });
+
+      fireEvent.click(toggle);
+      expect(toggle).toBeDisabled();
+      expect(qr.renders).toBe(before);
+
+      await act(async () => {
+        pending.resolve(connection({ uploadsEnabled: false }));
+      });
+      expect(toggle).toBeEnabled();
+      expect(qr.renders).toBe(before);
+    });
+
+    it('um link novo (outro token) redesenha o QR code com o valor novo', async () => {
+      await renderEnabled();
+      const before = qr.renders;
+
+      fireEvent.click(screen.getByRole('button', { name: 'Gerar novo link' }));
+      fireEvent.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Gerar novo link' }));
+
+      await waitFor(() => expect(screen.getByTestId('qr-canvas')).toHaveAttribute('data-value', linkFor(NEW_TOKEN)));
+      expect(qr.renders).toBeGreaterThan(before);
+    });
+  });
+
   describe('Copiar link', () => {
     it('usa navigator.clipboard.writeText com o link completo e confirma no botão', async () => {
       await renderEnabled();
@@ -447,6 +518,27 @@ describe('Gerar novo link', () => {
     expect(screen.queryByDisplayValue(linkFor(TOKEN))).not.toBeInTheDocument();
     expect(mockToast).toHaveBeenCalledWith(expect.objectContaining({ title: expect.stringMatching(/novo link/i) }));
     await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument());
+  });
+
+  it('a chave "Receber envios" fica desabilitada enquanto o novo link é gerado (uma troca durante o giro seria ignorada)', async () => {
+    const pending = deferred<ReturnType<typeof connection>>();
+    api.rotateToken.mockReturnValue(pending.promise);
+    await renderEnabled();
+    const toggle = screen.getByRole('switch', { name: 'Receber envios' });
+    expect(toggle).toBeEnabled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Gerar novo link' }));
+    fireEvent.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Gerar novo link' }));
+    await waitFor(() => expect(api.rotateToken).toHaveBeenCalledTimes(1));
+
+    expect(toggle).toBeDisabled();
+    expect(api.setEnabled).not.toHaveBeenCalled();
+
+    await act(async () => {
+      pending.resolve(connection({ uploadToken: NEW_TOKEN }));
+    });
+    await waitFor(() => expect(toggle).toBeEnabled());
+    expect(toggle).toHaveAttribute('aria-checked', 'true');
   });
 
   it('cancelar não faz nada: nenhuma chamada, mesmo link', async () => {
