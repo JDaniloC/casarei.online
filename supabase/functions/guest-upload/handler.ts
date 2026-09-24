@@ -102,7 +102,7 @@ export interface GuestUploadDeps {
 const LOG_PREFIX = "[guest-upload]";
 
 const TOKEN_PATTERN = /^[A-Za-z0-9_-]{20,64}$/;
-const MAX_BODY_CHARS = 16 * 1024;
+const MAX_BODY_BYTES = 16 * 1024;
 const MAX_FILE_NAME_CHARS = 255;
 const MAX_MIME_TYPE_CHARS = 100;
 const MAX_GUEST_NAME_CHARS = 200;
@@ -167,16 +167,61 @@ interface UploadRequest {
   guestName: string | undefined;
 }
 
-// Lê e valida o corpo do POST. `null` = inválido (400 invalid_input). O corpo é
-// lido como texto para poder recusar o que passa do teto antes de interpretar.
-async function readUploadRequest(req: Request): Promise<UploadRequest | null> {
-  let text: string;
+// Lê o corpo do POST respeitando o teto de MAX_BODY_BYTES, contado em BYTES e
+// aplicado ANTES de bufferizar: o endpoint é anônimo, e `req.text()` seguraria o
+// corpo inteiro na memória (e contaria caracteres, não bytes). `null` = passou do
+// teto ou não deu para ler (400 invalid_input).
+//  a. Content-Length presente, válido (só dígitos) e acima do teto: recusa sem tocar
+//     no corpo. Ausente ou inválido, segue para (b): o cabeçalho é só um atalho, e
+//     quem mente nele é pego na leitura.
+//  b. Lê pelo leitor do stream somando bytes; ao passar do teto cancela o leitor e recusa.
+//  A decodificação UTF-8 só acontece depois da conferência do teto. Corpo nulo = vazio.
+async function readCappedBody(req: Request): Promise<string | null> {
+  const declared = req.headers.get("content-length")?.trim();
+  if (declared !== undefined && /^\d+$/.test(declared) && Number(declared) > MAX_BODY_BYTES) return null;
+
+  if (req.body === null) return "";
+  let reader: ReadableStreamDefaultReader<Uint8Array>;
   try {
-    text = await req.text();
+    reader = req.body.getReader();
   } catch {
+    return null; // corpo já consumido ou travado
+  }
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      total += value.byteLength;
+      if (total > MAX_BODY_BYTES) {
+        await reader.cancel();
+        return null;
+      }
+      chunks.push(value);
+    }
+  } catch {
+    try {
+      await reader.cancel();
+    } catch {
+      // stream já quebrado
+    }
     return null;
   }
-  if (text.length > MAX_BODY_CHARS) return null;
+
+  const bytes = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return new TextDecoder("utf-8").decode(bytes);
+}
+
+// Lê e valida o corpo do POST. `null` = inválido (400 invalid_input).
+async function readUploadRequest(req: Request): Promise<UploadRequest | null> {
+  const text = await readCappedBody(req);
+  if (text === null) return null;
 
   let raw: unknown;
   try {

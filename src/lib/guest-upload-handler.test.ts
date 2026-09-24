@@ -475,6 +475,173 @@ describe('guest-upload: POST (2) corpo', () => {
   });
 });
 
+// ---------------------------------------------------------------------------
+// Teto do corpo: 16 KiB medidos em BYTES e aplicados ANTES de ler o corpo inteiro
+// ---------------------------------------------------------------------------
+
+const MAX_BODY_BYTES = 16 * 1024;
+const encoder = new TextEncoder();
+
+// JSON válido do envio, preenchido (só ASCII) até ter exatamente `bytes` bytes.
+function bodyWithExactBytes(bytes: number): string {
+  const base = JSON.stringify(validBody({ padding: '' }));
+  const text = JSON.stringify(validBody({ padding: 'a'.repeat(bytes - base.length) }));
+  expect(encoder.encode(text).length).toBe(bytes);
+  return text;
+}
+
+// POST cujo corpo é um stream (como um envio chunked, sem Content-Length). `pull` e
+// `cancel` são espiões: mostram quanto do corpo foi lido e se o handler desistiu dele.
+// highWaterMark 0: nada é lido antes de alguém pedir.
+function streamedPost(chunks: Uint8Array[], options: { contentLength?: string; origin?: string } = {}) {
+  let next = 0;
+  const pull = vi.fn((controller: ReadableStreamDefaultController<Uint8Array>) => {
+    if (next < chunks.length) controller.enqueue(chunks[next++]);
+    else controller.close();
+  });
+  const cancel = vi.fn();
+  const body = new ReadableStream<Uint8Array>({ pull, cancel }, new CountQueuingStrategy({ highWaterMark: 0 }));
+  const headers: Record<string, string> = {
+    'content-type': 'application/json',
+    'x-forwarded-for': CLIENT_IP,
+    origin: options.origin ?? ORIGIN,
+  };
+  if (options.contentLength !== undefined) headers['content-length'] = options.contentLength;
+  const req = new Request(ENDPOINT, { method: 'POST', headers, body, duplex: 'half' } as RequestInit);
+  return { req, pull, cancel };
+}
+
+const KIB_CHUNK = new Uint8Array(1024).fill(0x61); // 1 KiB de "a"
+
+describe('guest-upload: POST (2) teto do corpo em bytes, antes de ler o corpo', () => {
+  it('Content-Length acima do teto: 400 invalid_input SEM ler o corpo', async () => {
+    const h = makeHarness();
+    const valid = encoder.encode(JSON.stringify(validBody()));
+    const { req, pull, cancel } = streamedPost([valid], { contentLength: String(MAX_BODY_BYTES + 1) });
+
+    const res = await h.handler(req);
+
+    await expectError(res, 400, 'invalid_input');
+    expect(pull).not.toHaveBeenCalled();
+    expect(req.bodyUsed).toBe(false);
+    expect(cancel).not.toHaveBeenCalled();
+    expect(h.calls).toEqual([]);
+  });
+
+  it('Content-Length gigante (bem acima do teto) também é recusado sem ler o corpo', async () => {
+    const h = makeHarness();
+    const { req, pull } = streamedPost([KIB_CHUNK], { contentLength: '900000000000' });
+    await expectError(await h.handler(req), 400, 'invalid_input');
+    expect(pull).not.toHaveBeenCalled();
+    expect(h.calls).toEqual([]);
+  });
+
+  it('a Origin continua sendo checada antes de tudo: origem ruim + Content-Length enorme = 403 e nada é lido', async () => {
+    const h = makeHarness();
+    const { req, pull } = streamedPost([KIB_CHUNK], { contentLength: '900000000', origin: 'https://evil.example' });
+    await expectError(await h.handler(req), 403, 'forbidden_origin');
+    expect(pull).not.toHaveBeenCalled();
+    expect(req.bodyUsed).toBe(false);
+    expect(h.calls).toEqual([]);
+  });
+
+  it('corpo em stream acima do teto e SEM Content-Length: 400 invalid_input e o leitor é cancelado cedo', async () => {
+    const h = makeHarness();
+    // 100 KiB em pedaços de 1 KiB: o teto (16 KiB) estoura no 17º pedaço.
+    const { req, pull, cancel } = streamedPost(Array.from({ length: 100 }, () => KIB_CHUNK));
+
+    const res = await h.handler(req);
+
+    await expectError(res, 400, 'invalid_input');
+    expect(cancel).toHaveBeenCalledTimes(1);
+    expect(pull.mock.calls.length).toBeLessThanOrEqual(18);
+    expect(h.calls).toEqual([]);
+  });
+
+  it('Content-Length mentindo (pequeno) não ajuda: o corpo em stream ainda é cortado no teto', async () => {
+    const h = makeHarness();
+    const { req, pull, cancel } = streamedPost(
+      Array.from({ length: 100 }, () => KIB_CHUNK),
+      { contentLength: '10' },
+    );
+
+    await expectError(await h.handler(req), 400, 'invalid_input');
+    expect(cancel).toHaveBeenCalledTimes(1);
+    expect(pull.mock.calls.length).toBeLessThanOrEqual(18);
+  });
+
+  it('Content-Length inválido (texto, negativo, decimal) é ignorado: vale o corte por bytes durante a leitura', async () => {
+    for (const contentLength of ['abc', '-5', '1.5', '']) {
+      const ok = streamedPost([encoder.encode(JSON.stringify(validBody()))], { contentLength });
+      expect((await makeHarness().handler(ok.req)).status).toBe(200);
+
+      const big = streamedPost(Array.from({ length: 40 }, () => KIB_CHUNK), { contentLength });
+      await expectError(await makeHarness().handler(big.req), 400, 'invalid_input');
+      expect(big.cancel).toHaveBeenCalledTimes(1);
+    }
+  });
+
+  it('corpo de exatamente 16384 bytes é aceito (string, stream e com Content-Length igual ao teto)', async () => {
+    const text = bodyWithExactBytes(MAX_BODY_BYTES);
+
+    expect((await makeHarness().handler(postReq(text))).status).toBe(200);
+
+    const bytes = encoder.encode(text);
+    const halves = [bytes.slice(0, 5000), bytes.slice(5000)];
+    const streamed = streamedPost(halves, { contentLength: String(MAX_BODY_BYTES) });
+    expect((await makeHarness().handler(streamed.req)).status).toBe(200);
+    expect(streamed.cancel).not.toHaveBeenCalled();
+  });
+
+  it('16385 bytes: 400 invalid_input', async () => {
+    const text = bodyWithExactBytes(MAX_BODY_BYTES + 1);
+    const h = makeHarness();
+    await expectError(await h.handler(postReq(text)), 400, 'invalid_input');
+    expect(h.calls).toEqual([]);
+  });
+
+  it('conta BYTES, não caracteres: menos de 16384 caracteres mas mais de 16384 bytes em UTF-8 é recusado', async () => {
+    const text = JSON.stringify(validBody({ padding: 'é'.repeat(8200) }));
+    expect(text.length).toBeLessThan(MAX_BODY_BYTES);
+    expect(encoder.encode(text).length).toBeGreaterThan(MAX_BODY_BYTES);
+
+    const h = makeHarness();
+    await expectError(await h.handler(postReq(text)), 400, 'invalid_input');
+    expect(h.calls).toEqual([]);
+  });
+
+  it('corpo pequeno com acentos e emoji (UTF-8 em vários bytes, cortado entre pedaços) é decodificado corretamente', async () => {
+    const bytes = encoder.encode(JSON.stringify(validBody({ guestName: 'José 🎉 Ângela' })));
+    // Corta no meio de um caractere de vários bytes: a decodificação só acontece no fim.
+    const cut = bytes.indexOf(0xf0) + 2;
+    const { req } = streamedPost([bytes.slice(0, cut), bytes.slice(cut)]);
+    const h = makeHarness();
+
+    const res = await h.handler(req);
+
+    expect(res.status).toBe(200);
+    expect(h.mocks.resolveGuestFolder.mock.calls[0][2].guestName).toBe('José 🎉 Ângela');
+  });
+
+  it('POST sem corpo (body nulo) conta como vazio: 400 invalid_input', async () => {
+    const h = makeHarness();
+    const req = new Request(ENDPOINT, {
+      method: 'POST',
+      headers: { origin: ORIGIN, 'x-forwarded-for': CLIENT_IP },
+    });
+    expect(req.body).toBeNull();
+    await expectError(await h.handler(req), 400, 'invalid_input');
+    expect(h.calls).toEqual([]);
+  });
+
+  it('corpo pequeno e válido continua funcionando (200 com uploadUrl)', async () => {
+    const h = makeHarness();
+    const res = await h.handler(postReq(validBody()));
+    expect(res.status).toBe(200);
+    expect(await bodyOf(res)).toEqual({ uploadUrl: UPLOAD_URL });
+  });
+});
+
 describe('guest-upload: POST (3) conexão e (4) desativado', () => {
   it('token sem conexão: 404 not_found e nenhum limite é consumido', async () => {
     const h = makeHarness({ connection: null });
