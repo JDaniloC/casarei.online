@@ -5,6 +5,7 @@ import {
   SessionExpiredError,
   FatalUploadError,
   DEFAULT_CHUNK_SIZE,
+  DEFAULT_STALL_TIMEOUT_MS,
   type Transport,
   type TransportRequest,
   type TransportResponse,
@@ -263,13 +264,42 @@ describe('uploadFile: envio', () => {
     });
   });
 
-  it('passa o signal recebido ao transporte', async () => {
+  it('entrega ao transporte um signal próprio da requisição, ligado ao signal do chamador', async () => {
     const controller = new AbortController();
-    const { transport, requests } = scripted([() => complete()]);
+    let seen: AbortSignal | undefined;
+    const transport: Transport = (req) => {
+      seen = req.signal;
+      return new Promise((_resolve, reject) => {
+        req.signal?.addEventListener('abort', () => reject(new DOMException('cancelado', 'AbortError')));
+      });
+    };
+
+    const promise = uploadFile({ uploadUrl: SESSION_URL, file: makeFile(10), transport, signal: controller.signal });
+    await Promise.resolve();
+
+    expect(seen).toBeDefined();
+    expect(seen).not.toBe(controller.signal); // o watchdog precisa poder abortar só esta requisição
+    expect(seen?.aborted).toBe(false);
+    controller.abort();
+    expect(seen?.aborted).toBe(true);
+    await expectAbort(promise);
+  });
+
+  it('depois de terminar, abortar o signal do chamador não mexe mais no signal da requisição', async () => {
+    const controller = new AbortController();
+    let seen: AbortSignal | undefined;
+    const { transport } = scripted([
+      (req) => {
+        seen = req.signal;
+        return complete();
+      },
+    ]);
 
     await uploadFile({ uploadUrl: SESSION_URL, file: makeFile(10), transport, signal: controller.signal });
+    controller.abort();
 
-    expect(requests[0].signal).toBe(controller.signal);
+    expect(seen).toBeDefined();
+    expect(seen?.aborted).toBe(false); // o listener de ligação foi removido
   });
 });
 
@@ -1171,5 +1201,604 @@ describe('uploadFile com o transporte XHR (padrão)', () => {
     FakeXHR.instances[2].respond(200, '{"id":"via-xhr"}');
 
     await expect(promise).resolves.toEqual({ fileId: 'via-xhr' });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// uploadFile: watchdog de travamento
+// ---------------------------------------------------------------------------
+
+/** Requisição que nunca termina; com `honorAbort`, rejeita com AbortError quando o signal aborta (como o XHR). */
+function hang(req: TransportRequest, honorAbort: boolean): Promise<TransportResponse> {
+  return new Promise((_resolve, reject) => {
+    if (honorAbort) req.signal?.addEventListener('abort', () => reject(new DOMException('cancelado', 'AbortError')));
+  });
+}
+
+describe('uploadFile: watchdog de travamento', () => {
+  const FILE = () => makeFile(1000);
+  const CHUNK_RANGE = 'bytes 0-999/1000';
+  const STATUS_RANGE = 'bytes */1000';
+
+  it('o padrão é 60 s', () => {
+    expect(DEFAULT_STALL_TIMEOUT_MS).toBe(60_000);
+  });
+
+  it('(a) sem progresso por 60 s: aborta o signal da requisição, espera o backoff de 1 s e consulta o status', async () => {
+    vi.useFakeTimers();
+    const signals: Array<AbortSignal | undefined> = [];
+    const { transport, requests } = scripted([
+      (req) => {
+        signals.push(req.signal);
+        req.onProgress?.(100); // enviou um pouco e a conexão morreu em silêncio
+        return hang(req, true);
+      },
+      () => incomplete(), // consulta de status
+      () => complete('recuperou'),
+    ]);
+
+    const promise = uploadFile({ uploadUrl: SESSION_URL, file: FILE(), transport });
+    await vi.advanceTimersByTimeAsync(59_999);
+    expect(signals[0]?.aborted).toBe(false);
+    expect(requests).toHaveLength(1);
+
+    await vi.advanceTimersByTimeAsync(1);
+    expect(signals[0]?.aborted).toBe(true);
+    expect(requests).toHaveLength(1); // em backoff
+
+    await vi.advanceTimersByTimeAsync(999);
+    expect(requests).toHaveLength(1);
+    await vi.advanceTimersByTimeAsync(1);
+    // O backoff acabou: a próxima requisição é a consulta de status (e o motor segue em frente sozinho).
+    expect(requests.length).toBeGreaterThanOrEqual(2);
+    expect(contentRange(requests[1])).toBe(STATUS_RANGE);
+
+    await expect(promise).resolves.toEqual({ fileId: 'recuperou' });
+    expect(requests.map(contentRange)).toEqual([CHUNK_RANGE, STATUS_RANGE, CHUNK_RANGE]);
+  });
+
+  it('o travamento nunca aparece como AbortError para quem chamou: vira falha de rede', async () => {
+    vi.useFakeTimers();
+    const { transport } = scripted([(req) => hang(req, true), () => incomplete(), () => complete('ok')]);
+    const { sleep, delays } = instantSleep();
+
+    const promise = uploadFile({ uploadUrl: SESSION_URL, file: FILE(), transport, sleep });
+    await vi.advanceTimersByTimeAsync(60_000);
+
+    await expect(promise).resolves.toEqual({ fileId: 'ok' });
+    expect(delays).toEqual([1000]);
+  });
+
+  it('(b) progresso a cada 59 s mantém o envio vivo por vários minutos, sem abortar nada', async () => {
+    vi.useFakeTimers();
+    const signals: Array<AbortSignal | undefined> = [];
+    const transport: Transport = (req) =>
+      new Promise((resolve) => {
+        signals.push(req.signal);
+        let ticks = 0;
+        const tick = () => {
+          ticks += 1;
+          req.onProgress?.(ticks);
+          if (ticks < 6) setTimeout(tick, 59_000);
+          else resolve(complete('lento'));
+        };
+        setTimeout(tick, 59_000);
+      });
+
+    const promise = uploadFile({ uploadUrl: SESSION_URL, file: FILE(), transport });
+    await vi.advanceTimersByTimeAsync(6 * 59_000);
+
+    await expect(promise).resolves.toEqual({ fileId: 'lento' });
+    expect(signals).toHaveLength(1); // uma única requisição, nunca repetida
+    expect(signals[0]).toBeDefined(); // o motor sempre entrega um signal ao transporte
+    expect(signals[0]?.aborted).toBe(false);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('o temporizador continua correndo depois que o corpo foi enviado: resposta que não chega também é travamento', async () => {
+    vi.useFakeTimers();
+    const { transport, requests } = scripted([
+      (req) => {
+        req.onProgress?.(1000); // corpo inteiro enviado, mas o Google nunca responde
+        return hang(req, true);
+      },
+      () => complete('depois'),
+    ]);
+    const { sleep } = instantSleep();
+
+    const promise = uploadFile({ uploadUrl: SESSION_URL, file: FILE(), transport, sleep });
+    await vi.advanceTimersByTimeAsync(59_999);
+    expect(requests).toHaveLength(1);
+    await vi.advanceTimersByTimeAsync(1);
+
+    await expect(promise).resolves.toEqual({ fileId: 'depois' });
+    expect(requests.map(contentRange)).toEqual([CHUNK_RANGE, STATUS_RANGE]);
+  });
+
+  it('(c) consulta de status que trava conta como falha; com 8 falhas seguidas o envio desiste', async () => {
+    vi.useFakeTimers();
+    const hanging: Step = (req) => hang(req, true);
+    const { transport, requests } = scripted([networkDown, ...Array<Step>(7).fill(hanging)]);
+    const { sleep, delays } = instantSleep();
+
+    const outcome = rejectionOf(uploadFile({ uploadUrl: SESSION_URL, file: FILE(), transport, sleep }));
+    await vi.advanceTimersByTimeAsync(8 * 60_000);
+    const error = (await outcome) as FatalUploadError;
+
+    expect(error).toBeInstanceOf(FatalUploadError);
+    expect(error.status).toBe(0);
+    expect(requests).toHaveLength(8);
+    expect(requests.slice(1).map(contentRange)).toEqual(Array(7).fill(STATUS_RANGE));
+    expect(delays).toHaveLength(7);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('(d) abort do usuário com a requisição travada rejeita com AbortError, sem retentativa', async () => {
+    vi.useFakeTimers();
+    const controller = new AbortController();
+    const { transport, requests } = scripted([
+      (req) => {
+        req.onProgress?.(10);
+        return hang(req, true);
+      },
+      () => complete(),
+    ]);
+    const { sleep, delays } = instantSleep();
+
+    const outcome = expectAbort(
+      uploadFile({ uploadUrl: SESSION_URL, file: FILE(), transport, sleep, signal: controller.signal }),
+    );
+    await vi.advanceTimersByTimeAsync(30_000);
+    controller.abort();
+    await outcome;
+    await vi.advanceTimersByTimeAsync(5 * 60_000);
+
+    expect(requests).toHaveLength(1);
+    expect(delays).toEqual([]);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('(d) cancelamento e travamento no mesmo instante: o cancelamento do usuário vence e não conta como falha', async () => {
+    vi.useFakeTimers();
+    const controller = new AbortController();
+    // Ao abortar a requisição (watchdog), o transporte cancela o envio inteiro na mesma chamada.
+    const transport: Transport = (req) =>
+      new Promise((_resolve, reject) => {
+        req.signal?.addEventListener('abort', () => {
+          controller.abort();
+          reject(new DOMException('cancelado', 'AbortError'));
+        });
+      });
+    const { sleep, delays } = instantSleep();
+
+    const outcome = expectAbort(
+      uploadFile({ uploadUrl: SESSION_URL, file: FILE(), transport, sleep, signal: controller.signal }),
+    );
+    await vi.advanceTimersByTimeAsync(60_000);
+    await outcome;
+
+    expect(delays).toEqual([]); // nenhum backoff: foi cancelamento, não falha
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('(d) abort do usuário durante o backoff que segue um travamento rejeita com AbortError', async () => {
+    vi.useFakeTimers();
+    const controller = new AbortController();
+    const { transport, requests } = scripted([(req) => hang(req, true), () => complete()]);
+
+    const outcome = expectAbort(uploadFile({ uploadUrl: SESSION_URL, file: FILE(), transport, signal: controller.signal }));
+    await vi.advanceTimersByTimeAsync(60_500); // travou e está no meio do backoff de 1 s
+    expect(requests).toHaveLength(1);
+    controller.abort();
+    await outcome;
+    await vi.advanceTimersByTimeAsync(10_000);
+
+    expect(requests).toHaveLength(1);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('(e) não deixa temporizadores pendentes depois de sucesso, de travamento recuperado, de desistência e de abort', async () => {
+    vi.useFakeTimers();
+
+    // sucesso
+    await uploadFile({ uploadUrl: SESSION_URL, file: FILE(), transport: scripted([() => complete()]).transport });
+    expect(vi.getTimerCount()).toBe(0);
+
+    // travamento seguido de recuperação (backoff padrão, com temporizador de verdade)
+    const recovered = scripted([(req) => hang(req, true), () => incomplete(), () => complete()]);
+    const recovery = uploadFile({ uploadUrl: SESSION_URL, file: FILE(), transport: recovered.transport });
+    await vi.advanceTimersByTimeAsync(61_000);
+    await recovery;
+    expect(vi.getTimerCount()).toBe(0);
+
+    // abort durante a requisição
+    const controller = new AbortController();
+    const aborted = expectAbort(
+      uploadFile({ uploadUrl: SESSION_URL, file: FILE(), transport: scripted([(req) => hang(req, true)]).transport, signal: controller.signal }),
+    );
+    await vi.advanceTimersByTimeAsync(1000);
+    controller.abort();
+    await aborted;
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('(f) um transporte que ignora o signal também é destravado', async () => {
+    vi.useFakeTimers();
+    const { transport, requests } = scripted([
+      (req) => hang(req, false), // nunca resolve nem rejeita, mesmo depois do abort
+      () => complete('destravou'),
+    ]);
+    const { sleep } = instantSleep();
+
+    const promise = uploadFile({ uploadUrl: SESSION_URL, file: FILE(), transport, sleep });
+    await vi.advanceTimersByTimeAsync(60_000);
+
+    await expect(promise).resolves.toEqual({ fileId: 'destravou' });
+    expect(requests.map(contentRange)).toEqual([CHUNK_RANGE, STATUS_RANGE]);
+  });
+
+  it('progresso tardio de uma requisição já abandonada não rearma temporizador nem é repassado', async () => {
+    vi.useFakeTimers();
+    let staleProgress: ((loaded: number) => void) | undefined;
+    const { transport } = scripted([
+      (req) => {
+        staleProgress = req.onProgress;
+        return hang(req, false);
+      },
+      () => complete('ok'),
+    ]);
+    const { sleep } = instantSleep();
+    const onProgress = vi.fn();
+
+    const promise = uploadFile({ uploadUrl: SESSION_URL, file: makeFile(5000), transport, sleep, onProgress });
+    await vi.advanceTimersByTimeAsync(60_000);
+    await promise;
+    const callsAfterDone = onProgress.mock.calls.length;
+
+    staleProgress?.(4000);
+
+    expect(staleProgress).toBeDefined();
+    expect(vi.getTimerCount()).toBe(0);
+    expect(onProgress.mock.calls).toHaveLength(callsAfterDone);
+  });
+
+  it('(g) stallTimeoutMs personalizado é respeitado', async () => {
+    vi.useFakeTimers();
+    const signals: Array<AbortSignal | undefined> = [];
+    const { transport } = scripted([
+      (req) => {
+        signals.push(req.signal);
+        return hang(req, true);
+      },
+      () => complete(),
+    ]);
+    const { sleep } = instantSleep();
+
+    const promise = uploadFile({ uploadUrl: SESSION_URL, file: FILE(), transport, sleep, stallTimeoutMs: 5_000 });
+    await vi.advanceTimersByTimeAsync(4_999);
+    expect(signals[0]?.aborted).toBe(false);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(signals[0]?.aborted).toBe(true);
+
+    await expect(promise).resolves.toBeDefined();
+  });
+
+  it.each([
+    ['zero', 0],
+    ['negativo', -1],
+    ['NaN', Number.NaN],
+    ['Infinity', Number.POSITIVE_INFINITY],
+  ])('stallTimeoutMs inválido (%s) volta ao padrão de 60 s', async (_label, value) => {
+    vi.useFakeTimers();
+    const signals: Array<AbortSignal | undefined> = [];
+    const { transport } = scripted([
+      (req) => {
+        signals.push(req.signal);
+        return hang(req, true);
+      },
+      () => complete(),
+    ]);
+    const { sleep } = instantSleep();
+
+    const promise = uploadFile({ uploadUrl: SESSION_URL, file: FILE(), transport, sleep, stallTimeoutMs: value });
+    await vi.advanceTimersByTimeAsync(59_999);
+    expect(signals[0]?.aborted).toBe(false);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(signals[0]?.aborted).toBe(true);
+
+    await expect(promise).resolves.toBeDefined();
+  });
+
+  it('valor gigante não estoura o temporizador (teto do setTimeout)', async () => {
+    vi.useFakeTimers();
+    const signals: Array<AbortSignal | undefined> = [];
+    const { transport } = scripted([
+      (req) => {
+        signals.push(req.signal);
+        return hang(req, true);
+      },
+    ]);
+
+    void uploadFile({ uploadUrl: SESSION_URL, file: FILE(), transport, stallTimeoutMs: 10 ** 12 }).catch(() => {});
+    await vi.advanceTimersByTimeAsync(60_000);
+
+    expect(signals[0]?.aborted).toBe(false); // sem o teto o setTimeout dispararia quase na hora
+  });
+});
+
+// ---------------------------------------------------------------------------
+// uploadFile: resumeFromServer (retomar uma sessão existente)
+// ---------------------------------------------------------------------------
+
+describe('uploadFile: resumeFromServer', () => {
+  it('a primeira requisição é a consulta de status (PUT vazio, bytes */total)', async () => {
+    const total = 3 * ALIGN;
+    const file = makeFile(total);
+    const slice = vi.spyOn(file, 'slice');
+    const { transport, requests } = scripted([() => incomplete(ALIGN - 1), () => complete()]);
+
+    await uploadFile({ uploadUrl: SESSION_URL, file, transport, chunkSize: 4 * ALIGN, resumeFromServer: true });
+
+    expect(requests[0].method).toBe('PUT');
+    expect(requests[0].url).toBe(SESSION_URL);
+    expect(requests[0].headers).toEqual({ 'Content-Range': `bytes */${total}` });
+    expect(requests[0].body ?? null).toBeNull();
+    expect(slice).toHaveBeenCalledTimes(1); // só o chunk depois da consulta
+  });
+
+  it('308 com range: retoma em range + 1, com chunks alinhados', async () => {
+    const total = 4 * ALIGN;
+    const { transport, requests } = scripted([
+      () => incomplete(2 * ALIGN - 1),
+      () => incomplete(3 * ALIGN - 1),
+      () => complete('retomado'),
+    ]);
+
+    const result = await uploadFile({ uploadUrl: SESSION_URL, file: makeFile(total), transport, chunkSize: ALIGN, resumeFromServer: true });
+
+    expect(result).toEqual({ fileId: 'retomado' });
+    expect(requests.map(contentRange)).toEqual([
+      `bytes */${total}`,
+      `bytes ${2 * ALIGN}-${3 * ALIGN - 1}/${total}`,
+      `bytes ${3 * ALIGN}-${total - 1}/${total}`,
+    ]);
+  });
+
+  it('308 com range de offset ímpar: o primeiro chunk parte exatamente dali', async () => {
+    const total = 3 * ALIGN;
+    const { transport, requests } = scripted([() => incomplete(299_999), () => complete()]);
+
+    await uploadFile({ uploadUrl: SESSION_URL, file: makeFile(total), transport, chunkSize: 4 * ALIGN, resumeFromServer: true });
+
+    expect(contentRange(requests[1])).toBe(`bytes 300000-${total - 1}/${total}`);
+    expect(requests[1].body?.size).toBe(total - 300_000);
+  });
+
+  it('308 sem range: nada foi guardado, começa do zero', async () => {
+    const total = 2 * ALIGN;
+    const { transport, requests } = scripted([() => incomplete(), () => complete()]);
+
+    await uploadFile({ uploadUrl: SESSION_URL, file: makeFile(total), transport, chunkSize: 4 * ALIGN, resumeFromServer: true });
+
+    expect(requests.map(contentRange)).toEqual([`bytes */${total}`, `bytes 0-${total - 1}/${total}`]);
+  });
+
+  it.each([200, 201])('%d na consulta: já estava concluído, devolve o id sem enviar nenhum byte', async (status) => {
+    const file = makeFile(2 * ALIGN);
+    const slice = vi.spyOn(file, 'slice');
+    const onProgress = vi.fn();
+    const { transport, requests } = scripted([() => complete('ja-estava', status)]);
+
+    const result = await uploadFile({ uploadUrl: SESSION_URL, file, transport, resumeFromServer: true, onProgress });
+
+    expect(result).toEqual({ fileId: 'ja-estava' });
+    expect(requests).toHaveLength(1);
+    expect(slice).not.toHaveBeenCalled();
+    expect(onProgress.mock.calls).toEqual([[2 * ALIGN, 2 * ALIGN]]);
+  });
+
+  it('200 na consulta sem id legível é fatal', async () => {
+    const { transport, requests } = scripted([() => ({ status: 200, headers: {}, body: '{}' })]);
+
+    const error = await rejectionOf(uploadFile({ uploadUrl: SESSION_URL, file: makeFile(10), transport, resumeFromServer: true }));
+
+    expect(error).toBeInstanceOf(FatalUploadError);
+    expect(contentRange(requests[0])).toBe('bytes */10');
+  });
+
+  it.each([404, 410])('%d na consulta: SessionExpiredError, sem enviar nada', async (status) => {
+    const { transport, requests } = scripted([() => httpStatus(status)]);
+    const { sleep, delays } = instantSleep();
+
+    const error = await rejectionOf(uploadFile({ uploadUrl: SESSION_URL, file: makeFile(10), transport, sleep, resumeFromServer: true }));
+
+    expect(error).toBeInstanceOf(SessionExpiredError);
+    expect(requests).toHaveLength(1);
+    expect(contentRange(requests[0])).toBe('bytes */10');
+    expect(delays).toEqual([]);
+  });
+
+  it.each([400, 403])('%d na consulta é fatal', async (status) => {
+    const { transport, requests } = scripted([() => httpStatus(status)]);
+
+    const error = await rejectionOf(uploadFile({ uploadUrl: SESSION_URL, file: makeFile(10), transport, resumeFromServer: true }));
+
+    expect(error).toBeInstanceOf(FatalUploadError);
+    expect((error as FatalUploadError).status).toBe(status);
+    expect(requests).toHaveLength(1);
+    expect(contentRange(requests[0])).toBe('bytes */10');
+  });
+
+  it.each([
+    ['erro de rede', networkDown],
+    ['503', () => httpStatus(503)],
+    ['429', () => httpStatus(429)],
+  ])('primeira consulta com %s: backoff e nova consulta, como qualquer outra falha', async (_label, failure) => {
+    const total = 2 * ALIGN;
+    const { transport, requests } = scripted([failure, () => incomplete(ALIGN - 1), () => complete('depois')]);
+    const { sleep, delays } = instantSleep();
+
+    const result = await uploadFile({ uploadUrl: SESSION_URL, file: makeFile(total), transport, chunkSize: 4 * ALIGN, sleep, resumeFromServer: true });
+
+    expect(result).toEqual({ fileId: 'depois' });
+    expect(delays).toEqual([1000]);
+    expect(requests.map(contentRange)).toEqual([
+      `bytes */${total}`,
+      `bytes */${total}`, // a primeira consulta falhou: pergunta de novo
+      `bytes ${ALIGN}-${total - 1}/${total}`,
+    ]);
+  });
+
+  it('consultas que falham 8 vezes seguidas esgotam as tentativas', async () => {
+    const { transport, requests } = scripted(Array<Step>(8).fill(() => httpStatus(503)));
+    const { sleep } = instantSleep();
+
+    const error = await rejectionOf(uploadFile({ uploadUrl: SESSION_URL, file: makeFile(10), transport, sleep, resumeFromServer: true }));
+
+    expect(error).toBeInstanceOf(FatalUploadError);
+    expect(requests).toHaveLength(8);
+    expect(requests.map(contentRange)).toEqual(Array(8).fill('bytes */10'));
+  });
+
+  it('o progresso já começa no offset devolvido pelo Google', async () => {
+    const total = 3 * ALIGN;
+    const { transport } = scripted([() => incomplete(2 * ALIGN - 1), () => complete()]);
+    const onProgress = vi.fn();
+
+    await uploadFile({ uploadUrl: SESSION_URL, file: makeFile(total), transport, chunkSize: 4 * ALIGN, resumeFromServer: true, onProgress });
+
+    expect(onProgress.mock.calls[0]).toEqual([2 * ALIGN, total]);
+    expect(onProgress.mock.calls[onProgress.mock.calls.length - 1]).toEqual([total, total]);
+  });
+
+  it('espera a conexão voltar antes da primeira consulta', async () => {
+    const order: string[] = [];
+    const { transport } = scripted([
+      (req) => {
+        order.push(contentRange(req));
+        return complete();
+      },
+    ]);
+
+    await uploadFile({
+      uploadUrl: SESSION_URL,
+      file: makeFile(10),
+      transport,
+      resumeFromServer: true,
+      isOnline: () => false,
+      waitForOnline: async () => {
+        order.push('online');
+      },
+    });
+
+    expect(order).toEqual(['online', 'bytes */10']);
+  });
+
+  it.each([undefined, false])('resumeFromServer %s: a primeira requisição continua sendo um chunk', async (value) => {
+    const { transport, requests } = scripted([() => complete()]);
+
+    await uploadFile({ uploadUrl: SESSION_URL, file: makeFile(1000), transport, resumeFromServer: value });
+
+    expect(contentRange(requests[0])).toBe('bytes 0-999/1000');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// uploadFile: onProgress nunca derruba um envio
+// ---------------------------------------------------------------------------
+
+describe('uploadFile: exceção no onProgress', () => {
+  it('onProgress que lança na última chamada não faz falhar um envio que já chegou ao 200', async () => {
+    const { transport } = scripted([() => complete('concluido')]);
+    const onProgress = vi.fn(() => {
+      throw new Error('bug da interface');
+    });
+
+    await expect(uploadFile({ uploadUrl: SESSION_URL, file: makeFile(10), transport, onProgress })).resolves.toEqual({
+      fileId: 'concluido',
+    });
+    expect(onProgress).toHaveBeenCalledWith(10, 10);
+  });
+
+  it('onProgress que lança em todas as chamadas não interfere no envio nem provoca retentativas', async () => {
+    const total = 3 * ALIGN;
+    const google = new FakeGoogle(total);
+    const onProgress = vi.fn(() => {
+      throw new Error('bug da interface');
+    });
+    // O transporte falso também dispara o progresso do chunk, como o XHR faria.
+    const transport: Transport = async (req) => {
+      req.onProgress?.(req.body?.size ?? 0);
+      return google.transport(req);
+    };
+
+    const result = await uploadFile({ uploadUrl: SESSION_URL, file: makeFile(total), transport, chunkSize: ALIGN, onProgress });
+
+    expect(result).toEqual({ fileId: 'drive-file-id' });
+    expect(google.requests).toHaveLength(3); // nenhum chunk repetido, nenhuma consulta de status
+    expect(google.violations).toEqual([]);
+    expect(onProgress).toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// FatalUploadError.retryable
+// ---------------------------------------------------------------------------
+
+describe('FatalUploadError.retryable', () => {
+  it.each([0, 429, 500, 502, 503, 504, 599, 600])('status %d é repetível na mesma sessão', (status) => {
+    expect(new FatalUploadError('x', status).retryable).toBe(true);
+  });
+
+  it.each([200, 202, 308, 400, 401, 403, 404, 405, 410, 413, 416, 428, 430, 499])('status %d não é repetível', (status) => {
+    expect(new FatalUploadError('x', status).retryable).toBe(false);
+  });
+
+  it('sem status informado vale 0: repetível', () => {
+    expect(new FatalUploadError('x').retryable).toBe(true);
+  });
+
+  it('o resto da classe continua igual', () => {
+    const error = new FatalUploadError('mensagem', 403);
+    expect(error).toBeInstanceOf(Error);
+    expect(error.name).toBe('FatalUploadError');
+    expect(error.message).toBe('mensagem');
+    expect(error.status).toBe(403);
+  });
+
+  it('esgotar tentativas por 503 é repetível; por falha de rede também (status 0)', async () => {
+    const { sleep } = instantSleep();
+    const by503 = await rejectionOf(
+      uploadFile({ uploadUrl: SESSION_URL, file: makeFile(10), transport: async () => httpStatus(503), sleep }),
+    );
+    const byNetwork = await rejectionOf(
+      uploadFile({ uploadUrl: SESSION_URL, file: makeFile(10), transport: async () => networkDown(), sleep }),
+    );
+
+    expect((by503 as FatalUploadError).retryable).toBe(true);
+    expect((byNetwork as FatalUploadError).retryable).toBe(true);
+    expect((byNetwork as FatalUploadError).status).toBe(0);
+  });
+
+  it('esgotar por 429 é repetível', async () => {
+    const { sleep } = instantSleep();
+    const error = await rejectionOf(
+      uploadFile({ uploadUrl: SESSION_URL, file: makeFile(10), transport: async () => httpStatus(429), sleep }),
+    );
+    expect((error as FatalUploadError).retryable).toBe(true);
+    expect((error as FatalUploadError).status).toBe(429);
+  });
+
+  it.each([
+    ['4xx que não é 404/410', () => httpStatus(403)],
+    ['200 sem id', () => ({ status: 200, headers: {}, body: '{}' })],
+    ['range malformado', () => ({ status: 308, headers: { range: 'bytes=abc' }, body: '' })],
+  ])('erros do protocolo (%s) não são repetíveis', async (_label, response) => {
+    const { transport } = scripted([response]);
+
+    const error = await rejectionOf(uploadFile({ uploadUrl: SESSION_URL, file: makeFile(10), transport }));
+
+    expect(error).toBeInstanceOf(FatalUploadError);
+    expect((error as FatalUploadError).retryable).toBe(false);
   });
 });

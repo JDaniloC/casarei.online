@@ -22,6 +22,16 @@ const CHUNK_ALIGNMENT = 256 * 1024;
 /** Tamanho padrão de cada chunk. */
 export const DEFAULT_CHUNK_SIZE = 8 * 1024 * 1024;
 
+/**
+ * Tempo máximo sem nenhum sinal de vida de uma requisição (nenhum evento de progresso e
+ * nenhuma resposta) antes de o motor considerá-la travada. Não é um prazo total: enquanto
+ * chegar progresso, um chunk lento pode levar quanto tempo precisar.
+ */
+export const DEFAULT_STALL_TIMEOUT_MS = 60_000;
+
+/** Maior atraso que `setTimeout` aceita (acima disso dispararia quase na hora). */
+const MAX_TIMER_MS = 2_147_483_647;
+
 /** Falhas consecutivas (sem nenhum progresso no meio) toleradas antes de desistir. */
 const MAX_CONSECUTIVE_FAILURES = 8;
 const BACKOFF_BASE_MS = 1000;
@@ -63,17 +73,24 @@ export class SessionExpiredError extends Error {
 }
 
 /**
- * Falha que repetir não resolve: arquivo vazio, resposta inesperada do Google, 4xx que não
- * seja 404/410 ou tentativas esgotadas. `status` é o HTTP da última resposta (0 = rede ou
- * erro local). A mensagem nunca contém a URL da sessão.
+ * Falha que o motor não resolve sozinho: arquivo vazio, resposta inesperada do Google, 4xx
+ * que não seja 404/410 ou tentativas esgotadas. `status` é o HTTP da última resposta (0 =
+ * rede, travamento ou erro local). A mensagem nunca contém a URL da sessão.
+ *
+ * `retryable` diz se vale tentar de novo NA MESMA sessão (`resumeFromServer`): verdadeiro
+ * quando o status é 0, 429 ou 5xx, situações transitórias em que o Google ainda guarda o
+ * que já foi enviado. Falso nos demais: a sessão ou o arquivo têm um problema que se
+ * repetiria.
  */
 export class FatalUploadError extends Error {
   readonly status: number;
+  readonly retryable: boolean;
 
   constructor(message: string, status = 0) {
     super(message);
     this.name = 'FatalUploadError';
     this.status = status;
+    this.retryable = status === 0 || status === 429 || status >= 500;
   }
 }
 
@@ -85,6 +102,18 @@ export interface UploadFileOptions {
   /** Tamanho de cada chunk; arredondado para baixo a múltiplo de 256 KiB (mínimo 256 KiB). */
   chunkSize?: number;
   signal?: AbortSignal;
+  /**
+   * Retoma uma sessão que já recebeu bytes: a primeira requisição é a consulta de status
+   * (PUT vazio, com o Content-Range de consulta) e o envio continua do offset que o Google
+   * devolver. Sem isso, o envio começa do byte 0 (sessão nova).
+   */
+  resumeFromServer?: boolean;
+  /**
+   * Tempo sem sinal de vida (progresso ou resposta) que faz uma requisição ser dada como
+   * travada: ela é abortada e tratada como falha de rede. Padrão 60 s; valores inválidos
+   * (não finitos, zero ou negativos) voltam ao padrão.
+   */
+  stallTimeoutMs?: number;
   /** `loaded` = bytes já confirmados + progresso do chunk atual; monotônico e nunca acima de `total`. */
   onProgress?: (loaded: number, total: number) => void;
   /** Espera `ms` milissegundos. Injetável nos testes; o motor também interrompe a espera no abort. */
@@ -179,6 +208,11 @@ function defaultWaitForOnline(signal?: AbortSignal): Promise<void> {
     window.addEventListener('online', onOnline);
     signal?.addEventListener('abort', onAbort, { once: true });
   });
+}
+
+function normalizeStallTimeout(requested: number | undefined): number {
+  if (requested === undefined || !Number.isFinite(requested) || requested <= 0) return DEFAULT_STALL_TIMEOUT_MS;
+  return Math.min(requested, MAX_TIMER_MS);
 }
 
 function alignChunkSize(requested: number): number {
@@ -285,6 +319,7 @@ export async function uploadFile(options: UploadFileOptions): Promise<{ fileId: 
   const isOnline = options.isOnline ?? defaultIsOnline;
   const waitForOnline = options.waitForOnline ?? defaultWaitForOnline;
   const chunkSize = alignChunkSize(options.chunkSize ?? DEFAULT_CHUNK_SIZE);
+  const stallTimeoutMs = normalizeStallTimeout(options.stallTimeoutMs);
   const total = file.size;
 
   if (total <= 0) throw new FatalUploadError('O arquivo está vazio.');
@@ -293,26 +328,77 @@ export async function uploadFile(options: UploadFileOptions): Promise<{ fileId: 
   // por contagem própria, só pelo `range` de um 308.
   let offset = 0;
   let failures = 0;
-  let needStatusQuery = false;
+  // Retomar uma sessão existente começa perguntando ao Google até onde ele guardou.
+  let needStatusQuery = options.resumeFromServer === true;
   let reported = 0;
 
   const report = (loaded: number) => {
     const value = Math.min(total, loaded);
     if (value > reported) {
       reported = value;
-      onProgress?.(value, total);
+      // Um erro no callback da interface nunca pode derrubar um envio (que pode até já ter
+      // chegado ao 200: falhar aqui faria a página repetir e duplicar o arquivo).
+      try {
+        onProgress?.(value, total);
+      } catch {
+        // ignorado de propósito
+      }
     }
   };
 
-  // Executa uma requisição. Devolve null em falha de rede; cancelamento vira AbortError;
-  // qualquer outro erro do transporte é bug e propaga sem repetir.
+  // Executa uma requisição, com um watchdog de travamento: se a requisição ficar
+  // `stallTimeoutMs` sem progresso e sem resposta (socket morto, portal cativo, aba
+  // suspensa), ela é abortada e conta como falha de rede. O transporte recebe um signal
+  // próprio da requisição, ligado à mão ao do chamador (sem AbortSignal.any/timeout, que
+  // faltam em Safari antigo). Devolve null em falha de rede ou travamento; cancelamento do
+  // usuário vira AbortError; qualquer outro erro do transporte é bug e propaga sem repetir.
   const send = async (request: TransportRequest): Promise<TransportResponse | null> => {
+    throwIfAborted(signal);
+    const requestController = new AbortController();
+    const requestSignal = requestController.signal;
+    let stalled = false;
+    let finished = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+
+    const arm = () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        stalled = true;
+        requestController.abort();
+      }, stallTimeoutMs);
+    };
+    const onCallerAbort = () => requestController.abort();
+    signal?.addEventListener('abort', onCallerAbort, { once: true });
+
+    const { onProgress: onRequestProgress } = request;
+    const watched: TransportRequest = {
+      ...request,
+      signal: requestSignal,
+      // Cada evento de progresso prova que a conexão está viva: rearma o temporizador.
+      // Depois de a requisição terminar (ou ser abandonada), eventos tardios são ignorados.
+      onProgress: onRequestProgress
+        ? (loaded) => {
+            if (finished) return;
+            arm();
+            onRequestProgress(loaded);
+          }
+        : undefined,
+    };
+
     try {
-      return await raceAbort(transport(request), signal);
+      arm();
+      return await raceAbort(transport(watched), requestSignal);
     } catch (error) {
-      if (signal?.aborted || hasName(error, 'AbortError')) throw abortError();
+      // Ordem importa: o cancelamento do usuário vence o travamento.
+      if (signal?.aborted) throw abortError();
+      if (stalled) return null;
+      if (hasName(error, 'AbortError')) throw abortError();
       if (hasName(error, 'TypeError')) return null;
       throw error;
+    } finally {
+      finished = true;
+      clearTimeout(timer);
+      signal?.removeEventListener('abort', onCallerAbort);
     }
   };
 
@@ -338,7 +424,7 @@ export async function uploadFile(options: UploadFileOptions): Promise<{ fileId: 
     const previousOffset = offset;
     let request: TransportRequest;
     if (isStatusQuery) {
-      request = { method: 'PUT', url: uploadUrl, headers: { 'Content-Range': `bytes */${total}` }, signal };
+      request = { method: 'PUT', url: uploadUrl, headers: { 'Content-Range': `bytes */${total}` } };
     } else {
       const end = Math.min(offset + chunkSize, total);
       const chunkLength = end - offset;
@@ -347,7 +433,6 @@ export async function uploadFile(options: UploadFileOptions): Promise<{ fileId: 
         url: uploadUrl,
         headers: { 'Content-Range': `bytes ${offset}-${end - 1}/${total}` },
         body: file.slice(offset, end),
-        signal,
         onProgress: (loaded) => report(previousOffset + Math.min(loaded, chunkLength)),
       };
     }
@@ -372,7 +457,7 @@ export async function uploadFile(options: UploadFileOptions): Promise<{ fileId: 
       failures = 0;
       needStatusQuery = false;
     } else if (isStatusQuery) {
-      // Consulta de status sem novidade: a falha que a motivou já foi contada; reenvia.
+      // Consulta de status sem novidade (a falha que a motivou, se houve, já foi contada): envia a partir daí.
       needStatusQuery = false;
     } else {
       // O chunk foi enviado e nada foi guardado: conta como falha (evita laço infinito).

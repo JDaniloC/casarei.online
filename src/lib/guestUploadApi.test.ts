@@ -7,6 +7,7 @@ import {
   type UploadErrorCode,
   type UploadPageInfo,
 } from './guestUploadApi';
+import { FatalUploadError, SessionExpiredError } from './driveResumableUpload';
 
 const BASE = 'https://projeto.supabase.co';
 const ANON = 'anon-key-secreta-123';
@@ -393,6 +394,32 @@ describe('messageForUploadError', () => {
     expect(messageForUploadError('texto')).toBe(GENERIC);
     expect(messageForUploadError(null)).toBe(GENERIC);
     expect(messageForUploadError(undefined)).toBe(GENERIC);
+  });
+
+  describe('erros do motor de upload (driveResumableUpload)', () => {
+    const NETWORK_MESSAGE =
+      'Não foi possível enviar. Verifique sua conexão e tente de novo. Se continuar, abra esta página no Chrome.';
+
+    it('FatalUploadError com status 0 (rede, CORS ou travamento após as tentativas) usa a mesma mensagem de network', () => {
+      const error = new FatalUploadError('Não foi possível concluir o envio depois de 8 tentativas.', 0);
+
+      expect(messageForUploadError(error)).toBe(NETWORK_MESSAGE);
+      expect(messageForUploadError(error)).toBe(messageForUploadError(new GuestUploadApiError('network', 0)));
+    });
+
+    it.each([400, 403, 429, 503, 200, 308])('FatalUploadError com status %d usa a mensagem genérica', (status) => {
+      expect(messageForUploadError(new FatalUploadError('x', status))).toBe(GENERIC);
+    });
+
+    it('outros erros do motor (sessão expirada, cancelamento) usam a mensagem genérica', () => {
+      expect(messageForUploadError(new SessionExpiredError())).toBe(GENERIC);
+      expect(messageForUploadError(new DOMException('cancelado', 'AbortError'))).toBe(GENERIC);
+    });
+
+    it('um objeto qualquer com status 0 que não é o erro do motor não ganha a mensagem de rede', () => {
+      expect(messageForUploadError({ status: 0 })).toBe(GENERIC);
+      expect(messageForUploadError(Object.assign(new Error('x'), { status: 0 }))).toBe(GENERIC);
+    });
   });
 
   it('a mensagem do próprio erro é a mesma do messageForUploadError', () => {

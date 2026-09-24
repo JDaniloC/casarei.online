@@ -81,9 +81,27 @@ export class GuestUploadApiError extends Error {
   }
 }
 
-/** Texto pt-BR para mostrar ao convidado. Qualquer erro desconhecido vira a mensagem genérica. */
+/**
+ * `FatalUploadError` do motor de upload com `status === 0`: a conexão caiu, o navegador
+ * bloqueou (CORS) ou a requisição travou, e as tentativas acabaram. Reconhecido pelo nome
+ * (sem importar o motor) para os dois módulos continuarem independentes.
+ */
+function isEngineNetworkFailure(err: unknown): boolean {
+  return (
+    err instanceof Error &&
+    err.name === 'FatalUploadError' &&
+    (err as Error & { status?: unknown }).status === 0
+  );
+}
+
+/**
+ * Texto pt-BR para mostrar ao convidado. Falha de rede do motor de upload (status 0) usa a
+ * mensagem de `network`; qualquer outro erro desconhecido vira a mensagem genérica.
+ */
 export function messageForUploadError(err: unknown): string {
-  return err instanceof GuestUploadApiError ? messageForCode(err.code) : GENERIC_MESSAGE;
+  if (err instanceof GuestUploadApiError) return messageForCode(err.code);
+  if (isEngineNetworkFailure(err)) return MESSAGES.network;
+  return GENERIC_MESSAGE;
 }
 
 // `method_not_allowed` (405) fica de fora de propósito: para o cliente é `unknown`.
