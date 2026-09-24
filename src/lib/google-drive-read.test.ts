@@ -17,6 +17,7 @@ interface Call {
   url: string;
   method: string;
   headers: Record<string, string>;
+  redirect: RequestRedirect | undefined;
 }
 
 function createFakeFetch(handler: (call: Call, index: number) => Response | Promise<Response>) {
@@ -27,6 +28,7 @@ function createFakeFetch(handler: (call: Call, index: number) => Response | Prom
       url: input,
       method: init?.method ?? 'GET',
       headers: (init?.headers ?? {}) as Record<string, string>,
+      redirect: init?.redirect,
     };
     calls.push(call);
     const res = await handler(call, calls.length - 1);
@@ -483,6 +485,45 @@ describe('getThumbnails', () => {
     expect(calls[1].headers).toEqual(AUTH);
     expect(JSON.stringify(result)).not.toContain(TOKEN);
     expectBodiesConsumed(responses);
+  });
+
+  // A busca da imagem leva o token da plataforma: seguir um redirect (por exemplo,
+  // de um open redirect num host permitido) o entregaria a um host de fora.
+  it('NÃO segue redirects ao buscar a imagem: 302 vira null, sem segunda requisição', async () => {
+    const { fetchFn, calls, responses } = createFakeFetch((call, index) => {
+      if (index === 0) return okMeta('f1');
+      if (call.url.startsWith(`https://${THUMB_HOST}/`)) {
+        return new Response('redirecionando', { status: 302, headers: { Location: 'https://evil.example/x.jpg' } });
+      }
+      throw new Error(`fetch inesperado #${index}: ${call.url}`);
+    });
+
+    const result = await getThumbnails(fetchFn, TOKEN, WEDDING, ['f1']);
+
+    expect(result).toEqual({ f1: null });
+    expect(calls).toHaveLength(2);
+    expect(calls.some((call) => call.url.includes('evil.example'))).toBe(false);
+    expect(calls[1].url).toBe(`https://${THUMB_HOST}/thumb-f1=s400`);
+    expect(calls[1].redirect).toBe('manual');
+    expectBodiesConsumed(responses);
+  });
+
+  it('resposta 3xx/opaqueredirect da imagem é descartada (null) sem ler o corpo', async () => {
+    // Runtimes que respeitam redirect: "manual" podem entregar 3xx (ok = false) ou, no
+    // navegador, um opaqueredirect (status 0). Os dois seguem o caminho de descarte.
+    const opaque = new Response(null, { status: 200 });
+    Object.defineProperty(opaque, 'type', { value: 'opaqueredirect' });
+    Object.defineProperty(opaque, 'ok', { value: false });
+    const { fetchFn, calls } = scripted(okMeta('f1'), opaque, okMeta('f2'), image(JPEG_BYTES, 'image/jpeg', 301));
+
+    const first = await getThumbnails(fetchFn, TOKEN, WEDDING, ['f1']);
+    const second = await getThumbnails(fetchFn, TOKEN, WEDDING, ['f2']);
+
+    expect(first).toEqual({ f1: null });
+    expect(second).toEqual({ f2: null });
+    expect(calls).toHaveLength(4);
+    expect(calls[1].redirect).toBe('manual');
+    expect(calls[3].redirect).toBe('manual');
   });
 
   it('tamanho na URL: troca qualquer =s<n> do fim e acrescenta =s400 quando não há', async () => {

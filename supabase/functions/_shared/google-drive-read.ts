@@ -294,8 +294,11 @@ function toBase64(bytes: Uint8Array): string {
   return btoa(binary);
 }
 
+// Esta requisição leva o token da plataforma inteiro. `redirect: "manual"` impede que
+// um redirect (por exemplo, de um open redirect num host permitido) o entregue a um
+// host de fora da lista: 3xx e opaqueredirect não são `ok`, então caem no descarte.
 async function fetchImageAsDataUrl(fetchFn: FetchFn, accessToken: string, url: string): Promise<string | null> {
-  const res = await fetchFn(url, { method: "GET", headers: authHeaders(accessToken) });
+  const res = await fetchFn(url, { method: "GET", headers: authHeaders(accessToken), redirect: "manual" });
   if (!res.ok) {
     await discard(res);
     return null;
