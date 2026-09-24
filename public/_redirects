@@ -8,6 +8,7 @@
 /payment-failure    /index.html         200
 /payment-pending    /index.html         200
 /fotos/*            /index.html         200
+/privacidade        /index.html         200
 
 # Convite (com ou sem token): preview de convite.
 /:slug/convite      /index.html         200
