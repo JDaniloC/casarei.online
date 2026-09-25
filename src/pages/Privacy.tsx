@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { Heart } from "lucide-react";
 
 const PAGE_TITLE = "Política de Privacidade — casarei.online";
-const LAST_UPDATED = "24 de setembro de 2026";
+const LAST_UPDATED = "25 de setembro de 2026";
 
 // Frase exigida pela verificação do app no Google: precisa aparecer exatamente assim, nos dois idiomas.
 const LIMITED_USE_PT =
@@ -107,6 +107,11 @@ const Privacy = () => {
               funcionamento do site, como as informações de cadastro do casal, confirmações de presença (RSVP),
               presentes e recados do mural.
             </li>
+            <li>
+              <Strong>Conexão com o Google Drive do casal (opcional).</Strong> Se o casal conectar o próprio Google
+              Drive, guardamos o endereço de e-mail dessa conta, apenas para mostrá-lo no painel, e a autorização de
+              acesso fornecida pelo Google, de forma cifrada.
+            </li>
           </ul>
         </Section>
 
@@ -119,6 +124,9 @@ const Privacy = () => {
             <li>O endereço IP e os registros técnicos servem para prevenir abusos e manter o serviço seguro.</li>
             <li>
               Os dados de conta e do site do casamento servem para fornecer o serviço que o casal contratou.
+            </li>
+            <li>
+              O e-mail da conta Google conectada serve só para mostrar ao casal qual conta está conectada.
             </li>
           </ul>
           <SubHeading>Bases legais (LGPD, art. 7º)</SubHeading>
@@ -138,7 +146,7 @@ const Privacy = () => {
 
         <Section id="onde-ficam" title="Onde os arquivos ficam">
           <p>
-            Nesta primeira fase, as fotos e os vídeos ficam guardados em uma conta do Google Drive operada pelo próprio
+            Por padrão, as fotos e os vídeos ficam guardados em uma conta do Google Drive operada pelo próprio
             casarei.online. Cada casal tem uma pasta e, dentro dela, uma subpasta para cada nome de convidado (ou
             &quot;Anônimo&quot;).
           </p>
@@ -150,6 +158,12 @@ const Privacy = () => {
             <Strong>Os arquivos não são públicos.</Strong> O casal do evento os vê em uma lista com miniaturas do seu
             painel privado. Quem opera o casarei.online tem acesso técnico à conta de armazenamento.
           </p>
+          <p>
+            <Strong>Se o casal conectar o próprio Google Drive</Strong> no painel, os arquivos enviados a partir daí
+            ficam numa pasta criada pelo aplicativo na conta do casal, contam no espaço de armazenamento dele e podem
+            ser abertos pelo casal no próprio Drive. Os arquivos enviados antes da conexão continuam na conta do
+            casarei.online.
+          </p>
         </Section>
 
         <Section id="protecao" title="Como protegemos os dados">
@@ -159,7 +173,10 @@ const Privacy = () => {
               Os arquivos vão do navegador do convidado direto para o Google Drive, por conexão HTTPS, usando um
               endereço de envio temporário criado para cada arquivo.
             </li>
-            <li>Os arquivos não são públicos, e o painel do casal não oferece nenhum link para o Drive.</li>
+            <li>
+              Os arquivos não são públicos. No modo padrão, o painel do casal não oferece nenhum link para o Drive; se o
+              casal conectar o próprio Drive, o painel mostra um link para a pasta dele.
+            </li>
             <li>O casal vê apenas os arquivos enviados ao seu próprio evento.</li>
             <li>A segurança do armazenamento também depende dos controles do próprio Google.</li>
           </ul>
@@ -177,8 +194,15 @@ const Privacy = () => {
             nenhum outro arquivo da conta.
           </p>
           <p>
-            Nesta fase, o aplicativo usa uma conta do Google do próprio casarei.online. Convidados e casais não
-            precisam entrar com a conta Google deles nem dar acesso ao próprio Drive.
+            Por padrão, o aplicativo usa uma conta do Google do próprio casarei.online, e convidados e casais não
+            precisam entrar com a conta Google deles.
+          </p>
+          <p>
+            O casal que quiser pode conectar o próprio Google Drive no painel. Nesse caso, o aplicativo pede o mesmo
+            acesso limitado à conta do casal, guarda o e-mail da conta (só para mostrá-lo no painel) e guarda a
+            autorização fornecida pelo Google de forma cifrada, usada somente para gravar e listar os arquivos que o
+            próprio aplicativo cria. O casal pode desconectar a qualquer momento no painel ou revogar o acesso nas
+            configurações da conta Google.
           </p>
           <div className="space-y-3 border-l-2 border-gold bg-secondary/50 py-4 pl-4 pr-4 text-foreground">
             <p>{LIMITED_USE_PT}</p>
@@ -209,6 +233,10 @@ const Privacy = () => {
 
         <Section id="retencao" title="Por quanto tempo guardamos">
           <p>As fotos e os vídeos ficam guardados até o casal pedir a exclusão ou encerrar a conta.</p>
+          <p>
+            Quando o casal conecta o próprio Google Drive, os arquivos ficam na conta do casal, e só ele decide quando
+            apagá-los. A autorização de acesso que guardamos é apagada quando o casal desconecta o Drive.
+          </p>
           <p>
             Os registros usados para prevenir abusos no envio de arquivos, como o endereço IP, são mantidos por período
             limitado, apenas o necessário para prevenir abusos.
