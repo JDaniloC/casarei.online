@@ -28,7 +28,7 @@ export interface UploadPageInfo {
   coupleName: string;
   partnerNames: string[];
   available: boolean;
-  reason?: 'disabled';
+  reason?: 'disabled' | 'unavailable';
   /** Maior arquivo aceito, em bytes. */
   maxBytes: number;
 }
@@ -177,7 +177,7 @@ function parsePageInfo(body: unknown): UploadPageInfo | null {
     coupleName,
     partnerNames: partnerNames as string[],
     available,
-    ...(reason === 'disabled' ? { reason } : {}),
+    ...(reason === 'disabled' || reason === 'unavailable' ? { reason } : {}),
     maxBytes,
   };
 }
