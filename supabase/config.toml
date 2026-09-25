@@ -35,3 +35,9 @@ enabled = true
 verify_jwt = false
 import_map = "./functions/scrape-gift/deno.json"
 entrypoint = "./functions/scrape-gift/index.ts"
+
+[functions.guest-upload]
+verify_jwt = false
+
+[functions.google-drive-admin]
+verify_jwt = true

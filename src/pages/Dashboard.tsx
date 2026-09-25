@@ -13,6 +13,7 @@ import {
 import DashboardHistory from "@/components/wedding/DashboardHistory";
 import DashboardVirtualHouse from "@/components/wedding/DashboardVirtualHouse";
 import DashboardGuests from "@/components/wedding/DashboardGuests";
+import DashboardGuestUploads from "@/components/wedding/DashboardGuestUploads";
 import HouseCatalogSettings from "@/components/wedding/HouseCatalogSettings";
 import { GalleryUpload } from "@/components/wedding/GalleryUpload";
 import HeroImageUploader from "@/components/wedding/HeroImageUploader";
@@ -143,7 +144,7 @@ const Dashboard = () => {
   });
 
   const location = useLocation();
-  const [dashboardTab, setDashboardTab] = useState<"settings" | "history" | "guests">(() => {
+  const [dashboardTab, setDashboardTab] = useState<"settings" | "history" | "guests" | "photos">(() => {
     return (location.state as any)?.activeTab || "history";
   });
   const [settingsSubTab, setSettingsSubTab] = useState<"appearance" | "story" | "event" | "gifts" | "virtualHouse" | "gallery" | "advanced">("appearance");
@@ -892,10 +893,10 @@ const Dashboard = () => {
         </div>
         {/* Tab Navigation */}
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex gap-1">
+          <div className="flex gap-1 overflow-x-auto">
             <button
               onClick={() => setDashboardTab("history")}
-              className={`flex items-center gap-2 px-5 py-3 text-sm font-medium border-b-2 transition-colors ${
+              className={`flex items-center gap-2 px-5 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
                 dashboardTab === "history"
                   ? "border-gold text-gold"
                   : "border-transparent text-muted-foreground hover:text-foreground"
@@ -906,7 +907,7 @@ const Dashboard = () => {
             </button>
             <button
               onClick={() => setDashboardTab("settings")}
-              className={`flex items-center gap-2 px-5 py-3 text-sm font-medium border-b-2 transition-colors ${
+              className={`flex items-center gap-2 px-5 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
                 dashboardTab === "settings"
                   ? "border-gold text-gold"
                   : "border-transparent text-muted-foreground hover:text-foreground"
@@ -917,7 +918,7 @@ const Dashboard = () => {
             </button>
             <button
               onClick={() => setDashboardTab("guests")}
-              className={`flex items-center gap-2 px-5 py-3 text-sm font-medium border-b-2 transition-colors ${
+              className={`flex items-center gap-2 px-5 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
                 dashboardTab === "guests"
                   ? "border-gold text-gold"
                   : "border-transparent text-muted-foreground hover:text-foreground"
@@ -925,6 +926,17 @@ const Dashboard = () => {
             >
               <Users className="w-4 h-4" />
               Convidados
+            </button>
+            <button
+              onClick={() => setDashboardTab("photos")}
+              className={`flex items-center gap-2 px-5 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+                dashboardTab === "photos"
+                  ? "border-gold text-gold"
+                  : "border-transparent text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <Camera className="w-4 h-4" />
+              Fotos dos Convidados
             </button>
           </div>
         </div>
@@ -935,6 +947,8 @@ const Dashboard = () => {
           <DashboardHistory />
         ) : dashboardTab === "guests" ? (
           <DashboardGuests weddingId={weddingId} weddingSlug={weddingSlug} />
+        ) : dashboardTab === "photos" ? (
+          <DashboardGuestUploads weddingId={weddingId} weddingSlug={weddingSlug} />
         ) : (
         <>
         {/* Published URL */}

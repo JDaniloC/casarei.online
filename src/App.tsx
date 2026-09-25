@@ -11,6 +11,8 @@ import Dashboard from "./pages/Dashboard";
 import Preview from "./pages/Preview";
 import Demo from "./pages/Demo";
 import WeddingPage from "./pages/WeddingPage";
+import GuestUploadPage from "./pages/GuestUploadPage";
+import Privacy from "./pages/Privacy";
 import PaymentSuccess from "./pages/PaymentSuccess";
 import PaymentFailure from "./pages/PaymentFailure";
 import PaymentPending from "./pages/PaymentPending";
@@ -50,6 +52,10 @@ const App = () => (
                 </ProtectedRoute>
               } 
             />
+            {/* Public guest photo upload page (QR code): must stay above the /:slug routes */}
+            <Route path="/fotos/:token" element={<GuestUploadPage />} />
+            {/* Public privacy policy (also the URL given to Google for the Drive OAuth app): must stay above the /:slug routes */}
+            <Route path="/privacidade" element={<Privacy />} />
             {/* Public wedding pages with slug */}
             <Route path="/:slug" element={<WeddingPage />} />
             <Route path="/:slug/convite" element={<WeddingPage />} />

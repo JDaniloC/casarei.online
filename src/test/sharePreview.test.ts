@@ -79,6 +79,10 @@ describe("_redirects", () => {
       "/payment-success",
       "/payment-failure",
       "/payment-pending",
+      // Página do QR code dos convidados e política de privacidade: se caírem depois do
+      // /:slug, o link do QR e a URL de privacidade dada ao Google viram páginas de casamento.
+      "/fotos/*",
+      "/privacidade",
     ];
 
     for (const route of systemRoutes) {
