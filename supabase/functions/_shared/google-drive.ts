@@ -161,6 +161,124 @@ export async function refreshAccessToken(
   };
 }
 
+// --- OAuth do casal (Fase 2): URL de autorização, troca do código, revogação ---
+
+/** O código de autorização já foi usado, expirou ou não trouxe o que precisamos. */
+export class InvalidCodeError extends Error {}
+
+/** Escopo que o app precisa: só os arquivos que ele mesmo cria. */
+export const DRIVE_FILE_SCOPE = "https://www.googleapis.com/auth/drive.file";
+
+const AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
+const REVOKE_URL = "https://oauth2.googleapis.com/revoke";
+const MAX_EMAIL_CHARS = 254;
+
+/**
+ * URL para onde o casal é mandado para autorizar o acesso. `prompt=consent` garante que o
+ * Google devolva um refresh token; `select_account` deixa o casal escolher a conta;
+ * `include_granted_scopes=false` mantém o token só com o que pedimos aqui.
+ */
+export function buildAuthUrl(opts: { clientId: string; redirectUri: string; state: string }): string {
+  const params = new URLSearchParams({
+    client_id: opts.clientId,
+    redirect_uri: opts.redirectUri,
+    response_type: "code",
+    scope: ["openid", "email", DRIVE_FILE_SCOPE].join(" "),
+    access_type: "offline",
+    prompt: "consent select_account",
+    include_granted_scopes: "false",
+    state: opts.state,
+  });
+  return `${AUTH_URL}?${params.toString()}`;
+}
+
+export interface OwnerCodeConfig {
+  clientId: string;
+  clientSecret: string;
+  redirectUri: string;
+}
+
+export interface CodeExchange {
+  refreshToken: string;
+  accessToken: string;
+  expiresIn: number;
+  /** Escopos realmente concedidos (o casal pode desmarcar o do Drive). */
+  scopes: string[];
+  /** E-mail da conta, só para exibição; `null` se o Google não o trouxe verificado. */
+  email: string | null;
+}
+
+// O id_token chega direto do Google pelo canal TLS da troca do código, então basta ler o
+// payload (não é usado para autorizar nada, só para mostrar a conta no painel).
+function emailFromIdToken(idToken: unknown): string | null {
+  if (typeof idToken !== "string") return null;
+  const parts = idToken.split(".");
+  if (parts.length !== 3) return null;
+  try {
+    const base64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+    const padded = base64 + "=".repeat((4 - (base64.length % 4)) % 4);
+    const payload: unknown = JSON.parse(new TextDecoder().decode(Uint8Array.from(atob(padded), (c) => c.charCodeAt(0))));
+    if (!isRecord(payload)) return null;
+    const email = payload.email;
+    if (typeof email !== "string" || email === "" || email.length > MAX_EMAIL_CHARS) return null;
+    return payload.email_verified === false ? null : email;
+  } catch {
+    return null;
+  }
+}
+
+/** Troca o código de autorização por tokens. Nunca inclui o código nem os tokens em mensagens de erro. */
+export async function exchangeCode(fetchFn: FetchFn, cfg: OwnerCodeConfig, code: string): Promise<CodeExchange> {
+  const res = await fetchFn(TOKEN_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      code,
+      client_id: cfg.clientId,
+      client_secret: cfg.clientSecret,
+      redirect_uri: cfg.redirectUri,
+      grant_type: "authorization_code",
+    }).toString(),
+  });
+
+  const data = await readBody(res);
+  if (!res.ok) {
+    if (isRecord(data) && data.error === "invalid_grant") {
+      throw new InvalidCodeError("O código de autorização é inválido, já foi usado ou expirou");
+    }
+    throw mapDriveError(res.status, data);
+  }
+  if (!isRecord(data) || typeof data.access_token !== "string" || data.access_token === "") {
+    throw new DriveApiError(UNEXPECTED_RESPONSE, 502, true);
+  }
+  if (typeof data.refresh_token !== "string" || data.refresh_token === "") {
+    throw new InvalidCodeError("O Google não devolveu a autorização de acesso permanente");
+  }
+
+  const expiresIn = Number(data.expires_in);
+  return {
+    refreshToken: data.refresh_token,
+    accessToken: data.access_token,
+    expiresIn: Number.isFinite(expiresIn) && expiresIn > 0 ? expiresIn : DEFAULT_TOKEN_LIFETIME_SECONDS,
+    scopes: typeof data.scope === "string" ? data.scope.split(/\s+/).filter((scope) => scope !== "") : [],
+    email: emailFromIdToken(data.id_token),
+  };
+}
+
+/** Revoga um token no Google. Best effort: nunca lança (falha de rede ou HTTP é ignorada). */
+export async function revokeToken(fetchFn: FetchFn, token: string): Promise<void> {
+  try {
+    const res = await fetchFn(REVOKE_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ token }).toString(),
+    });
+    await discard(res);
+  } catch {
+    // ignorado de propósito
+  }
+}
+
 const authHeaders = (accessToken: string) => ({ Authorization: `Bearer ${accessToken}` });
 
 const jsonHeaders = (accessToken: string) => ({
