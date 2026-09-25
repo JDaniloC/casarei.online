@@ -1207,6 +1207,85 @@ describe('cartão "Onde ficam as fotos"', () => {
     expect(api.listFiles).not.toHaveBeenCalled();
   });
 
+  // O status ainda diz "conectado" (a marca de reconexão só aparece depois que o servidor
+  // renova o token), mas uma leitura do álbum já volta 409 needs_reconnect: o cartão passa
+  // a mostrar "Reconectar" sem esperar um recarregamento, e o aviso do cartão explica tudo.
+  // Os testes mockam driveAdminApi sem a classe DriveAdminError, então o erro é um objeto
+  // simples com `code`, como o que a classe produz.
+  const NEEDS_RECONNECT_ERROR = {
+    code: 'needs_reconnect',
+    message: 'É preciso reconectar o Google Drive para continuar.',
+  };
+
+  const expectReconnectState = async () => {
+    expect(await screen.findByRole('button', { name: 'Reconectar' })).toBeInTheDocument();
+    expect(screen.getByText(/O álbum volta a aparecer assim que você reconectar o Google Drive/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Atualizar' })).toBeDisabled();
+    expect(mockToast).not.toHaveBeenCalledWith(expect.objectContaining({ variant: 'destructive' }));
+  };
+
+  it('a lista volta 409 needs_reconnect: o cartão vira "Reconectar" e o toast destrutivo não aparece', async () => {
+    api.getStatus.mockResolvedValue(ownerConnection({ needsReconnect: false }));
+    api.listFiles.mockRejectedValue(NEEDS_RECONNECT_ERROR);
+
+    render(<DashboardGuestUploads weddingId={WEDDING_ID} />);
+
+    await expectReconnectState();
+    expect(within(screen.getByRole('alert')).getByText(/É preciso reconectar o Google Drive/)).toBeInTheDocument();
+    expect(screen.queryByText(/Não foi possível carregar os arquivos/)).not.toBeInTheDocument();
+    expect(mockToast).not.toHaveBeenCalled();
+  });
+
+  it('só o resumo volta needs_reconnect: o cartão também vira "Reconectar", sem toast', async () => {
+    api.getStatus.mockResolvedValue(ownerConnection({ needsReconnect: false }));
+    api.getSummary.mockRejectedValue(NEEDS_RECONNECT_ERROR);
+
+    render(<DashboardGuestUploads weddingId={WEDDING_ID} />);
+
+    await expectReconnectState();
+    expect(mockToast).not.toHaveBeenCalled();
+  });
+
+  it('"Carregar mais" volta needs_reconnect: o cartão vira "Reconectar" e os arquivos já carregados ficam', async () => {
+    api.getStatus.mockResolvedValue(ownerConnection({ needsReconnect: false }));
+    api.listFiles
+      .mockResolvedValueOnce({ files: files(1, 2), nextPageToken: 'pagina-2' })
+      .mockRejectedValueOnce(NEEDS_RECONNECT_ERROR);
+
+    await renderEnabled();
+    fireEvent.click(await screen.findByRole('button', { name: 'Carregar mais' }));
+
+    await expectReconnectState();
+    expect(screen.getAllByRole('listitem')).toHaveLength(2);
+    expect(mockToast).not.toHaveBeenCalled();
+  });
+
+  it('as miniaturas voltam needs_reconnect: o cartão vira "Reconectar" e o toast destrutivo não aparece', async () => {
+    api.getStatus.mockResolvedValue(ownerConnection({ needsReconnect: false }));
+    api.listFiles.mockResolvedValue({ files: files(1, 2), nextPageToken: null });
+    api.getThumbnails.mockRejectedValue(NEEDS_RECONNECT_ERROR);
+
+    render(<DashboardGuestUploads weddingId={WEDDING_ID} />);
+
+    await expectReconnectState();
+    expect(mockToast).not.toHaveBeenCalled();
+  });
+
+  it('outro erro de leitura continua sendo só o toast destrutivo, sem virar "Reconectar"', async () => {
+    api.getStatus.mockResolvedValue(ownerConnection({ needsReconnect: false }));
+    api.listFiles.mockRejectedValue(Object.assign(new Error('Serviço temporariamente indisponível'), { code: 'unavailable' }));
+
+    await renderEnabled();
+
+    await waitFor(() =>
+      expect(mockToast).toHaveBeenCalledWith(
+        expect.objectContaining({ variant: 'destructive', description: 'Serviço temporariamente indisponível' }),
+      ),
+    );
+    expect(screen.queryByRole('button', { name: 'Reconectar' })).not.toBeInTheDocument();
+    expect(screen.getByText(/Conectado como ana@example\.com/)).toBeInTheDocument();
+  });
+
   it('desconectar volta ao modo plataforma, zera o álbum e recarrega do Drive de agora', async () => {
     api.getStatus.mockResolvedValue(ownerConnection());
     api.getSummary
