@@ -1,8 +1,11 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { parseAllowedOrigins } from "../_shared/cors.ts";
-import { refreshAccessToken, type FetchFn } from "../_shared/google-drive.ts";
+import { bytesToHex, encryptValue } from "../_shared/crypto.ts";
+import { createDenoDriveAccess, requireEnv } from "../_shared/drive-access-deno.ts";
+import { buildAuthUrl, ensureFolder, exchangeCode, type FetchFn } from "../_shared/google-drive.ts";
 import { getThumbnails, listGuestFiles, summarizeGuestFiles } from "../_shared/google-drive-read.ts";
+import { signState, verifyState } from "../_shared/hmac-state.ts";
 import {
   classifyAuthError,
   createHandler,
@@ -20,7 +23,6 @@ import {
 // jamais pode ver isso.
 
 const LOG_PREFIX = "[google-drive-admin]";
-const TOKEN_SAFETY_MARGIN_MS = 60_000;
 const BEARER_PREFIX = "Bearer ";
 
 const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, {
@@ -53,53 +55,49 @@ async function authenticate(authHeader: string): Promise<{ userId: string } | nu
   return { userId: data.user.id };
 }
 
-// --- Access token do Google (conta da plataforma), com cache no módulo -------
+// --- Google: access token por casamento e OAuth ------------------------------
 
-let cachedToken: { value: string; expiresAt: number } | null = null;
-let tokenInFlight: Promise<string> | null = null;
+// Lê as credenciais só na hora de usar: se faltar alguma, só as ações que precisam do
+// Google respondem 503; status, enable, set-enabled e rotate-token só usam o banco.
+const driveAccess = createDenoDriveAccess(supabase, fetchFn, LOG_PREFIX);
 
-// Lê as credenciais só na hora de usar: se faltar alguma, só as ações que precisam
-// do Drive (list, summary, thumbnails) respondem 503; status, enable, set-enabled e
-// rotate-token só usam o banco e seguem funcionando. Loga o NOME da variável
-// ausente, nunca valor.
-function readGoogleConfig() {
-  const names = ["GOOGLE_DRIVE_CLIENT_ID", "GOOGLE_DRIVE_CLIENT_SECRET", "GOOGLE_DRIVE_REFRESH_TOKEN"] as const;
-  const missing = names.filter((name) => !Deno.env.get(name));
-  if (missing.length > 0) {
-    console.error(`${LOG_PREFIX} variáveis do Google ausentes: ${missing.join(", ")}`);
-    throw new Error("google_config_missing");
-  }
-  return {
-    clientId: Deno.env.get("GOOGLE_DRIVE_CLIENT_ID")!,
-    clientSecret: Deno.env.get("GOOGLE_DRIVE_CLIENT_SECRET")!,
-    refreshToken: Deno.env.get("GOOGLE_DRIVE_REFRESH_TOKEN")!,
-  };
-}
+const oauthConfig = () => {
+  const [clientId, clientSecret, redirectUri] = requireEnv(LOG_PREFIX, [
+    "GOOGLE_DRIVE_CLIENT_ID",
+    "GOOGLE_DRIVE_CLIENT_SECRET",
+    "GOOGLE_DRIVE_REDIRECT_URI",
+  ]);
+  return { clientId, clientSecret, redirectUri };
+};
 
-async function getAccessToken(): Promise<string> {
-  if (cachedToken && Date.now() < cachedToken.expiresAt) return cachedToken.value;
-  // Requisições simultâneas com o cache vazio compartilham a mesma troca de token.
-  if (!tokenInFlight) {
-    tokenInFlight = (async () => {
-      const { accessToken, expiresIn } = await refreshAccessToken(fetchFn, readGoogleConfig());
-      cachedToken = { value: accessToken, expiresAt: Date.now() + expiresIn * 1000 - TOKEN_SAFETY_MARGIN_MS };
-      return accessToken;
-    })().finally(() => {
-      tokenInFlight = null;
-    });
-  }
-  return tokenInFlight;
-}
+const stateSecret = () => requireEnv(LOG_PREFIX, ["GOOGLE_OAUTH_STATE_SECRET"])[0];
+const encryptionKey = () => requireEnv(LOG_PREFIX, ["ENCRYPTION_KEY"])[0];
 
 // --- Banco (service role) ----------------------------------------------------
 
 const CONNECTIONS = "wedding_drive_connections";
 const GUEST_FOLDERS = "wedding_drive_guest_folders";
-const CONNECTION_COLUMNS = "uploads_enabled, upload_token";
+const CONNECTION_COLUMNS = "uploads_enabled, upload_token, connected_at, google_email, needs_reconnect, folder_id";
+
+interface ConnectionData {
+  uploads_enabled: boolean;
+  upload_token: string;
+  connected_at: string | null;
+  google_email: string | null;
+  needs_reconnect: boolean | null;
+  folder_id: string | null;
+}
 
 // Os erros do banco não entram nas mensagens: podem carregar ids e detalhes internos.
-function toRow(data: { uploads_enabled: boolean; upload_token: string }): DriveConnectionRow {
-  return { uploadsEnabled: data.uploads_enabled, uploadToken: data.upload_token };
+function toRow(data: ConnectionData): DriveConnectionRow {
+  return {
+    uploadsEnabled: data.uploads_enabled,
+    uploadToken: data.upload_token,
+    connectedAt: data.connected_at ?? null,
+    googleEmail: data.google_email ?? null,
+    needsReconnect: data.needs_reconnect === true,
+    folderId: data.folder_id ?? null,
+  };
 }
 
 const connections: GoogleDriveAdminDeps["connections"] = {
@@ -153,6 +151,52 @@ const connections: GoogleDriveAdminDeps["connections"] = {
     if (error) throw new Error("Falha ao girar o token de envio");
     return data && data.length > 0 ? toRow(data[0]) : null;
   },
+
+  // Grava a conexão do casal de uma vez. Só cria a linha (com o token do QR) se ela não
+  // existe: com linha, o upload_token nunca é tocado. Os campos do token e a época vão
+  // juntos, então a CHECK do banco (token, IV e época juntos) sempre é satisfeita.
+  async connectOwner(weddingId, data, newUploadToken) {
+    if (newUploadToken !== null) {
+      const { error } = await supabase
+        .from(CONNECTIONS)
+        .upsert(
+          { wedding_id: weddingId, upload_token: newUploadToken },
+          { onConflict: "wedding_id", ignoreDuplicates: true },
+        );
+      if (error) throw new Error("Falha ao criar a conexão de envio");
+    }
+    const { data: updated, error } = await supabase
+      .from(CONNECTIONS)
+      .update({
+        refresh_token_encrypted: data.refreshTokenEncrypted,
+        refresh_token_iv: data.refreshTokenIv,
+        google_email: data.googleEmail,
+        connected_at: new Date().toISOString(),
+        needs_reconnect: false,
+        folder_id: data.folderId,
+      })
+      .eq("wedding_id", weddingId)
+      .select(CONNECTION_COLUMNS);
+    if (error || !updated || updated.length === 0) throw new Error("Falha ao gravar a conexão do casal");
+    return toRow(updated[0]);
+  },
+
+  async disconnectOwner(weddingId) {
+    const { data, error } = await supabase
+      .from(CONNECTIONS)
+      .update({
+        refresh_token_encrypted: null,
+        refresh_token_iv: null,
+        google_email: null,
+        connected_at: null,
+        needs_reconnect: false,
+        folder_id: null,
+      })
+      .eq("wedding_id", weddingId)
+      .select(CONNECTION_COLUMNS);
+    if (error) throw new Error("Falha ao desconectar o Google do casal");
+    return data && data.length > 0 ? toRow(data[0]) : null;
+  },
 };
 
 // --- Dependências do handler -------------------------------------------------
@@ -185,7 +229,45 @@ const deps: GoogleDriveAdminDeps = {
   // 24 bytes de crypto.getRandomValues (nunca Math.random), base64url, 32 caracteres.
   generateToken: () => generateUploadToken((bytes) => crypto.getRandomValues(bytes)),
 
-  getAccessToken,
+  getAccessToken: driveAccess.getAccessToken,
+  invalidateAccessToken: driveAccess.invalidateAccessToken,
+
+  now: () => Date.now(),
+  randomNonce: () => bytesToHex(crypto.getRandomValues(new Uint8Array(16))),
+  signState: (payload) => signState(payload, stateSecret()),
+  verifyState: (state) => verifyState(state, stateSecret(), Date.now()),
+  encryptToken: (plain) => encryptValue(plain, encryptionKey()),
+
+  async getCoupleNames(weddingId) {
+    const { data, error } = await supabase
+      .from("weddings")
+      .select("couple_name, partner1_name, partner2_name")
+      .eq("id", weddingId)
+      .maybeSingle();
+    if (error) throw new Error("Falha ao buscar os nomes do casal");
+    if (!data) return null;
+    return {
+      coupleName: data.couple_name ?? "",
+      partner1Name: data.partner1_name ?? "",
+      partner2Name: data.partner2_name ?? "",
+    };
+  },
+
+  async clearGuestFolders(weddingId) {
+    const { error } = await supabase.from(GUEST_FOLDERS).delete().eq("wedding_id", weddingId);
+    if (error) throw new Error("Falha ao limpar as pastas de convidados");
+  },
+
+  google: {
+    buildAuthUrl: (state) => {
+      const { clientId, redirectUri } = oauthConfig();
+      return buildAuthUrl({ clientId, redirectUri, state });
+    },
+    exchangeCode: (code) => exchangeCode(fetchFn, oauthConfig(), code),
+    // Sem folderId: a pasta é sempre nova, no topo do Drive do casal.
+    createOwnerRootFolder: (accessToken, opts) =>
+      ensureFolder(fetchFn, accessToken, { weddingId: opts.weddingId, name: opts.name, folderId: null }),
+  },
 
   drive: {
     listGuestFiles: (accessToken, weddingId, opts) => listGuestFiles(fetchFn, accessToken, weddingId, opts),

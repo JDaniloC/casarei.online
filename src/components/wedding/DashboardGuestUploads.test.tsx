@@ -14,6 +14,8 @@ const api = vi.hoisted(() => ({
   listFiles: vi.fn(),
   getSummary: vi.fn(),
   getThumbnails: vi.fn(),
+  getAuthUrl: vi.fn(),
+  disconnectDrive: vi.fn(),
 }));
 vi.mock('@/lib/driveAdminApi', () => api);
 
@@ -152,15 +154,20 @@ async function renderEnabled(ui: React.ReactElement = <DashboardGuestUploads wed
 }
 
 function expectNoDriveAnywhere(container: HTMLElement) {
-  expect(container.textContent ?? '').not.toMatch(DRIVE_WORD);
-  for (const el of Array.from(container.querySelectorAll('*'))) {
+  // O cartão "Onde ficam as fotos" fala do Drive de propósito (é onde o casal conecta o dele);
+  // o resto do painel continua sem nenhuma menção.
+  const scope = container.cloneNode(true) as HTMLElement;
+  scope.querySelectorAll('[data-testid="drive-connection-card"]').forEach((card) => card.remove());
+
+  expect(scope.textContent ?? '').not.toMatch(DRIVE_WORD);
+  for (const el of Array.from(scope.querySelectorAll('*'))) {
     for (const attr of Array.from(el.attributes)) {
       // Só o que o casal pode ver ou clicar: nenhum atributo (href, title, aria-label...) cita o Drive.
       if (attr.name === 'class' || attr.name === 'src' || attr.name.startsWith('data-')) continue;
       expect(`${attr.name}=${attr.value}`).not.toMatch(DRIVE_WORD);
     }
   }
-  for (const anchor of Array.from(container.querySelectorAll('[href]'))) {
+  for (const anchor of Array.from(scope.querySelectorAll('[href]'))) {
     expect(anchor.getAttribute('href')).not.toMatch(/drive\.google\.com|google\.com|googleapis/i);
   }
 }
@@ -1028,7 +1035,7 @@ describe('"Atualizar"', () => {
 // ---------------------------------------------------------------------------
 
 describe('nenhuma referência ao Drive', () => {
-  it('nenhum estado do painel mostra a palavra "Drive" nem link para ele', async () => {
+  it('fora do cartão de conexão, nenhum estado do painel mostra a palavra "Drive" nem link para ele', async () => {
     api.getSummary.mockResolvedValue({ count: 3, totalBytes: 5 * MB, guests: 2 });
     api.listFiles.mockResolvedValue({
       files: [
@@ -1144,5 +1151,191 @@ describe('logs', () => {
     expect(errorSpy).toHaveBeenCalled();
     expect(JSON.stringify(errorSpy.mock.calls)).not.toContain(TOKEN);
     expect(JSON.stringify(mockToast.mock.calls)).not.toContain(TOKEN);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Cartão "Onde ficam as fotos" (Drive do casal)
+// ---------------------------------------------------------------------------
+
+const FOLDER_URL = 'https://drive.google.com/drive/folders/pastaDoCasal_123456';
+
+const ownerConnection = (overrides: Record<string, unknown> = {}) =>
+  connection({
+    driveMode: 'owner',
+    googleEmail: 'ana@example.com',
+    needsReconnect: false,
+    folderUrl: FOLDER_URL,
+    ...overrides,
+  });
+
+describe('cartão "Onde ficam as fotos"', () => {
+  it('aparece no painel ativado (modo plataforma) e não aparece antes de ativar', async () => {
+    api.getStatus.mockResolvedValueOnce(notEnabled());
+    const off = render(<DashboardGuestUploads weddingId={WEDDING_ID} />);
+    await screen.findByRole('button', { name: 'Ativar envio de fotos' });
+    expect(screen.queryByTestId('drive-connection-card')).not.toBeInTheDocument();
+    off.unmount();
+
+    await renderEnabled();
+    expect(screen.getByTestId('drive-connection-card')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Guardar no meu Google Drive' })).toBeInTheDocument();
+    expect(screen.getByText(/Aqui aparecem os arquivos enviados pelos convidados/)).toBeInTheDocument();
+  });
+
+  it('modo casal: mostra a conta, o link da pasta e diz no álbum onde estão os originais', async () => {
+    api.getStatus.mockResolvedValue(ownerConnection());
+
+    await renderEnabled();
+
+    expect(screen.getByText(/Conectado como ana@example\.com/)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /Abrir pasta no Google Drive/ })).toHaveAttribute('href', FOLDER_URL);
+    expect(screen.getByText(/Os originais estão na pasta do seu Google Drive/)).toBeInTheDocument();
+    expect(screen.queryByText(/entre em contato com a equipe/)).not.toBeInTheDocument();
+  });
+
+  it('precisa reconectar: não lê o álbum, mostra o aviso e o botão Reconectar', async () => {
+    api.getStatus.mockResolvedValue(ownerConnection({ needsReconnect: true }));
+
+    render(<DashboardGuestUploads weddingId={WEDDING_ID} />);
+
+    expect(await screen.findByRole('button', { name: 'Reconectar' })).toBeInTheDocument();
+    expect(screen.getByText(/O álbum volta a aparecer assim que você reconectar o Google Drive/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Atualizar' })).toBeDisabled();
+    expect(screen.queryByText('Carregando os arquivos…')).not.toBeInTheDocument();
+    expect(api.getSummary).not.toHaveBeenCalled();
+    expect(api.listFiles).not.toHaveBeenCalled();
+  });
+
+  // O status ainda diz "conectado" (a marca de reconexão só aparece depois que o servidor
+  // renova o token), mas uma leitura do álbum já volta 409 needs_reconnect: o cartão passa
+  // a mostrar "Reconectar" sem esperar um recarregamento, e o aviso do cartão explica tudo.
+  // Os testes mockam driveAdminApi sem a classe DriveAdminError, então o erro é um objeto
+  // simples com `code`, como o que a classe produz.
+  const NEEDS_RECONNECT_ERROR = {
+    code: 'needs_reconnect',
+    message: 'É preciso reconectar o Google Drive para continuar.',
+  };
+
+  const expectReconnectState = async () => {
+    expect(await screen.findByRole('button', { name: 'Reconectar' })).toBeInTheDocument();
+    expect(screen.getByText(/O álbum volta a aparecer assim que você reconectar o Google Drive/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Atualizar' })).toBeDisabled();
+    expect(mockToast).not.toHaveBeenCalledWith(expect.objectContaining({ variant: 'destructive' }));
+  };
+
+  it('a lista volta 409 needs_reconnect: o cartão vira "Reconectar" e o toast destrutivo não aparece', async () => {
+    api.getStatus.mockResolvedValue(ownerConnection({ needsReconnect: false }));
+    api.listFiles.mockRejectedValue(NEEDS_RECONNECT_ERROR);
+
+    render(<DashboardGuestUploads weddingId={WEDDING_ID} />);
+
+    await expectReconnectState();
+    expect(within(screen.getByRole('alert')).getByText(/É preciso reconectar o Google Drive/)).toBeInTheDocument();
+    expect(screen.queryByText(/Não foi possível carregar os arquivos/)).not.toBeInTheDocument();
+    expect(mockToast).not.toHaveBeenCalled();
+  });
+
+  it('só o resumo volta needs_reconnect: o cartão também vira "Reconectar", sem toast', async () => {
+    api.getStatus.mockResolvedValue(ownerConnection({ needsReconnect: false }));
+    api.getSummary.mockRejectedValue(NEEDS_RECONNECT_ERROR);
+
+    render(<DashboardGuestUploads weddingId={WEDDING_ID} />);
+
+    await expectReconnectState();
+    expect(mockToast).not.toHaveBeenCalled();
+  });
+
+  it('"Carregar mais" volta needs_reconnect: o cartão vira "Reconectar" e os arquivos já carregados ficam', async () => {
+    api.getStatus.mockResolvedValue(ownerConnection({ needsReconnect: false }));
+    api.listFiles
+      .mockResolvedValueOnce({ files: files(1, 2), nextPageToken: 'pagina-2' })
+      .mockRejectedValueOnce(NEEDS_RECONNECT_ERROR);
+
+    await renderEnabled();
+    fireEvent.click(await screen.findByRole('button', { name: 'Carregar mais' }));
+
+    await expectReconnectState();
+    expect(screen.getAllByRole('listitem')).toHaveLength(2);
+    expect(mockToast).not.toHaveBeenCalled();
+  });
+
+  it('as miniaturas voltam needs_reconnect: o cartão vira "Reconectar" e o toast destrutivo não aparece', async () => {
+    api.getStatus.mockResolvedValue(ownerConnection({ needsReconnect: false }));
+    api.listFiles.mockResolvedValue({ files: files(1, 2), nextPageToken: null });
+    api.getThumbnails.mockRejectedValue(NEEDS_RECONNECT_ERROR);
+
+    render(<DashboardGuestUploads weddingId={WEDDING_ID} />);
+
+    await expectReconnectState();
+    expect(mockToast).not.toHaveBeenCalled();
+  });
+
+  it('outro erro de leitura continua sendo só o toast destrutivo, sem virar "Reconectar"', async () => {
+    api.getStatus.mockResolvedValue(ownerConnection({ needsReconnect: false }));
+    api.listFiles.mockRejectedValue(Object.assign(new Error('Serviço temporariamente indisponível'), { code: 'unavailable' }));
+
+    await renderEnabled();
+
+    await waitFor(() =>
+      expect(mockToast).toHaveBeenCalledWith(
+        expect.objectContaining({ variant: 'destructive', description: 'Serviço temporariamente indisponível' }),
+      ),
+    );
+    expect(screen.queryByRole('button', { name: 'Reconectar' })).not.toBeInTheDocument();
+    expect(screen.getByText(/Conectado como ana@example\.com/)).toBeInTheDocument();
+  });
+
+  it('desconectar volta ao modo plataforma, zera o álbum e recarrega do Drive de agora', async () => {
+    api.getStatus.mockResolvedValue(ownerConnection());
+    api.getSummary
+      .mockResolvedValueOnce({ count: 2, totalBytes: 5 * MB, guests: 1 })
+      .mockResolvedValue({ count: 1, totalBytes: 2 * MB, guests: 1 });
+    api.listFiles
+      .mockResolvedValueOnce({ files: files(1, 2), nextPageToken: null })
+      .mockResolvedValue({ files: [file(9)], nextPageToken: null });
+    api.disconnectDrive.mockResolvedValue(connection());
+
+    await renderEnabled();
+    await waitFor(() => expect(screen.getAllByRole('listitem')).toHaveLength(2));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Desconectar' }));
+    const dialog = await screen.findByRole('alertdialog');
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Desconectar' }));
+
+    // Álbum do Drive de agora (o da plataforma): só a foto nova, não as do Drive do casal.
+    await waitFor(() => expect(screen.getAllByRole('listitem')).toHaveLength(1));
+    expect(screen.getByRole('button', { name: 'Guardar no meu Google Drive' })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /Abrir pasta no Google Drive/ })).not.toBeInTheDocument();
+    expect(api.listFiles).toHaveBeenCalledTimes(2);
+    expect(api.getSummary).toHaveBeenCalledTimes(2);
+  });
+
+  it('desconectar com a chave "Receber envios" em andamento não a deixa travada', async () => {
+    api.getStatus.mockResolvedValue(ownerConnection());
+    const pendingToggle = deferred<ReturnType<typeof connection>>();
+    api.setEnabled.mockReturnValueOnce(pendingToggle.promise);
+    api.disconnectDrive.mockResolvedValue(connection());
+
+    await renderEnabled();
+    const receiving = screen.getByRole('switch', { name: 'Receber envios' });
+    fireEvent.click(receiving);
+    await waitFor(() => expect(receiving).toBeDisabled());
+
+    // O casal desconecta o Drive antes de o servidor responder à chave.
+    fireEvent.click(screen.getByRole('button', { name: 'Desconectar' }));
+    fireEvent.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Desconectar' }));
+    await screen.findByRole('button', { name: 'Guardar no meu Google Drive' });
+    await settle();
+
+    // A resposta atrasada da chave é de antes da desconexão: é descartada, e a chave não pode ficar travada.
+    await act(async () => {
+      pendingToggle.resolve(connection({ uploadsEnabled: false }));
+    });
+    await waitFor(() => expect(screen.getByRole('switch', { name: 'Receber envios' })).toBeEnabled());
+
+    fireEvent.click(screen.getByRole('switch', { name: 'Receber envios' }));
+    await waitFor(() => expect(api.setEnabled).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(screen.getByRole('switch', { name: 'Receber envios' })).toBeEnabled());
   });
 });

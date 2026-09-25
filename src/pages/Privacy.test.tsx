@@ -63,7 +63,7 @@ describe('Página de política de privacidade', () => {
 
   it('mostra a data da última atualização', () => {
     renderPage();
-    expect(screen.getByText('Última atualização: 24 de setembro de 2026')).toBeInTheDocument();
+    expect(screen.getByText('Última atualização: 25 de setembro de 2026')).toBeInTheDocument();
   });
 
   it('explica que os arquivos ficam no Google Drive da plataforma, dentro de uma pasta por casal', () => {
@@ -207,11 +207,11 @@ describe('Página de política de privacidade', () => {
       ).toBeInTheDocument();
     });
 
-    it('diz que os arquivos não são públicos e que o painel não oferece link para o Drive', () => {
+    it('diz que os arquivos não são públicos e quando o painel oferece (ou não) link para o Drive', () => {
       renderPage();
       expect(
         within(protectionSection()).getByText(
-          'Os arquivos não são públicos, e o painel do casal não oferece nenhum link para o Drive.',
+          'Os arquivos não são públicos. No modo padrão, o painel do casal não oferece nenhum link para o Drive; se o casal conectar o próprio Drive, o painel mostra um link para a pasta dele.',
         ),
       ).toBeInTheDocument();
     });
@@ -271,6 +271,66 @@ describe('Página de política de privacidade', () => {
     const { container } = renderPage();
     const hrefs = Array.from(container.querySelectorAll('a')).map((a) => a.getAttribute('href') ?? '');
     expect(hrefs.filter((href) => href.includes('drive.google.com'))).toEqual([]);
+  });
+
+  describe('Drive conectado pelo casal (opcional)', () => {
+    it('explica, em "Onde os arquivos ficam", que o Drive padrão continua e o que muda ao conectar', () => {
+      renderPage();
+      const section = screen.getByRole('region', { name: 'Onde os arquivos ficam' });
+      expect(within(section).getByText(/^Por padrão, as fotos e os vídeos ficam guardados/)).toBeInTheDocument();
+      expect(within(section).getByText('Se o casal conectar o próprio Google Drive')).toBeInTheDocument();
+      expect(within(section).getByText(/ficam numa pasta criada pelo aplicativo na conta do casal/)).toBeInTheDocument();
+      expect(within(section).getByText(/contam no espaço de armazenamento dele/)).toBeInTheDocument();
+      expect(within(section).getByText(/Os arquivos enviados antes da conexão continuam na conta do casarei\.online/)).toBeInTheDocument();
+    });
+
+    it('lista o e-mail da conta conectada como dado tratado, só para exibição', () => {
+      renderPage();
+      const section = screen.getByRole('region', { name: 'Quais dados tratamos' });
+      expect(within(section).getByText('Conexão com o Google Drive do casal (opcional).')).toBeInTheDocument();
+      expect(within(section).getByText(/apenas para mostrá-lo no painel/)).toBeInTheDocument();
+      expect(within(section).getByText(/de forma cifrada/)).toBeInTheDocument();
+    });
+
+    it('diz para que serve o e-mail guardado', () => {
+      renderPage();
+      const section = screen.getByRole('region', { name: 'Para que usamos os dados' });
+      expect(
+        within(section).getByText(
+          'O e-mail da conta Google conectada serve só para mostrar ao casal qual conta está conectada.',
+        ),
+      ).toBeInTheDocument();
+    });
+
+    it('em "Uso de dados do Google": o que o app guarda, para que usa e como desconectar ou revogar', () => {
+      renderPage();
+      const section = screen.getByRole('region', { name: 'Uso de dados do Google' });
+      expect(within(section).getByText(/^Por padrão, o aplicativo usa uma conta do Google do próprio casarei\.online/)).toBeInTheDocument();
+      expect(within(section).getByText(/O casal que quiser pode conectar o próprio Google Drive no painel/)).toBeInTheDocument();
+      expect(within(section).getByText(/guarda a autorização fornecida pelo Google de forma cifrada/)).toBeInTheDocument();
+      expect(within(section).getByText(/desconectar a qualquer momento no painel ou revogar o acesso nas configurações da conta Google/)).toBeInTheDocument();
+      // O escopo continua sendo um só e o aviso de que nada mais é lido continua único.
+      expect(within(section).getAllByText('drive.file')).toHaveLength(1);
+    });
+
+    it('em "Uso de dados do Google": não diz que só o escopo drive.file é pedido e cita openid e email', () => {
+      renderPage();
+      const section = screen.getByRole('region', { name: 'Uso de dados do Google' });
+      const text = section.textContent ?? '';
+      // Na conexão do casal o app também pede openid e email (para obter o e-mail da conta): "apenas" seria falso.
+      expect(text).not.toContain('solicita apenas');
+      expect(text).toMatch(/openid/);
+      expect(text).toMatch(/email/);
+      expect(within(section).getAllByText('drive.file')).toHaveLength(1);
+    });
+
+    it('na retenção: no Drive do casal os arquivos ficam com ele e a autorização é apagada ao desconectar', () => {
+      renderPage();
+      const section = screen.getByRole('region', { name: 'Por quanto tempo guardamos' });
+      expect(within(section).getByText(/os arquivos ficam na conta do casal, e só ele decide quando apagá-los/)).toBeInTheDocument();
+      expect(within(section).getByText(/apagada quando o casal desconecta o Drive/)).toBeInTheDocument();
+      expect(section.textContent).not.toMatch(/\d+\s*(dias|meses|anos|horas)/i);
+    });
   });
 
   it('tem um link de volta ao início', () => {

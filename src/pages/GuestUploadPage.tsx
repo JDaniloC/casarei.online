@@ -214,6 +214,7 @@ type InfoState =
   | { kind: "loading" }
   | { kind: "ready"; info: UploadPageInfo }
   | { kind: "disabled"; info: UploadPageInfo }
+  | { kind: "unavailable"; info: UploadPageInfo }
   | { kind: "notFound" }
   | { kind: "error"; message: string };
 
@@ -230,7 +231,9 @@ function usePageInfo(token: string) {
     setState({ kind: "loading" });
     getUploadPageInfo(token).then(
       (info) => {
-        if (!cancelled) setState({ kind: info.available ? "ready" : "disabled", info });
+        if (cancelled) return;
+        const kind = info.available ? "ready" : info.reason === "unavailable" ? "unavailable" : "disabled";
+        setState({ kind, info });
       },
       (error: unknown) => {
         if (cancelled) return;
@@ -626,7 +629,8 @@ function GuestUpload({ token }: { token: string }) {
   const [guestName, setGuestName] = useState(readStoredName);
   const [notices, setNotices] = useState<Notice[]>([]);
 
-  const info = state.kind === "ready" || state.kind === "disabled" ? state.info : null;
+  const info =
+    state.kind === "ready" || state.kind === "disabled" || state.kind === "unavailable" ? state.info : null;
   const names = info ? coupleLabel(info) : "";
   const hasActive = useMemo(
     () => items.some((item) => item.status === "waiting" || item.status === "uploading"),
@@ -703,6 +707,13 @@ function GuestUpload({ token }: { token: string }) {
     return (
       <PageShell>
         <MessageScreen message={state.message} onRetry={reload} />
+      </PageShell>
+    );
+  }
+  if (state.kind === "unavailable") {
+    return (
+      <PageShell>
+        <MessageScreen title={names} message="O envio está temporariamente indisponível. Tente de novo mais tarde." />
       </PageShell>
     );
   }

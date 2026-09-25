@@ -24,12 +24,23 @@ export interface DriveFileSummary {
   durationMs: number | null;
 }
 
-/** Resposta de `status`, `enable`, `set-enabled` e `rotate-token`. */
+/** Resposta de `status`, `enable`, `set-enabled`, `rotate-token`, `connect` e `disconnect`. */
 export interface DriveConnection {
   enabled: boolean;
   uploadsEnabled: boolean;
   /** `null` só quando o recurso ainda não foi ativado. */
   uploadToken: string | null;
+  /**
+   * Onde as fotos ficam: `owner` = no Google Drive do casal; `platform` = guardadas pela
+   * plataforma. Ausente (servidor antigo) vale como `platform`.
+   */
+  driveMode?: 'platform' | 'owner';
+  /** E-mail da conta Google conectada (só no modo casal). */
+  googleEmail?: string | null;
+  /** O Google recusou o acesso do casal: é preciso reconectar. Ausente = `false`. */
+  needsReconnect?: boolean;
+  /** Link da pasta no Drive DO CASAL (só no modo casal); `null`/ausente = sem link. */
+  folderUrl?: string | null;
 }
 
 export interface DriveFilesPage {
@@ -113,6 +124,8 @@ async function call(body: Json): Promise<unknown> {
 // Validação das respostas (o servidor é confiável, mas um 2xx malformado não pode quebrar a tela)
 // ---------------------------------------------------------------------------
 
+const GOOGLE_DRIVE_FOLDER_PREFIX = 'https://drive.google.com/';
+
 function parseConnection(data: unknown): DriveConnection {
   if (!isRecord(data)) throw malformed();
   const { enabled, uploadsEnabled, uploadToken } = data;
@@ -121,7 +134,19 @@ function parseConnection(data: unknown): DriveConnection {
   if (uploadToken !== null && token === null) throw malformed();
   // Ativado sem token não tem o que mostrar no QR code.
   if (enabled && (token === null || token === '')) throw malformed();
-  return { enabled, uploadsEnabled, uploadToken: token };
+
+  // Campos do Drive do casal: só entram os que vieram válidos (o resto é ignorado, e a
+  // ausência vale como modo plataforma).
+  const extras: Partial<DriveConnection> = {};
+  if (data.driveMode === 'platform' || data.driveMode === 'owner') extras.driveMode = data.driveMode;
+  if (data.googleEmail === null) extras.googleEmail = null;
+  else if (typeof data.googleEmail === 'string') extras.googleEmail = data.googleEmail;
+  if (typeof data.needsReconnect === 'boolean') extras.needsReconnect = data.needsReconnect;
+  if (data.folderUrl === null) extras.folderUrl = null;
+  else if (typeof data.folderUrl === 'string' && data.folderUrl.startsWith(GOOGLE_DRIVE_FOLDER_PREFIX)) {
+    extras.folderUrl = data.folderUrl;
+  }
+  return { enabled, uploadsEnabled, uploadToken: token, ...extras };
 }
 
 function parseFile(raw: unknown): DriveFileSummary | null {
@@ -163,6 +188,25 @@ export async function setEnabled(enabled: boolean): Promise<DriveConnection> {
 /** Gera um token novo: o link e os QR codes anteriores deixam de funcionar. */
 export async function rotateToken(): Promise<DriveConnection> {
   return parseConnection(await call({ action: 'rotate-token' }));
+}
+
+/** URL do Google onde o casal autoriza o acesso ao próprio Drive (o retorno é a página de callback). */
+export async function getAuthUrl(): Promise<string> {
+  const data = await call({ action: 'auth-url' });
+  if (!isRecord(data) || typeof data.url !== 'string' || !data.url.startsWith('https://accounts.google.com/')) {
+    throw malformed();
+  }
+  return data.url;
+}
+
+/** Conclui a conexão com o `code` e o `state` que o Google devolveu na página de retorno. */
+export async function connectDrive(params: { code: string; state: string }): Promise<DriveConnection> {
+  return parseConnection(await call({ action: 'connect', code: params.code, state: params.state }));
+}
+
+/** Volta a guardar as fotos na plataforma; o Google do casal é desconectado. */
+export async function disconnectDrive(): Promise<DriveConnection> {
+  return parseConnection(await call({ action: 'disconnect' }));
 }
 
 /** Uma página (50 arquivos) do mais novo para o mais antigo. */

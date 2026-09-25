@@ -189,6 +189,18 @@ describe('estados da página', () => {
     expect(screen.queryByLabelText('Seu nome (opcional)')).not.toBeInTheDocument();
   });
 
+  it('mostra "indisponível" (sem seletor) quando o casal precisa reconectar o Google', async () => {
+    getInfo.mockResolvedValue({ ...INFO, available: false, reason: 'unavailable' });
+    renderPage();
+
+    expect(
+      await screen.findByText('O envio está temporariamente indisponível. Tente de novo mais tarde.'),
+    ).toBeInTheDocument();
+    expect(screen.queryByText('O envio de fotos está desativado no momento.')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Escolher fotos e vídeos')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Seu nome (opcional)')).not.toBeInTheDocument();
+  });
+
   it('em falha de rede na carga mostra a mensagem do cliente (que sugere o Chrome) e permite tentar de novo', async () => {
     getInfo.mockRejectedValueOnce(new api.GuestUploadApiError('network', 0));
     renderPage();

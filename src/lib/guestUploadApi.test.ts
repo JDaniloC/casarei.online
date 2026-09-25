@@ -96,6 +96,24 @@ describe('getUploadPageInfo', () => {
     expect(info.reason).toBe('disabled');
   });
 
+  it('devolve o motivo "unavailable" quando o casal precisa reconectar o Google', async () => {
+    const fetchFn = fetchReturning(() => jsonResponse(200, { ...pageInfo, available: false, reason: 'unavailable' }));
+
+    const info = await getUploadPageInfo(TOKEN, opts(fetchFn));
+
+    expect(info.available).toBe(false);
+    expect(info.reason).toBe('unavailable');
+  });
+
+  it('ignora um motivo desconhecido (a página trata como desativado)', async () => {
+    const fetchFn = fetchReturning(() => jsonResponse(200, { ...pageInfo, available: false, reason: 'qualquer-coisa' }));
+
+    const info = await getUploadPageInfo(TOKEN, opts(fetchFn));
+
+    expect(info.available).toBe(false);
+    expect(info.reason).toBeUndefined();
+  });
+
   it('aceita casal com um só nome ou sem nomes', async () => {
     const fetchFn = fetchReturning(() => jsonResponse(200, { ...pageInfo, partnerNames: [] }));
     await expect(getUploadPageInfo(TOKEN, opts(fetchFn))).resolves.toMatchObject({ partnerNames: [] });

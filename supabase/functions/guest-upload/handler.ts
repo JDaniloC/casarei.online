@@ -18,6 +18,8 @@ import {
   type GuestFolderStore,
 } from "../_shared/google-drive.ts";
 import { corsHeadersFor, isOriginAllowed } from "../_shared/cors.ts";
+import { coupleFolderName, ownerRootFolderName, type CoupleNames } from "../_shared/couple-folder.ts";
+import type { DriveAccessRef } from "../_shared/drive-access.ts";
 import { checkAndLog, clientIp, type RateLimitDb } from "../_shared/rate-limit.ts";
 import {
   MAX_BYTES,
@@ -32,25 +34,38 @@ export interface GuestUploadConnection {
   uploadsEnabled: boolean;
   /** Pasta raiz do casal no Drive; `null` até o primeiro envio. */
   folderId: string | null;
+  /** `connected_at` quando o casal conectou o próprio Google (modo casal); ausente ou `null` = modo plataforma. */
+  connectedAt?: string | null;
+  /** O Google recusou o token do casal: o envio fica indisponível até ele reconectar. */
+  needsReconnect?: boolean;
 }
 
-/** Nomes do casal (colunas de `weddings`); vazios viram string vazia. */
-export interface CoupleNames {
-  coupleName: string;
-  partner1Name: string;
-  partner2Name: string;
-}
+export type { CoupleNames };
 
 /** Operações no Google Drive. O `accessToken` vem de `getAccessToken`. */
 export interface GuestUploadDrive {
-  /** Access token da conta da plataforma (com cache). Pode lançar `NeedsReconnectError`. */
-  getAccessToken(): Promise<string>;
+  /** Access token da conta indicada (plataforma ou casal), com cache. Pode lançar `NeedsReconnectError`. */
+  getAccessToken(ref: DriveAccessRef): Promise<string>;
+  /**
+   * Descarta o token em cache da conta indicada: o Drive respondeu 401 com ele (por exemplo, o
+   * casal removeu o app na conta Google). O próximo `getAccessToken` renova e, se o Google
+   * recusar o refresh token, já marca a reconexão. Chamada de melhor esforço.
+   */
+  invalidateAccessToken(ref: DriveAccessRef): void;
   /**
    * Garante a pasta raiz do casal (dentro de "Casarei.online", ou onde já estiver
    * se `folderId` ainda for uma pasta viva); devolve o id (o mesmo de `folderId`
    * se ela ainda existe).
    */
   ensureRootFolder(
+    accessToken: string,
+    opts: { weddingId: string; name: string; folderId: string | null },
+  ): Promise<string>;
+  /**
+   * Garante a pasta raiz do casal no TOPO do Drive dele (modo casal): devolve `folderId`
+   * se ainda for uma pasta viva; senão cria outra (sem "Casarei.online" no meio).
+   */
+  ensureOwnerRootFolder(
     accessToken: string,
     opts: { weddingId: string; name: string; folderId: string | null },
   ): Promise<string>;
@@ -113,7 +128,6 @@ const MAX_FILE_NAME_CHARS = 255;
 const MAX_MIME_TYPE_CHARS = 100;
 const MAX_GUEST_NAME_CHARS = 200;
 const MAX_IDENTIFIER_CHARS = 64;
-const FALLBACK_COUPLE_FOLDER_NAME = "Casal";
 
 // Cada arquivo custa um POST, e os convidados de um salão dividem o mesmo IP (NAT),
 // então os limites por IP são folgados: quem protege de verdade é o do casamento.
@@ -168,20 +182,18 @@ function failFromError(error: unknown, stage: string, cors: Cors): Response {
 const isValidToken = (value: unknown): value is string =>
   typeof value === "string" && TOKEN_PATTERN.test(value);
 
-// Nome da pasta do casal no Drive: só o nome do casal, sanitizado (sem sufixo, a
-// pasta já fica dentro de "Casarei.online"). "Vazio" é o que sobra sem nada
-// aproveitável depois da limpeza: só espaços, barras e caracteres invisíveis contam
-// como vazio (sanitizeFileName trocaria isso por "arquivo"). Sem nome do casal usa
-// os parceiros unidos por " & " (pulando os vazios); sem nada, "Casal". Casais com o
-// mesmo nome geram pastas de mesmo nome, de propósito: o Drive permite.
-function rootFolderName(names: CoupleNames): string {
-  const hasContent = (value: string) => sanitizeGuestName(value) !== "";
-  const partners = [names.partner1Name, names.partner2Name]
-    .map((name) => name.trim())
-    .filter(hasContent)
-    .join(" & ");
-  const name = [names.coupleName, partners].find(hasContent);
-  return name === undefined ? FALLBACK_COUPLE_FOLDER_NAME : sanitizeFileName(name);
+// Modo casal = o casal conectou o próprio Google (`connected_at` preenchido).
+const isOwnerConnection = (connection: GuestUploadConnection): boolean =>
+  typeof connection.connectedAt === "string" && connection.connectedAt !== "";
+
+// O Google recusou o token do casal: indisponível, sem cair no Drive da plataforma.
+const needsReconnectNow = (connection: GuestUploadConnection): boolean =>
+  isOwnerConnection(connection) && connection.needsReconnect === true;
+
+function accessRefFor(connection: GuestUploadConnection): DriveAccessRef {
+  return isOwnerConnection(connection)
+    ? { kind: "owner", weddingId: connection.weddingId, epoch: connection.connectedAt as string }
+    : { kind: "platform" };
 }
 
 interface UploadRequest {
@@ -299,8 +311,13 @@ async function handleGet(req: Request, deps: GuestUploadDeps, cors: Cors): Promi
       {
         coupleName: names.coupleName,
         partnerNames,
-        available: connection.uploadsEnabled,
-        ...(connection.uploadsEnabled ? {} : { reason: "disabled" }),
+        available: connection.uploadsEnabled && !needsReconnectNow(connection),
+        // "Desativado" (escolha do casal) vale mais que "indisponível" (Google recusou o token).
+        ...(!connection.uploadsEnabled
+          ? { reason: "disabled" }
+          : needsReconnectNow(connection)
+            ? { reason: "unavailable" }
+            : {}),
         maxBytes: MAX_BYTES,
       },
       cors,
@@ -312,10 +329,12 @@ async function handleGet(req: Request, deps: GuestUploadDeps, cors: Cors): Promi
 
 // Ordem das checagens (do mais barato e mais perto da borda para o mais caro):
 //  1. Origin permitido      2. corpo válido        3. conexão pelo token
-//  4. envio ativado         5. tamanho             6. tipo do arquivo
-//  7. rate limits           8. sanitização         9. token do Google
-// 10. pasta raiz           11. pasta do convidado 12. cota do Drive
-// 13. sessão de upload     14. resposta.
+//  4. envio ativado
+// 4b. o casal precisa reconectar o Google (modo casal): 503 antes de QUALQUER chamada ao Google
+//  5. tamanho               6. tipo do arquivo     7. rate limits
+//  8. sanitização           9. token do Google    10. pasta raiz
+// 11. pasta do convidado   12. cota do Drive      13. sessão de upload
+// 14. resposta.
 async function handlePost(
   req: Request,
   origin: string | null,
@@ -323,6 +342,9 @@ async function handlePost(
   cors: Cors,
 ): Promise<Response> {
   let stage = "post:origin";
+  // Conta do Google desta requisição; só é preenchida no passo 9. Fica fora do `try` para o
+  // `catch` saber qual token descartar se o Drive responder 401.
+  let accessRef: DriveAccessRef | null = null;
   try {
     // 1. Origin: nada mais roda (nem a leitura do corpo) para origem não permitida.
     if (origin === null || !isOriginAllowed(origin, deps.allowedOrigins)) {
@@ -341,6 +363,11 @@ async function handlePost(
 
     // 4. Recebimento desativado pelo casal.
     if (!connection.uploadsEnabled) return fail(409, "disabled", MESSAGES.disabled, cors);
+
+    // 4b. O casal precisa reconectar o Google: indisponível, ANTES de qualquer chamada ao
+    // Google e sem cair no Drive da plataforma (as fotos iriam para um lugar que o painel
+    // do casal não lista).
+    if (needsReconnectNow(connection)) return fail(503, "unavailable", MESSAGES.unavailable, cors);
 
     // 5. Tamanho.
     if (body.size < 1 || body.size > MAX_BYTES) {
@@ -372,23 +399,25 @@ async function handlePost(
 
     // 9. Token de acesso do Google (pode lançar NeedsReconnectError: 503).
     stage = "post:access_token";
-    const accessToken = await deps.drive.getAccessToken();
+    accessRef = accessRefFor(connection);
+    const accessToken = await deps.drive.getAccessToken(accessRef);
 
-    // 10. Pasta raiz do casal (dentro de "Casarei.online"). Se o id mudou (primeiro
-    // envio ou a pasta foi apagada), a gravação é CONDICIONAL: só vale se a raiz
-    // gravada ainda for a que esta requisição leu. Várias requisições simultâneas
-    // criam uma raiz cada, mas só uma grava; as outras adotam a raiz vencedora e
-    // mandam para a lixeira a que criaram (best effort: se falhar, sobra uma pasta
-    // vazia e o envio segue). Quem só reaproveitou uma raiz viva não criou nada e
-    // nunca descarta. As pastas de convidado só são limpas por quem venceu E
-    // substituiu uma raiz anterior: sem raiz anterior não há pasta legítima, e
-    // limpar apagaria linhas que outra requisição acabou de inserir.
+    // 10. Pasta raiz do casal: dentro de "Casarei.online" no modo plataforma e no topo do
+    // Drive do próprio casal no modo casal. Se o id mudou (primeiro envio ou a pasta foi
+    // apagada), a gravação é CONDICIONAL: só vale se a raiz gravada ainda for a que esta
+    // requisição leu. Várias requisições simultâneas criam uma raiz cada, mas só uma
+    // grava; as outras adotam a raiz vencedora e mandam para a lixeira a que criaram
+    // (best effort: se falhar, sobra uma pasta vazia e o envio segue). Quem só
+    // reaproveitou uma raiz viva não criou nada e nunca descarta. As pastas de convidado
+    // só são limpas por quem venceu E substituiu uma raiz anterior: sem raiz anterior
+    // não há pasta legítima, e limpar apagaria linhas que outra requisição acabou de
+    // inserir.
     stage = "post:root_folder";
-    const ensuredRootId = await deps.drive.ensureRootFolder(accessToken, {
-      weddingId: connection.weddingId,
-      name: rootFolderName(names),
-      folderId: connection.folderId,
-    });
+    const rootOpts = { weddingId: connection.weddingId, folderId: connection.folderId };
+    const ensuredRootId =
+      accessRef.kind === "owner"
+        ? await deps.drive.ensureOwnerRootFolder(accessToken, { ...rootOpts, name: ownerRootFolderName(names) })
+        : await deps.drive.ensureRootFolder(accessToken, { ...rootOpts, name: coupleFolderName(names) });
     let rootFolderId = ensuredRootId;
     if (ensuredRootId !== connection.folderId) {
       rootFolderId = await deps.saveRootFolder(connection.weddingId, connection.folderId, ensuredRootId);
@@ -433,6 +462,16 @@ async function handlePost(
     // 14. A URL da sessão é um segredo do próprio envio: só vai na resposta.
     return json(200, { uploadUrl }, cors);
   } catch (error) {
+    // Um 401 do Drive quer dizer que o access token em cache não vale mais: descarta o token
+    // dessa conta para o PRÓXIMO envio renovar (e ver o `invalid_grant`, se for o caso). Não
+    // repete nada aqui, e o que acontecer com o descarte nunca muda a resposta.
+    if (accessRef !== null && error instanceof DriveApiError && error.status === 401) {
+      try {
+        deps.drive.invalidateAccessToken(accessRef);
+      } catch {
+        // ignorado de propósito: descartar o cache é só uma otimização de recuperação
+      }
+    }
     return failFromError(error, stage, cors);
   }
 }

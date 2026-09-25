@@ -34,6 +34,7 @@ import { useToast } from "@/hooks/use-toast";
 import * as adminApi from "@/lib/driveAdminApi";
 import type { DriveConnection, DriveFileSummary, DriveSummary } from "@/lib/driveAdminApi";
 import { cn } from "@/lib/utils";
+import DriveConnectionCard from "./DriveConnectionCard";
 
 // Aba "Fotos dos Convidados" do painel do casal: ativa o envio, entrega o QR code para
 // imprimir e lista o que os convidados enviaram, com miniaturas.
@@ -41,8 +42,9 @@ import { cn } from "@/lib/utils";
 // Regras que este componente garante:
 // - Nenhuma chamada ao backend antes de o weddingId existir (o servidor deriva o casamento
 //   do JWT; o id aqui só diz que o site já foi salvo).
-// - Nada que leve ao armazenamento dos arquivos aparece na interface (sem links, sem menção).
-//   O casal só vê o "álbum dos convidados".
+// - Nada que leve ao armazenamento dos arquivos aparece na interface (sem links, sem menção),
+//   EXCETO no cartão "Onde ficam as fotos" (DriveConnectionCard), que existe justamente para o
+//   casal conectar o próprio Google Drive. Fora dele o casal só vê o "álbum dos convidados".
 // - Uma operação de leitura por vez (atualizar / carregar mais), nunca duas em paralelo.
 // - Miniatura já carregada nunca é pedida de novo; um `null` só é tentado outra vez no
 //   próximo "Atualizar", nunca em loop.
@@ -70,6 +72,11 @@ const QR_FILE_NAME = "qrcode-fotos-dos-convidados.png";
 
 const ORIGINALS_NOTICE =
   "Aqui aparecem os arquivos enviados pelos convidados por esta página. Para receber os arquivos originais, entre em contato com a equipe do casarei.online.";
+
+const OWNER_NOTICE =
+  "Aqui aparecem os arquivos enviados pelos convidados por esta página. Os originais estão na pasta do seu Google Drive.";
+
+const NEEDS_RECONNECT_ALBUM_MESSAGE = "O álbum volta a aparecer assim que você reconectar o Google Drive.";
 
 const CARD = "rounded-xl border border-border bg-card p-5 shadow-soft sm:p-6";
 // Alvo de toque de 44 px no celular; volta ao tamanho padrão do painel a partir de sm.
@@ -114,6 +121,11 @@ function formatSummary({ count, totalBytes, guests }: DriveSummary): string {
 
 const describeError = (error: unknown): string =>
   error instanceof Error && error.message.trim() !== "" ? error.message : GENERIC_ERROR;
+
+// O servidor responde 409 `needs_reconnect` a uma leitura quando o Google recusou o acesso do
+// casal agora. Reconhece pelo `code` do erro (não por `instanceof`: só o formato importa aqui).
+const isNeedsReconnectError = (error: unknown): boolean =>
+  (error as { code?: unknown } | null)?.code === "needs_reconnect";
 
 // ---------------------------------------------------------------------------
 // Peças de tela
@@ -226,6 +238,17 @@ export default function DashboardGuestUploads({ weddingId }: DashboardGuestUploa
     setFiles(next);
   }, []);
 
+  // Uma leitura do álbum voltou `needs_reconnect`: o status ainda dizia "conectado" (a marca só
+  // aparece depois que o servidor renova o token), então o cartão passa a "Reconectar" agora,
+  // sem esperar um recarregamento. O aviso do cartão explica; nenhum toast de erro é mostrado.
+  const markNeedsReconnect = useCallback(() => {
+    setStatus((current) =>
+      current.phase === "ready" && current.connection.enabled
+        ? { phase: "ready", connection: { ...current.connection, driveMode: "owner", needsReconnect: true } }
+        : current,
+    );
+  }, []);
+
   /** Pede as miniaturas que faltam, em lotes; devolve o erro do primeiro lote que falhar (ou null). */
   const loadThumbnails = useCallback(async (list: DriveFileSummary[], run: number): Promise<unknown> => {
     // Só quem o servidor diz ter miniatura, e nunca uma que já está carregada.
@@ -272,11 +295,15 @@ export default function DashboardGuestUploads({ weddingId }: DashboardGuestUploa
       const [summaryResult, listResult] = await Promise.allSettled([adminApi.getSummary(), adminApi.listFiles()]);
       if (run !== runRef.current) return;
 
-      // Um toast só por atualização (o primeiro problema); todos vão para o console.
+      // Um toast só por atualização (o primeiro problema); todos vão para o console. Um
+      // `needs_reconnect` não é problema de toast: vira o estado "Reconectar" do cartão.
       const problems: { title: string; description: string }[] = [];
+      let reconnect = false;
 
       if (summaryResult.status === "fulfilled") {
         setSummary(summaryResult.value);
+      } else if (isNeedsReconnectError(summaryResult.reason)) {
+        reconnect = true;
       } else {
         problems.push(reportError("falha ao carregar o resumo", "Não foi possível carregar o resumo", summaryResult.reason));
       }
@@ -287,11 +314,16 @@ export default function DashboardGuestUploads({ weddingId }: DashboardGuestUploa
         setListState("loaded");
         const thumbnailError = await loadThumbnails(listResult.value.files, run);
         if (run !== runRef.current) return;
-        if (thumbnailError) {
+        if (isNeedsReconnectError(thumbnailError)) {
+          reconnect = true;
+        } else if (thumbnailError) {
           problems.push(
             reportError("falha ao carregar miniaturas", "Não foi possível carregar as miniaturas", thumbnailError),
           );
         }
+      } else if (isNeedsReconnectError(listResult.reason)) {
+        // O álbum não mostra "erro ao carregar": o cartão explica que é preciso reconectar.
+        reconnect = true;
       } else {
         // Com arquivos já na tela, uma atualização que falha não os apaga.
         setListState((current) => (current === "loaded" ? current : "error"));
@@ -300,6 +332,7 @@ export default function DashboardGuestUploads({ weddingId }: DashboardGuestUploa
         );
       }
 
+      if (reconnect) markNeedsReconnect();
       if (problems.length > 0) toastRef.current({ ...problems[0], variant: "destructive" });
     } finally {
       if (run === runRef.current) {
@@ -307,7 +340,7 @@ export default function DashboardGuestUploads({ weddingId }: DashboardGuestUploa
         setRefreshing(false);
       }
     }
-  }, [commitFiles, loadThumbnails, reportError]);
+  }, [commitFiles, loadThumbnails, markNeedsReconnect, reportError]);
 
   const loadMore = useCallback(
     async (pageToken: string) => {
@@ -321,7 +354,10 @@ export default function DashboardGuestUploads({ weddingId }: DashboardGuestUploa
         try {
           page = await adminApi.listFiles(pageToken);
         } catch (error) {
-          if (run === runRef.current) notifyError("falha ao carregar mais arquivos", "Não foi possível carregar mais arquivos", error);
+          if (run === runRef.current) {
+            if (isNeedsReconnectError(error)) markNeedsReconnect();
+            else notifyError("falha ao carregar mais arquivos", "Não foi possível carregar mais arquivos", error);
+          }
           return;
         }
         if (run !== runRef.current) return;
@@ -333,7 +369,8 @@ export default function DashboardGuestUploads({ weddingId }: DashboardGuestUploa
 
         const thumbnailError = await loadThumbnails(fresh, run);
         if (run !== runRef.current) return;
-        if (thumbnailError) notifyError("falha ao carregar miniaturas", "Não foi possível carregar as miniaturas", thumbnailError);
+        if (isNeedsReconnectError(thumbnailError)) markNeedsReconnect();
+        else if (thumbnailError) notifyError("falha ao carregar miniaturas", "Não foi possível carregar as miniaturas", thumbnailError);
       } finally {
         if (run === runRef.current) {
           busyRef.current = false;
@@ -341,7 +378,7 @@ export default function DashboardGuestUploads({ weddingId }: DashboardGuestUploa
         }
       }
     },
-    [commitFiles, loadThumbnails, notifyError],
+    [commitFiles, loadThumbnails, markNeedsReconnect, notifyError],
   );
 
   const loadStatus = useCallback(async () => {
@@ -351,7 +388,7 @@ export default function DashboardGuestUploads({ weddingId }: DashboardGuestUploa
       const connection = await adminApi.getStatus();
       if (run !== runRef.current) return;
       setStatus({ phase: "ready", connection });
-      if (connection.enabled) void refresh();
+      if (connection.enabled && connection.needsReconnect !== true) void refresh();
     } catch (error) {
       if (run !== runRef.current) return;
       setStatus({ phase: "error" });
@@ -458,6 +495,27 @@ export default function DashboardGuestUploads({ weddingId }: DashboardGuestUploa
         setRotating(false);
       }
     }
+  };
+
+  // Desconectar troca o Drive de onde o álbum lê: o que estava na tela era do outro. Invalida
+  // qualquer leitura em andamento, zera o álbum e recarrega do Drive de agora.
+  const handleDriveDisconnected = (next: DriveConnection) => {
+    runRef.current += 1;
+    mutatingRef.current = false;
+    setPendingUploads(null);
+    setRotating(false);
+    setActivating(false);
+    busyRef.current = false;
+    thumbnailsRef.current = new Map();
+    setThumbnails(thumbnailsRef.current);
+    commitFiles([]);
+    setSummary(null);
+    setNextPageToken(null);
+    setListState("idle");
+    setRefreshing(false);
+    setLoadingMore(false);
+    setStatus({ phase: "ready", connection: next });
+    if (next.enabled && next.needsReconnect !== true) void refresh();
   };
 
   const handleCopy = async (url: string) => {
@@ -601,6 +659,8 @@ export default function DashboardGuestUploads({ weddingId }: DashboardGuestUploa
 
   const receiving = pendingUploads ?? connection.uploadsEnabled;
   const busy = refreshing || loadingMore;
+  const ownerMode = connection.driveMode === "owner";
+  const needsReconnect = ownerMode && connection.needsReconnect === true;
 
   return (
     <div className="space-y-6">
@@ -712,6 +772,9 @@ export default function DashboardGuestUploads({ weddingId }: DashboardGuestUploa
         </div>
       </section>
 
+      {/* Onde as fotos ficam: guardadas pela plataforma ou no Google Drive do casal */}
+      <DriveConnectionCard connection={connection} onDisconnected={handleDriveDisconnected} />
+
       {/* Álbum dos convidados */}
       <section className={CARD}>
         <div className="flex flex-wrap items-start justify-between gap-3">
@@ -728,7 +791,7 @@ export default function DashboardGuestUploads({ weddingId }: DashboardGuestUploa
             variant="outline"
             className={TOUCH}
             onClick={() => void refresh()}
-            disabled={busy}
+            disabled={busy || needsReconnect}
             aria-busy={refreshing}
           >
             <RefreshCw className={cn(refreshing && "animate-spin motion-reduce:animate-none")} />
@@ -738,10 +801,12 @@ export default function DashboardGuestUploads({ weddingId }: DashboardGuestUploa
 
         <p className="mt-4 flex gap-2.5 rounded-lg bg-muted/50 p-3 text-xs leading-relaxed text-muted-foreground">
           <Info className="mt-0.5 h-4 w-4 shrink-0 text-gold" aria-hidden="true" />
-          {ORIGINALS_NOTICE}
+          {ownerMode ? OWNER_NOTICE : ORIGINALS_NOTICE}
         </p>
 
-        {listState === "idle" && (
+        {needsReconnect && <p className="mt-6 text-sm text-muted-foreground">{NEEDS_RECONNECT_ALBUM_MESSAGE}</p>}
+
+        {!needsReconnect && listState === "idle" && (
           <div role="status" className="mt-6 flex items-center gap-3 text-sm text-muted-foreground">
             <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" aria-hidden="true" />
             Carregando os arquivos…
