@@ -189,7 +189,7 @@ const Privacy = () => {
             convidados e mostrar ao casal a lista, com miniaturas, do que chegou.
           </p>
           <p>
-            O aplicativo solicita apenas o escopo <code className="rounded bg-secondary px-1.5 py-0.5 text-[0.9em] text-foreground">drive.file</code>,
+            Para acessar o Drive, o aplicativo solicita o escopo <code className="rounded bg-secondary px-1.5 py-0.5 text-[0.9em] text-foreground">drive.file</code>,
             que dá acesso exclusivamente aos arquivos que o próprio aplicativo criou. Ele não lê, não lista e não altera
             nenhum outro arquivo da conta.
           </p>
@@ -198,11 +198,12 @@ const Privacy = () => {
             precisam entrar com a conta Google deles.
           </p>
           <p>
-            O casal que quiser pode conectar o próprio Google Drive no painel. Nesse caso, o aplicativo pede o mesmo
-            acesso limitado à conta do casal, guarda o e-mail da conta (só para mostrá-lo no painel) e guarda a
-            autorização fornecida pelo Google de forma cifrada, usada somente para gravar e listar os arquivos que o
-            próprio aplicativo cria. O casal pode desconectar a qualquer momento no painel ou revogar o acesso nas
-            configurações da conta Google.
+            O casal que quiser pode conectar o próprio Google Drive no painel. Nesse caso, o aplicativo pede à conta do
+            casal o acesso limitado ao Drive (o escopo drive.file descrito acima) e, para identificar a conta, os
+            escopos básicos do Google openid e email, usados somente para obter o endereço de e-mail exibido no painel.
+            O aplicativo guarda o e-mail da conta (só para mostrá-lo no painel) e guarda a autorização fornecida pelo
+            Google de forma cifrada, usada somente para gravar e listar os arquivos que o próprio aplicativo cria. O
+            casal pode desconectar a qualquer momento no painel ou revogar o acesso nas configurações da conta Google.
           </p>
           <div className="space-y-3 border-l-2 border-gold bg-secondary/50 py-4 pl-4 pr-4 text-foreground">
             <p>{LIMITED_USE_PT}</p>

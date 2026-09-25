@@ -313,6 +313,17 @@ describe('Página de política de privacidade', () => {
       expect(within(section).getAllByText('drive.file')).toHaveLength(1);
     });
 
+    it('em "Uso de dados do Google": não diz que só o escopo drive.file é pedido e cita openid e email', () => {
+      renderPage();
+      const section = screen.getByRole('region', { name: 'Uso de dados do Google' });
+      const text = section.textContent ?? '';
+      // Na conexão do casal o app também pede openid e email (para obter o e-mail da conta): "apenas" seria falso.
+      expect(text).not.toContain('solicita apenas');
+      expect(text).toMatch(/openid/);
+      expect(text).toMatch(/email/);
+      expect(within(section).getAllByText('drive.file')).toHaveLength(1);
+    });
+
     it('na retenção: no Drive do casal os arquivos ficam com ele e a autorização é apagada ao desconectar', () => {
       renderPage();
       const section = screen.getByRole('region', { name: 'Por quanto tempo guardamos' });
