@@ -1,10 +1,11 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { parseAllowedOrigins } from "../_shared/cors.ts";
+import { createDenoDriveAccess } from "../_shared/drive-access-deno.ts";
 import {
   ensureCoupleRootFolder,
+  ensureFolder,
   initResumableSession,
-  refreshAccessToken,
   resolveGuestFolder,
   trashFolder,
   type FetchFn,
@@ -20,7 +21,6 @@ import { createHandler, type GuestUploadDeps } from "./handler.ts";
 // Público intencional: a função não tem JWT (verify_jwt = false em config.toml).
 
 const LOG_PREFIX = "[guest-upload]";
-const TOKEN_SAFETY_MARGIN_MS = 60_000;
 const QUOTA_TTL_MS = 60_000;
 
 const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, {
@@ -29,53 +29,35 @@ const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPAB
 
 const fetchFn: FetchFn = (input, init) => fetch(input, init);
 
-// --- Access token do Google (conta da plataforma), com cache no módulo -------
+// --- Access token do Google, por casamento -----------------------------------
 
-let cachedToken: { value: string; expiresAt: number } | null = null;
-let tokenInFlight: Promise<string> | null = null;
+// Plataforma ou casal conforme a conexão; lê as credenciais só na hora de usar: se
+// faltar alguma, GET e OPTIONS seguem funcionando e o POST responde 503.
+const driveAccess = createDenoDriveAccess(supabase, fetchFn, LOG_PREFIX);
 
-// Lê as credenciais só na hora de usar: se faltar alguma, GET e OPTIONS seguem
-// funcionando e o POST responde 503. Loga o NOME da variável ausente, nunca valor.
-function readGoogleConfig() {
-  const names = ["GOOGLE_DRIVE_CLIENT_ID", "GOOGLE_DRIVE_CLIENT_SECRET", "GOOGLE_DRIVE_REFRESH_TOKEN"] as const;
-  const missing = names.filter((name) => !Deno.env.get(name));
-  if (missing.length > 0) {
-    console.error(`${LOG_PREFIX} variáveis do Google ausentes: ${missing.join(", ")}`);
-    throw new Error("google_config_missing");
-  }
-  return {
-    clientId: Deno.env.get("GOOGLE_DRIVE_CLIENT_ID")!,
-    clientSecret: Deno.env.get("GOOGLE_DRIVE_CLIENT_SECRET")!,
-    refreshToken: Deno.env.get("GOOGLE_DRIVE_REFRESH_TOKEN")!,
-  };
-}
+// --- Cota do Drive, com cache curto POR access token --------------------------
 
-async function getAccessToken(): Promise<string> {
-  if (cachedToken && Date.now() < cachedToken.expiresAt) return cachedToken.value;
-  // Requisições simultâneas com o cache vazio compartilham a mesma troca de token.
-  if (!tokenInFlight) {
-    tokenInFlight = (async () => {
-      const { accessToken, expiresIn } = await refreshAccessToken(fetchFn, readGoogleConfig());
-      cachedToken = { value: accessToken, expiresAt: Date.now() + expiresIn * 1000 - TOKEN_SAFETY_MARGIN_MS };
-      return accessToken;
-    })().finally(() => {
-      tokenInFlight = null;
-    });
-  }
-  return tokenInFlight;
-}
+// Contas diferentes (plataforma e cada casal) têm access tokens diferentes, então a chave
+// do cache é o próprio token (só em memória do isolate): a cota de um casal nunca serve a outro.
+type Quota = { limit: number | null; usage: number; free: number | null };
+const MAX_QUOTA_ENTRIES = 200;
+const quotaCache = new Map<string, { value: Quota; expiresAt: number }>();
 
-// --- Cota do Drive, com cache curto ------------------------------------------
+async function getCachedQuota(accessToken: string): Promise<Quota> {
+  const now = Date.now();
+  const cached = quotaCache.get(accessToken);
+  if (cached && now < cached.expiresAt) return cached.value;
 
-let cachedQuota: {
-  value: { limit: number | null; usage: number; free: number | null };
-  expiresAt: number;
-} | null = null;
-
-async function getCachedQuota(accessToken: string) {
-  if (cachedQuota && Date.now() < cachedQuota.expiresAt) return cachedQuota.value;
   const value = await getQuota(fetchFn, accessToken);
-  cachedQuota = { value, expiresAt: Date.now() + QUOTA_TTL_MS };
+  for (const [key, entry] of quotaCache) {
+    if (entry.expiresAt <= now) quotaCache.delete(key);
+  }
+  while (quotaCache.size >= MAX_QUOTA_ENTRIES) {
+    const oldest = quotaCache.keys().next().value;
+    if (oldest === undefined) break;
+    quotaCache.delete(oldest);
+  }
+  quotaCache.set(accessToken, { value, expiresAt: now + QUOTA_TTL_MS });
   return value;
 }
 
@@ -191,12 +173,18 @@ const deps: GuestUploadDeps = {
   async findConnection(token) {
     const { data, error } = await supabase
       .from("wedding_drive_connections")
-      .select("wedding_id, uploads_enabled, folder_id")
+      .select("wedding_id, uploads_enabled, folder_id, connected_at, needs_reconnect")
       .eq("upload_token", token)
       .maybeSingle();
     if (error) throw new Error("Falha ao buscar a conexão de envio");
     if (!data) return null;
-    return { weddingId: data.wedding_id, uploadsEnabled: data.uploads_enabled, folderId: data.folder_id ?? null };
+    return {
+      weddingId: data.wedding_id,
+      uploadsEnabled: data.uploads_enabled,
+      folderId: data.folder_id ?? null,
+      connectedAt: data.connected_at ?? null,
+      needsReconnect: data.needs_reconnect === true,
+    };
   },
 
   async getCoupleNames(weddingId) {
@@ -251,8 +239,10 @@ const deps: GuestUploadDeps = {
   guestFolders,
 
   drive: {
-    getAccessToken,
+    getAccessToken: driveAccess.getAccessToken,
     ensureRootFolder: (accessToken, opts) => ensureCoupleRootFolder(fetchFn, accessToken, platformRootStore, opts),
+    // Modo casal: a raiz fica no topo do Drive do casal (sem "Casarei.online" no meio).
+    ensureOwnerRootFolder: (accessToken, opts) => ensureFolder(fetchFn, accessToken, opts),
     trashFolder: (accessToken, folderId) => trashFolder(fetchFn, accessToken, folderId),
     resolveGuestFolder: (accessToken, store, opts) => resolveGuestFolder(fetchFn, accessToken, store, opts),
     initSession: (accessToken, opts) => initResumableSession(fetchFn, accessToken, opts),
