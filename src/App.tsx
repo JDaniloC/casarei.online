@@ -12,6 +12,7 @@ import Preview from "./pages/Preview";
 import Demo from "./pages/Demo";
 import WeddingPage from "./pages/WeddingPage";
 import GuestUploadPage from "./pages/GuestUploadPage";
+import GoogleDriveCallback from "./pages/GoogleDriveCallback";
 import Privacy from "./pages/Privacy";
 import PaymentSuccess from "./pages/PaymentSuccess";
 import PaymentFailure from "./pages/PaymentFailure";
@@ -43,6 +44,15 @@ const App = () => (
                   <Dashboard />
                 </ProtectedRoute>
               } 
+            />
+            {/* Retorno do Google ao conectar o Drive do casal: precisa do login do casal */}
+            <Route
+              path="/dashboard/google-drive/callback"
+              element={
+                <ProtectedRoute>
+                  <GoogleDriveCallback />
+                </ProtectedRoute>
+              }
             />
             <Route 
               path="/preview" 

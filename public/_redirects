@@ -2,6 +2,7 @@
 /login              /index.html         200
 /register           /index.html         200
 /dashboard          /index.html         200
+/dashboard/google-drive/callback /index.html 200
 /preview            /index.html         200
 /demo               /index.html         200
 /payment-success    /index.html         200
