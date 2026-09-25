@@ -138,11 +138,8 @@ export interface GoogleDriveAdminDeps {
   signState(payload: OAuthState): Promise<string>;
   /** Devolve o conteúdo do `state` se assinatura e validade conferem; senão `null`. */
   verifyState(state: string): Promise<OAuthState | null>;
-  /** Cifra e decifra o refresh token do casal (AES-GCM). */
+  /** Cifra o refresh token do casal (AES-GCM) para gravar. */
   encryptToken(plain: string): Promise<{ encrypted: string; iv: string }>;
-  decryptToken(encrypted: string, iv: string): Promise<string>;
-  /** Refresh token cifrado do casamento; `null` se ele está no modo plataforma. */
-  loadOwnerCredentials(weddingId: string): Promise<{ encrypted: string; iv: string } | null>;
   /** Nomes do casal (para o nome da pasta); `null` se o casamento não existe. */
   getCoupleNames(weddingId: string): Promise<CoupleNames | null>;
   /** Apaga as linhas de `wedding_drive_guest_folders` do casamento. */
@@ -151,7 +148,6 @@ export interface GoogleDriveAdminDeps {
   google: {
     buildAuthUrl(state: string): string;
     exchangeCode(code: string): Promise<CodeExchange>;
-    revokeToken(token: string): Promise<void>;
     /** Cria a pasta raiz no topo do Drive da conta dona do `accessToken`; devolve o id. */
     createOwnerRootFolder(accessToken: string, opts: { weddingId: string; name: string }): Promise<string>;
   };
@@ -463,11 +459,12 @@ function newUploadToken(deps: GoogleDriveAdminDeps): string {
 type ConnectRequest = Extract<AdminRequest, { action: "connect" }>;
 
 // Conclui a conexão do Google do casal. Ordem: state -> troca do código -> escopo ->
-// nomes -> pasta -> cifra -> gravação (uma só) -> limpeza das pastas de convidado ->
-// revogação da conta anterior (só se for OUTRA conta). Se algo falhar depois da troca, o
-// refresh token recém-emitido é apenas DESCARTADO (nunca foi gravado); nada é revogado
-// nesses caminhos de propósito, porque revogar um token pode derrubar a autorização
-// inteira da mesma conta, inclusive a conexão que já estava gravada.
+// nomes -> pasta -> cifra -> gravação (uma só) -> limpeza das pastas de convidado.
+// NADA é revogado no Google, em caminho nenhum: revogar um refresh token derruba a
+// autorização inteira do par (conta Google, app), e a mesma conta pode ser a da
+// plataforma ou a de outro casamento; revogar quebraria os dois. Se algo falhar depois
+// da troca, o refresh token recém-emitido é apenas DESCARTADO (nunca foi gravado); ao
+// reconectar com outra conta, o token gravado é só substituído.
 async function connectOwnerDrive(
   request: ConnectRequest,
   userId: string,
@@ -507,8 +504,6 @@ async function connectOwnerDrive(
 
   trace.stage = "connect:seal_token";
   const sealed = await deps.encryptToken(exchange.refreshToken);
-  trace.stage = "connect:load_previous";
-  const previous = await deps.loadOwnerCredentials(weddingId);
 
   trace.stage = "connect:save";
   // Só cria o token do QR se ainda não houver linha; com linha, o existente nunca é trocado.
@@ -532,26 +527,13 @@ async function connectOwnerDrive(
     console.error(`${LOG_PREFIX} connect:clear_guest_folders: falha ignorada`);
   }
 
-  // Outra conta Google: o token da conta anterior deixa de ser útil. Mesma conta (ou
-  // e-mail desconhecido): não revoga, para não derrubar a autorização que acabou de ser feita.
-  const previousEmail = row?.googleEmail;
-  if (
-    previous &&
-    typeof previousEmail === "string" &&
-    exchange.email !== null &&
-    previousEmail.toLowerCase() !== exchange.email.toLowerCase()
-  ) {
-    try {
-      await deps.google.revokeToken(await deps.decryptToken(previous.encrypted, previous.iv));
-    } catch {
-      console.error(`${LOG_PREFIX} connect:revoke_previous: falha ignorada`);
-    }
-  }
-
   return json(200, connectionBody(saved), cors);
 }
 
-// Volta ao modo plataforma. Idempotente: sem linha ou sem conexão do casal, não há nada a desfazer.
+// Volta ao modo plataforma: apaga token, IV, e-mail, época e pasta gravados (o app não
+// consegue mais usar a autorização; o casal também pode removê-la nas configurações da
+// conta Google). Não revoga no Google (ver connectOwnerDrive). Idempotente pela própria
+// linha: sem linha ou sem conexão do casal, não há nada a desfazer.
 async function disconnectOwnerDrive(
   weddingId: string,
   row: DriveConnectionRow | null,
@@ -560,16 +542,7 @@ async function disconnectOwnerDrive(
   trace: Trace,
 ): Promise<Response> {
   if (!row) return json(200, NOT_ENABLED_BODY, cors);
-
-  trace.stage = "disconnect:load_credentials";
-  const credentials = await deps.loadOwnerCredentials(weddingId);
-  if (credentials === null) return json(200, connectionBody(row), cors);
-
-  try {
-    await deps.google.revokeToken(await deps.decryptToken(credentials.encrypted, credentials.iv));
-  } catch {
-    console.error(`${LOG_PREFIX} disconnect:revoke: falha ignorada`);
-  }
+  if (!isOwnerRow(row)) return json(200, connectionBody(row), cors);
 
   trace.stage = "disconnect:save";
   const updated = await deps.connections.disconnectOwner(weddingId);

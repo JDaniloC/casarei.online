@@ -118,7 +118,8 @@ export default function DriveConnectionCard({ connection, onDisconnected, naviga
           <AlertDialogTitle className="font-serif">Desconectar o Google Drive?</AlertDialogTitle>
           <AlertDialogDescription>
             As fotos que já chegaram continuam no seu Drive. Os próximos envios voltam a ser guardados pela
-            Casarei.online, e este álbum deixa de mostrar as fotos que estão no seu Drive.
+            Casarei.online, e este álbum deixa de mostrar as fotos que estão no seu Drive. Para remover também a
+            permissão do aplicativo, use as configurações da sua conta Google.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>

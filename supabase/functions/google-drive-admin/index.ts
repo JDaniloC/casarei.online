@@ -1,9 +1,9 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { parseAllowedOrigins } from "../_shared/cors.ts";
-import { bytesToHex, decryptValue, encryptValue } from "../_shared/crypto.ts";
+import { bytesToHex, encryptValue } from "../_shared/crypto.ts";
 import { createDenoDriveAccess, requireEnv } from "../_shared/drive-access-deno.ts";
-import { buildAuthUrl, ensureFolder, exchangeCode, revokeToken, type FetchFn } from "../_shared/google-drive.ts";
+import { buildAuthUrl, ensureFolder, exchangeCode, type FetchFn } from "../_shared/google-drive.ts";
 import { getThumbnails, listGuestFiles, summarizeGuestFiles } from "../_shared/google-drive-read.ts";
 import { signState, verifyState } from "../_shared/hmac-state.ts";
 import {
@@ -236,8 +236,6 @@ const deps: GoogleDriveAdminDeps = {
   signState: (payload) => signState(payload, stateSecret()),
   verifyState: (state) => verifyState(state, stateSecret(), Date.now()),
   encryptToken: (plain) => encryptValue(plain, encryptionKey()),
-  decryptToken: (encrypted, iv) => decryptValue(encrypted, iv, encryptionKey()),
-  loadOwnerCredentials: driveAccess.loadOwnerCredentials,
 
   async getCoupleNames(weddingId) {
     const { data, error } = await supabase
@@ -265,7 +263,6 @@ const deps: GoogleDriveAdminDeps = {
       return buildAuthUrl({ clientId, redirectUri, state });
     },
     exchangeCode: (code) => exchangeCode(fetchFn, oauthConfig(), code),
-    revokeToken: (token) => revokeToken(fetchFn, token),
     // Sem folderId: a pasta é sempre nova, no topo do Drive do casal.
     createOwnerRootFolder: (accessToken, opts) =>
       ensureFolder(fetchFn, accessToken, { weddingId: opts.weddingId, name: opts.name, folderId: null }),

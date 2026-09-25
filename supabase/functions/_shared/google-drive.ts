@@ -265,6 +265,9 @@ export async function exchangeCode(fetchFn: FetchFn, cfg: OwnerCodeConfig, code:
   };
 }
 
+// Sem uso, de propósito: revogar um refresh token derruba a autorização INTEIRA do par (conta
+// Google, app). Só volte a chamar isto atrás de guardas: nunca para a conta Google da
+// plataforma e nunca quando outro casamento usa a mesma conta.
 /** Revoga um token no Google. Best effort: nunca lança (falha de rede ou HTTP é ignorada). */
 export async function revokeToken(fetchFn: FetchFn, token: string): Promise<void> {
   try {

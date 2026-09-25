@@ -54,7 +54,6 @@ const signedState = (overrides: Partial<OAuthState> = {}) =>
 interface HarnessOptions {
   /** `undefined` = casal em modo plataforma; `null` = sem linha de conexão. */
   row?: DriveConnectionRow | null;
-  previousCredentials?: { encrypted: string; iv: string } | null;
   exchange?: Partial<CodeExchange> | Error;
   names?: typeof NAMES | null;
 }
@@ -126,12 +125,6 @@ function makeHarness(options: HarnessOptions = {}) {
       encrypted: `enc(${plain})`,
       iv: 'iv-1',
     })),
-    decryptToken: vi.fn<GoogleDriveAdminDeps['decryptToken']>(async (encrypted) =>
-      encrypted.replace(/^enc\((.*)\)$/, '$1'),
-    ),
-    loadOwnerCredentials: vi.fn<GoogleDriveAdminDeps['loadOwnerCredentials']>(
-      async () => options.previousCredentials ?? null,
-    ),
     getCoupleNames: vi.fn<GoogleDriveAdminDeps['getCoupleNames']>(async () =>
       options.names === undefined ? NAMES : options.names,
     ),
@@ -152,9 +145,6 @@ function makeHarness(options: HarnessOptions = {}) {
         email: EMAIL,
         ...options.exchange,
       };
-    }),
-    revokeToken: vi.fn<GoogleDriveAdminDeps['google']['revokeToken']>(async () => {
-      calls.push('google.revokeToken');
     }),
     createOwnerRootFolder: vi.fn<GoogleDriveAdminDeps['google']['createOwnerRootFolder']>(async () => {
       calls.push('google.createOwnerRootFolder');
@@ -191,14 +181,11 @@ function makeHarness(options: HarnessOptions = {}) {
     signState: mocks.signState,
     verifyState: mocks.verifyState,
     encryptToken: mocks.encryptToken,
-    decryptToken: mocks.decryptToken,
-    loadOwnerCredentials: mocks.loadOwnerCredentials,
     getCoupleNames: mocks.getCoupleNames,
     clearGuestFolders: mocks.clearGuestFolders,
     google: {
       buildAuthUrl: mocks.buildAuthUrl,
       exchangeCode: mocks.exchangeCode,
-      revokeToken: mocks.revokeToken,
       createOwnerRootFolder: mocks.createOwnerRootFolder,
     },
     drive: {
@@ -208,7 +195,7 @@ function makeHarness(options: HarnessOptions = {}) {
     },
   };
 
-  return { handler: createHandler(deps), mocks, calls, currentRow: () => row };
+  return { handler: createHandler(deps), deps, mocks, calls, currentRow: () => row };
 }
 
 type Harness = ReturnType<typeof makeHarness>;
@@ -377,7 +364,6 @@ describe('google-drive-admin: connect', () => {
     expect(String(body.error)).toContain('Marque a permissão de acesso ao Google Drive');
     expect(h.mocks.createOwnerRootFolder).not.toHaveBeenCalled();
     expect(h.mocks.connectOwner).not.toHaveBeenCalled();
-    expect(h.mocks.revokeToken).not.toHaveBeenCalled();
   });
 
   it('erro do Google na troca do código (5xx): 503 unavailable', async () => {
@@ -387,21 +373,19 @@ describe('google-drive-admin: connect', () => {
     expect((await bodyOf(res)).code).toBe('unavailable');
   });
 
-  it('falha ao criar a pasta: 503 unavailable e nada é gravado nem revogado', async () => {
+  it('falha ao criar a pasta: 503 unavailable e nada é gravado', async () => {
     const h = makeHarness();
     h.mocks.createOwnerRootFolder.mockRejectedValueOnce(new DriveApiError('Erro do Google Drive (HTTP 500)', 500, true));
     const res = await post(h, connectBody());
     expect(res.status).toBe(503);
     expect(h.mocks.connectOwner).not.toHaveBeenCalled();
-    expect(h.mocks.revokeToken).not.toHaveBeenCalled();
   });
 
-  it('falha ao gravar: 503 unavailable, sem revogar nada', async () => {
+  it('falha ao gravar: 503 unavailable e as pastas de convidado não são limpas', async () => {
     const h = makeHarness();
     h.mocks.connectOwner.mockRejectedValueOnce(new Error('Falha ao gravar a conexão do casal'));
     const res = await post(h, connectBody());
     expect(res.status).toBe(503);
-    expect(h.mocks.revokeToken).not.toHaveBeenCalled();
     expect(h.mocks.clearGuestFolders).not.toHaveBeenCalled();
   });
 
@@ -413,43 +397,27 @@ describe('google-drive-admin: connect', () => {
     expect((await bodyOf(res)).driveMode).toBe('owner');
   });
 
-  it('reconexão com OUTRA conta: revoga o token da conta anterior', async () => {
-    const h = makeHarness({
-      row: ownerRow({ googleEmail: 'velha@example.com' }),
-      previousCredentials: { encrypted: 'enc(1//conta-velha)', iv: 'iv-0' },
-    });
+  // Revogar um refresh token no Google derruba a autorização INTEIRA do par (conta Google,
+  // app): se a conta for a mesma da plataforma ou de outro casamento, quebraria os dois.
+  // Por isso o app nunca revoga; trocar de conta só substitui o que está gravado.
+  it('reconexão com OUTRA conta: grava a conexão nova e não revoga nada no Google', async () => {
+    const h = makeHarness({ row: ownerRow({ googleEmail: 'velha@example.com' }) });
     const res = await post(h, connectBody());
+
     expect(res.status).toBe(200);
-    expect(h.mocks.revokeToken).toHaveBeenCalledTimes(1);
-    expect(h.mocks.revokeToken).toHaveBeenCalledWith('1//conta-velha');
+    expect(h.mocks.connectOwner).toHaveBeenCalledTimes(1);
+    expect(h.mocks.connectOwner.mock.calls[0][1]).toMatchObject({ googleEmail: EMAIL, folderId: FOLDER_ID });
     expect(h.mocks.connectOwner.mock.calls[0][2]).toBeNull();
-  });
-
-  it('reconexão com a MESMA conta (mesmo com maiúsculas): não revoga nada', async () => {
-    const h = makeHarness({
-      row: ownerRow({ googleEmail: 'ANA@example.com' }),
-      previousCredentials: { encrypted: 'enc(1//mesma-conta)', iv: 'iv-0' },
-    });
-    await post(h, connectBody());
-    expect(h.mocks.revokeToken).not.toHaveBeenCalled();
-  });
-
-  it('e-mail da conta anterior desconhecido: não revoga (na dúvida, não derruba a autorização)', async () => {
-    const h = makeHarness({
-      row: ownerRow({ googleEmail: null }),
-      previousCredentials: { encrypted: 'enc(1//sei-la)', iv: 'iv-0' },
-    });
-    await post(h, connectBody());
-    expect(h.mocks.revokeToken).not.toHaveBeenCalled();
-  });
-
-  it('se revogar a conta anterior falhar, a conexão nova vale', async () => {
-    const h = makeHarness({
-      row: ownerRow({ googleEmail: 'velha@example.com' }),
-      previousCredentials: { encrypted: 'enc(1//conta-velha)', iv: 'iv-0' },
-    });
-    h.mocks.revokeToken.mockRejectedValueOnce(new Error('rede'));
-    expect((await post(h, connectBody())).status).toBe(200);
+    expect((await bodyOf(res)).googleEmail).toBe(EMAIL);
+    // As dependências não têm caminho para revogar nem para ler o token anterior.
+    expect(h.deps.google).not.toHaveProperty('revokeToken');
+    expect(h.deps).not.toHaveProperty('decryptToken');
+    expect(h.deps).not.toHaveProperty('loadOwnerCredentials');
+    // Só o Google da troca do código e da criação da pasta é chamado.
+    expect(h.calls.filter((call) => call.startsWith('google.'))).toEqual([
+      'google.exchangeCode',
+      'google.createOwnerRootFolder',
+    ]);
   });
 
   it.each([
@@ -479,11 +447,8 @@ describe('google-drive-admin: connect', () => {
 // ---------------------------------------------------------------------------
 
 describe('google-drive-admin: disconnect', () => {
-  it('modo casal: revoga o token decifrado, volta ao modo plataforma, limpa as pastas e mantém o token do QR', async () => {
-    const h = makeHarness({
-      row: ownerRow({ googleEmail: EMAIL }),
-      previousCredentials: { encrypted: 'enc(1//do-casal)', iv: 'iv-0' },
-    });
+  it('modo casal: apaga a conexão gravada, volta ao modo plataforma, limpa as pastas e mantém o token do QR', async () => {
+    const h = makeHarness({ row: ownerRow({ googleEmail: EMAIL }) });
     const res = await post(h, { action: 'disconnect' });
 
     expect(res.status).toBe(200);
@@ -496,18 +461,24 @@ describe('google-drive-admin: disconnect', () => {
       needsReconnect: false,
       folderUrl: null,
     });
-    expect(h.mocks.revokeToken).toHaveBeenCalledWith('1//do-casal');
+    expect(h.mocks.disconnectOwner).toHaveBeenCalledTimes(1);
+    expect(h.mocks.disconnectOwner).toHaveBeenCalledWith(WEDDING_A);
     expect(h.mocks.clearGuestFolders).toHaveBeenCalledWith(WEDDING_A);
+    expect(h.calls.indexOf('connections.disconnectOwner')).toBeLessThan(h.calls.indexOf('clearGuestFolders'));
     expect(h.currentRow()?.uploadToken).toBe(TOKEN_A);
+    // Nunca revoga no Google: só o que está gravado aqui some.
+    expect(h.deps.google).not.toHaveProperty('revokeToken');
+    expect(h.deps).not.toHaveProperty('loadOwnerCredentials');
+    expect(h.calls.filter((call) => call.startsWith('google.'))).toEqual([]);
   });
 
-  it('é idempotente: no modo plataforma não revoga nem grava nada', async () => {
+  it('é idempotente: no modo plataforma não grava nada e não mexe nas pastas', async () => {
     const h = makeHarness();
     const res = await post(h, { action: 'disconnect' });
     expect(res.status).toBe(200);
     expect((await bodyOf(res)).driveMode).toBe('platform');
-    expect(h.mocks.revokeToken).not.toHaveBeenCalled();
     expect(h.mocks.disconnectOwner).not.toHaveBeenCalled();
+    expect(h.mocks.clearGuestFolders).not.toHaveBeenCalled();
   });
 
   it('sem linha de conexão: 200 com "não ativado"', async () => {
@@ -525,16 +496,37 @@ describe('google-drive-admin: disconnect', () => {
     });
   });
 
-  it('se a revogação no Google falhar, desconecta do mesmo jeito', async () => {
-    const h = makeHarness({
-      row: ownerRow(),
-      previousCredentials: { encrypted: 'enc(1//do-casal)', iv: 'iv-0' },
-    });
-    h.mocks.revokeToken.mockRejectedValueOnce(new Error('rede'));
+  it('sem linha de conexão: não grava nada', async () => {
+    const h = makeHarness({ row: null });
+    await post(h, { action: 'disconnect' });
+    expect(h.mocks.disconnectOwner).not.toHaveBeenCalled();
+    expect(h.mocks.clearGuestFolders).not.toHaveBeenCalled();
+  });
+
+  it('a linha sumiu entre a leitura e a gravação: 200 com "não ativado"', async () => {
+    const h = makeHarness({ row: ownerRow() });
+    h.mocks.disconnectOwner.mockResolvedValueOnce(null);
+    const res = await post(h, { action: 'disconnect' });
+    expect(res.status).toBe(200);
+    expect((await bodyOf(res)).enabled).toBe(false);
+    expect(h.mocks.clearGuestFolders).not.toHaveBeenCalled();
+  });
+
+  it('se disconnectOwner falhar (banco): 503 unavailable e as pastas de convidado não são limpas', async () => {
+    const h = makeHarness({ row: ownerRow() });
+    h.mocks.disconnectOwner.mockRejectedValueOnce(new Error('Falha ao desconectar o Google do casal'));
+    const res = await post(h, { action: 'disconnect' });
+    expect(res.status).toBe(503);
+    expect((await bodyOf(res)).code).toBe('unavailable');
+    expect(h.mocks.clearGuestFolders).not.toHaveBeenCalled();
+  });
+
+  it('a limpeza das pastas de convidado é best effort: se falhar, a desconexão vale', async () => {
+    const h = makeHarness({ row: ownerRow() });
+    h.mocks.clearGuestFolders.mockRejectedValueOnce(new Error('banco'));
     const res = await post(h, { action: 'disconnect' });
     expect(res.status).toBe(200);
     expect((await bodyOf(res)).driveMode).toBe('platform');
-    expect(h.mocks.disconnectOwner).toHaveBeenCalledTimes(1);
   });
 });
 

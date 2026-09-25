@@ -141,6 +141,18 @@ describe('modo casal', () => {
     expect(mockToast).toHaveBeenCalledWith(expect.objectContaining({ title: 'Google Drive desconectado' }));
   });
 
+  it('o aviso de desconectar lembra que a permissão do app se remove nas configurações da conta Google', async () => {
+    renderCard(owner);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Desconectar' }));
+    const dialog = await screen.findByRole('alertdialog');
+    expect(
+      within(dialog).getByText(
+        /Para remover também a permissão do aplicativo, use as configurações da sua conta Google\./,
+      ),
+    ).toBeInTheDocument();
+  });
+
   it('cancelar a confirmação não desconecta', async () => {
     const { onDisconnected } = renderCard(owner);
 

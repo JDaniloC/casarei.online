@@ -269,8 +269,6 @@ function makeHarness(options: HarnessOptions = {}) {
     signState: unusedInThisSuite('signState'),
     verifyState: unusedInThisSuite('verifyState'),
     encryptToken: unusedInThisSuite('encryptToken'),
-    decryptToken: unusedInThisSuite('decryptToken'),
-    loadOwnerCredentials: unusedInThisSuite('loadOwnerCredentials'),
     getCoupleNames: unusedInThisSuite('getCoupleNames'),
     clearGuestFolders: unusedInThisSuite('clearGuestFolders'),
     google: {
@@ -278,7 +276,6 @@ function makeHarness(options: HarnessOptions = {}) {
         throw new Error('google.buildAuthUrl não é usado por esta suíte (ver google-drive-admin-owner.test.ts)');
       },
       exchangeCode: unusedInThisSuite('google.exchangeCode'),
-      revokeToken: unusedInThisSuite('google.revokeToken'),
       createOwnerRootFolder: unusedInThisSuite('google.createOwnerRootFolder'),
     },
     drive: {
