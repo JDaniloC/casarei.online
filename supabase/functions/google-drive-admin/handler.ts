@@ -17,13 +17,24 @@
 // Google, Drive, rede) vira 503 genérico. Nada de mensagem interna, token, id de
 // usuário ou de casamento chega ao cliente ou ao log.
 //
-// Nada que aponte para o Drive sai daqui: cada resposta é montada campo a campo
-// (nunca se repassa o objeto que a dependência devolveu), então links, `parents` e
-// ids internos não têm caminho até o cliente.
+// Cada resposta é montada campo a campo (nunca se repassa o objeto que a dependência
+// devolveu), então `parents` e ids internos não têm caminho até o cliente. A única
+// exceção é o `folderUrl` de quem conectou o PRÓPRIO Google Drive (o Drive é dele): sai
+// só no modo casal e só a partir de um id com formato de id do Drive.
 
 import { corsHeadersFor } from "../_shared/cors.ts";
-import { DriveApiError, NeedsReconnectError, QuotaExceededError } from "../_shared/google-drive.ts";
+import { ownerRootFolderName, type CoupleNames } from "../_shared/couple-folder.ts";
+import type { DriveAccessRef } from "../_shared/drive-access.ts";
+import {
+  DRIVE_FILE_SCOPE,
+  DriveApiError,
+  InvalidCodeError,
+  NeedsReconnectError,
+  QuotaExceededError,
+  type CodeExchange,
+} from "../_shared/google-drive.ts";
 import type { DriveFileSummary } from "../_shared/google-drive-read.ts";
+import { STATE_TTL_MS, type OAuthState } from "../_shared/hmac-state.ts";
 
 /** Linha de `wedding_drive_connections` como o painel a enxerga (sem ids internos). */
 export interface DriveConnectionRow {
@@ -31,6 +42,26 @@ export interface DriveConnectionRow {
   uploadsEnabled: boolean;
   /** Token público do QR code (`upload_token`). */
   uploadToken: string;
+  /**
+   * Quando o casal conectou o próprio Google (`connected_at`). Preenchido = modo casal;
+   * ausente ou `null` = modo plataforma. É também a "época" da conexão no cache do token.
+   */
+  connectedAt?: string | null;
+  /** E-mail da conta Google conectada (só para exibição). */
+  googleEmail?: string | null;
+  /** O Google recusou o token do casal: só reconectando volta a funcionar. */
+  needsReconnect?: boolean;
+  /** Pasta raiz do casal (`folder_id`); só vira link no modo casal. */
+  folderId?: string | null;
+}
+
+/** O que o `connect` grava de uma vez na linha do casal. */
+export interface OwnerConnectionData {
+  refreshTokenEncrypted: string;
+  refreshTokenIv: string;
+  googleEmail: string | null;
+  /** Pasta raiz criada no Drive do casal. */
+  folderId: string;
 }
 
 /** Acesso à tabela `wedding_drive_connections`. Sempre por `weddingId` já derivado do usuário. */
@@ -46,6 +77,19 @@ export interface DriveConnectionsStore {
   setEnabled(weddingId: string, enabled: boolean): Promise<DriveConnectionRow | null>;
   /** Grava um token novo. Devolve a linha atualizada; `null` se não há linha. */
   rotateToken(weddingId: string, uploadToken: string): Promise<DriveConnectionRow | null>;
+  /**
+   * Grava a conexão do casal de uma vez (token cifrado, e-mail, época = agora, pasta
+   * raiz, sem pendência de reconexão). `newUploadToken` só é usado para criar a linha
+   * quando ela não existe; com linha, o `upload_token` nunca é trocado (passe `null`).
+   * Devolve a linha final; lança se não conseguir gravar.
+   */
+  connectOwner(
+    weddingId: string,
+    data: OwnerConnectionData,
+    newUploadToken: string | null,
+  ): Promise<DriveConnectionRow>;
+  /** Volta ao modo plataforma: zera token, e-mail, época, pendência e pasta raiz. `null` se não há linha. */
+  disconnectOwner(weddingId: string): Promise<DriveConnectionRow | null>;
 }
 
 /** Leitura do Google Drive, sempre escopada ao `weddingId` (o helper filtra e valida por ele). */
@@ -84,8 +128,33 @@ export interface GoogleDriveAdminDeps {
   countNamedGuestFolders(weddingId: string): Promise<number>;
   /** Token de upload novo: 24 bytes aleatórios em base64url, 32 caracteres (ver `generateUploadToken`). */
   generateToken(): string;
-  /** Access token do Google (conta da plataforma, com cache). Pode lançar (vira 503). */
-  getAccessToken(): Promise<string>;
+  /** Access token do Google da conta indicada (plataforma ou casal), com cache. Pode lançar (vira 503). */
+  getAccessToken(ref: DriveAccessRef): Promise<string>;
+  /** Relógio em milissegundos (validade do `state`). */
+  now(): number;
+  /** 16 bytes aleatórios em hex (nonce do `state`). */
+  randomNonce(): string;
+  /** Assina o `state` do OAuth. */
+  signState(payload: OAuthState): Promise<string>;
+  /** Devolve o conteúdo do `state` se assinatura e validade conferem; senão `null`. */
+  verifyState(state: string): Promise<OAuthState | null>;
+  /** Cifra e decifra o refresh token do casal (AES-GCM). */
+  encryptToken(plain: string): Promise<{ encrypted: string; iv: string }>;
+  decryptToken(encrypted: string, iv: string): Promise<string>;
+  /** Refresh token cifrado do casamento; `null` se ele está no modo plataforma. */
+  loadOwnerCredentials(weddingId: string): Promise<{ encrypted: string; iv: string } | null>;
+  /** Nomes do casal (para o nome da pasta); `null` se o casamento não existe. */
+  getCoupleNames(weddingId: string): Promise<CoupleNames | null>;
+  /** Apaga as linhas de `wedding_drive_guest_folders` do casamento. */
+  clearGuestFolders(weddingId: string): Promise<void>;
+  /** OAuth do Google e pasta raiz do casal, já ligados ao fetch e às credenciais do app. */
+  google: {
+    buildAuthUrl(state: string): string;
+    exchangeCode(code: string): Promise<CodeExchange>;
+    revokeToken(token: string): Promise<void>;
+    /** Cria a pasta raiz no topo do Drive da conta dona do `accessToken`; devolve o id. */
+    createOwnerRootFolder(accessToken: string, opts: { weddingId: string; name: string }): Promise<string>;
+  };
   drive: DriveReader;
 }
 
@@ -156,10 +225,27 @@ const MAX_BODY_CHARS = 16 * 1024;
 const MAX_THUMBNAIL_IDS = 24;
 const MAX_FILE_ID_CHARS = 200;
 const MAX_PAGE_TOKEN_CHARS = 2048;
+const MAX_CODE_CHARS = 512;
+const MAX_STATE_CHARS = 2048;
+const MAX_EMAIL_CHARS = 254;
+
+// Formato de um id de arquivo/pasta do Drive; o link da pasta só sai com um id assim.
+const FOLDER_ID_PATTERN = /^[A-Za-z0-9_-]{10,100}$/;
 
 const BEARER_PREFIX = "Bearer ";
 
-const ACTIONS = ["status", "enable", "set-enabled", "rotate-token", "list", "summary", "thumbnails"] as const;
+const ACTIONS = [
+  "status",
+  "enable",
+  "set-enabled",
+  "rotate-token",
+  "list",
+  "summary",
+  "thumbnails",
+  "auth-url",
+  "connect",
+  "disconnect",
+] as const;
 type Action = (typeof ACTIONS)[number];
 
 // Mensagens fixas em pt-BR: é só o que o cliente vê de erro.
@@ -171,6 +257,10 @@ const MESSAGES = {
   unavailable: "Serviço temporariamente indisponível",
   method_not_allowed: "Método não permitido",
   misconfigured: "Erro interno de configuração",
+  invalid_state: "O link de autorização expirou ou é inválido. Tente conectar de novo.",
+  invalid_code: "Não foi possível concluir a conexão com o Google. Tente conectar de novo.",
+  missing_scope: "Marque a permissão de acesso ao Google Drive para conectar.",
+  needs_reconnect: "É preciso reconectar o Google Drive para continuar.",
 } as const;
 
 type Cors = Record<string, string>;
@@ -204,8 +294,9 @@ function failFromError(error: unknown, stage: string, cors: Cors): Response {
 // ---------------------------------------------------------------------------
 
 type AdminRequest =
-  | { action: "status" | "enable" | "rotate-token" | "summary" }
+  | { action: "status" | "enable" | "rotate-token" | "summary" | "auth-url" | "disconnect" }
   | { action: "set-enabled"; enabled: boolean }
+  | { action: "connect"; code: string; state: string }
   | { action: "list"; pageToken: string | undefined }
   | { action: "thumbnails"; fileIds: string[] };
 
@@ -248,6 +339,13 @@ async function readRequest(req: Request): Promise<AdminRequest | null> {
       return { action, pageToken };
     }
 
+    case "connect": {
+      const { code, state } = body;
+      if (typeof code !== "string" || code.length < 1 || code.length > MAX_CODE_CHARS) return null;
+      if (typeof state !== "string" || state.length < 1 || state.length > MAX_STATE_CHARS) return null;
+      return { action, code, state };
+    }
+
     case "thumbnails": {
       const fileIds = body.fileIds;
       if (!Array.isArray(fileIds) || fileIds.length < 1 || fileIds.length > MAX_THUMBNAIL_IDS) return null;
@@ -271,11 +369,52 @@ interface Trace {
   stage: string;
 }
 
-// Corpo de `status`/`enable`/`set-enabled`/`rotate-token`: só os três campos do
-// contrato, escolhidos um a um (a linha da dependência pode ter mais coisa).
+// Modo casal = o casal conectou o próprio Google (`connected_at` preenchido).
+const isOwnerRow = (row: DriveConnectionRow): boolean =>
+  typeof row.connectedAt === "string" && row.connectedAt !== "";
+
+// Só o modo casal tem link para a pasta (o Drive é dele), e só a partir de um id com
+// formato de id do Drive. No modo plataforma nada que aponte para o Drive sai daqui.
+function folderUrlOf(row: DriveConnectionRow): string | null {
+  if (!isOwnerRow(row) || typeof row.folderId !== "string" || !FOLDER_ID_PATTERN.test(row.folderId)) return null;
+  return `https://drive.google.com/drive/folders/${row.folderId}`;
+}
+
+// Corpo de todas as respostas de conexão (`status`, `enable`, `set-enabled`,
+// `rotate-token`, `connect` e `disconnect`): os campos do contrato, escolhidos um a um
+// (a linha da dependência pode ter mais coisa).
 function connectionBody(row: DriveConnectionRow) {
   if (typeof row.uploadToken !== "string") throw new Error("Linha de conexão inválida");
-  return { enabled: true, uploadsEnabled: row.uploadsEnabled === true, uploadToken: row.uploadToken };
+  const owner = isOwnerRow(row);
+  return {
+    enabled: true,
+    uploadsEnabled: row.uploadsEnabled === true,
+    uploadToken: row.uploadToken,
+    driveMode: owner ? "owner" : "platform",
+    googleEmail:
+      owner &&
+      typeof row.googleEmail === "string" &&
+      row.googleEmail !== "" &&
+      row.googleEmail.length <= MAX_EMAIL_CHARS
+        ? row.googleEmail
+        : null,
+    needsReconnect: owner && row.needsReconnect === true,
+    folderUrl: folderUrlOf(row),
+  };
+}
+
+const NOT_ENABLED_BODY = {
+  enabled: false,
+  uploadsEnabled: false,
+  uploadToken: null,
+  driveMode: "platform",
+  googleEmail: null,
+  needsReconnect: false,
+  folderUrl: null,
+};
+
+function accessRefFor(weddingId: string, row: DriveConnectionRow): DriveAccessRef {
+  return isOwnerRow(row) ? { kind: "owner", weddingId, epoch: row.connectedAt as string } : { kind: "platform" };
 }
 
 // Só os campos de DriveFileSummary: links, parents e propriedades do Drive nunca passam.
@@ -321,14 +460,140 @@ function newUploadToken(deps: GoogleDriveAdminDeps): string {
   return token;
 }
 
+type ConnectRequest = Extract<AdminRequest, { action: "connect" }>;
+
+// Conclui a conexão do Google do casal. Ordem: state -> troca do código -> escopo ->
+// nomes -> pasta -> cifra -> gravação (uma só) -> limpeza das pastas de convidado ->
+// revogação da conta anterior (só se for OUTRA conta). Se algo falhar depois da troca, o
+// refresh token recém-emitido é apenas DESCARTADO (nunca foi gravado); nada é revogado
+// nesses caminhos de propósito, porque revogar um token pode derrubar a autorização
+// inteira da mesma conta, inclusive a conexão que já estava gravada.
+async function connectOwnerDrive(
+  request: ConnectRequest,
+  userId: string,
+  weddingId: string,
+  row: DriveConnectionRow | null,
+  deps: GoogleDriveAdminDeps,
+  cors: Cors,
+  trace: Trace,
+): Promise<Response> {
+  trace.stage = "connect:verify_state";
+  const state = await deps.verifyState(request.state);
+  if (!state || state.u !== userId || state.w !== weddingId) {
+    return fail(400, "invalid_state", MESSAGES.invalid_state, cors);
+  }
+
+  trace.stage = "connect:exchange_code";
+  let exchange: CodeExchange;
+  try {
+    exchange = await deps.google.exchangeCode(request.code);
+  } catch (error) {
+    if (error instanceof InvalidCodeError) return fail(400, "invalid_code", MESSAGES.invalid_code, cors);
+    throw error;
+  }
+  if (!exchange.scopes.includes(DRIVE_FILE_SCOPE)) {
+    return fail(400, "missing_scope", MESSAGES.missing_scope, cors);
+  }
+
+  trace.stage = "connect:couple_names";
+  const names = await deps.getCoupleNames(weddingId);
+  if (!names) throw new Error("Casamento sem nomes");
+
+  trace.stage = "connect:create_folder";
+  const folderId = await deps.google.createOwnerRootFolder(exchange.accessToken, {
+    weddingId,
+    name: ownerRootFolderName(names),
+  });
+
+  trace.stage = "connect:seal_token";
+  const sealed = await deps.encryptToken(exchange.refreshToken);
+  trace.stage = "connect:load_previous";
+  const previous = await deps.loadOwnerCredentials(weddingId);
+
+  trace.stage = "connect:save";
+  // Só cria o token do QR se ainda não houver linha; com linha, o existente nunca é trocado.
+  const saved = await deps.connections.connectOwner(
+    weddingId,
+    {
+      refreshTokenEncrypted: sealed.encrypted,
+      refreshTokenIv: sealed.iv,
+      googleEmail: exchange.email,
+      folderId,
+    },
+    row ? null : newUploadToken(deps),
+  );
+
+  // As pastas de convidado apontavam para o outro Drive. Best effort: as linhas velhas
+  // se corrigem sozinhas (pasta que não existe mais é recriada no próximo envio).
+  trace.stage = "connect:clear_guest_folders";
+  try {
+    await deps.clearGuestFolders(weddingId);
+  } catch {
+    console.error(`${LOG_PREFIX} connect:clear_guest_folders: falha ignorada`);
+  }
+
+  // Outra conta Google: o token da conta anterior deixa de ser útil. Mesma conta (ou
+  // e-mail desconhecido): não revoga, para não derrubar a autorização que acabou de ser feita.
+  const previousEmail = row?.googleEmail;
+  if (
+    previous &&
+    typeof previousEmail === "string" &&
+    exchange.email !== null &&
+    previousEmail.toLowerCase() !== exchange.email.toLowerCase()
+  ) {
+    try {
+      await deps.google.revokeToken(await deps.decryptToken(previous.encrypted, previous.iv));
+    } catch {
+      console.error(`${LOG_PREFIX} connect:revoke_previous: falha ignorada`);
+    }
+  }
+
+  return json(200, connectionBody(saved), cors);
+}
+
+// Volta ao modo plataforma. Idempotente: sem linha ou sem conexão do casal, não há nada a desfazer.
+async function disconnectOwnerDrive(
+  weddingId: string,
+  row: DriveConnectionRow | null,
+  deps: GoogleDriveAdminDeps,
+  cors: Cors,
+  trace: Trace,
+): Promise<Response> {
+  if (!row) return json(200, NOT_ENABLED_BODY, cors);
+
+  trace.stage = "disconnect:load_credentials";
+  const credentials = await deps.loadOwnerCredentials(weddingId);
+  if (credentials === null) return json(200, connectionBody(row), cors);
+
+  try {
+    await deps.google.revokeToken(await deps.decryptToken(credentials.encrypted, credentials.iv));
+  } catch {
+    console.error(`${LOG_PREFIX} disconnect:revoke: falha ignorada`);
+  }
+
+  trace.stage = "disconnect:save";
+  const updated = await deps.connections.disconnectOwner(weddingId);
+  if (!updated) return json(200, NOT_ENABLED_BODY, cors);
+
+  trace.stage = "disconnect:clear_guest_folders";
+  try {
+    await deps.clearGuestFolders(weddingId);
+  } catch {
+    console.error(`${LOG_PREFIX} disconnect:clear_guest_folders: falha ignorada`);
+  }
+  return json(200, connectionBody(updated), cors);
+}
+
 async function runAction(
   request: AdminRequest,
+  userId: string,
   weddingId: string,
   deps: GoogleDriveAdminDeps,
   cors: Cors,
   trace: Trace,
 ): Promise<Response> {
   const notEnabled = () => fail(404, "not_enabled", MESSAGES.not_enabled, cors);
+  const needsReconnect = () => fail(409, "needs_reconnect", MESSAGES.needs_reconnect, cors);
 
   trace.stage = "connection:get";
   const row = await deps.connections.get(weddingId);
@@ -336,11 +601,7 @@ async function runAction(
   switch (request.action) {
     case "status":
       // Sem linha = recurso não ativado (não é erro para o painel).
-      return json(
-        200,
-        row ? connectionBody(row) : { enabled: false, uploadsEnabled: false, uploadToken: null },
-        cors,
-      );
+      return json(200, row ? connectionBody(row) : NOT_ENABLED_BODY, cors);
 
     case "enable": {
       // Idempotente: com linha, devolve a existente sem gerar nem gravar nada.
@@ -365,12 +626,41 @@ async function runAction(
       const updated = await deps.connections.rotateToken(weddingId, token);
       return updated ? json(200, connectionBody(updated), cors) : notEnabled();
     }
+
+    case "auth-url": {
+      // Não exige o recurso ativado: o `state` só amarra o retorno ao usuário e ao casamento.
+      trace.stage = "oauth:auth_url";
+      const state = await deps.signState({
+        w: weddingId,
+        u: userId,
+        exp: deps.now() + STATE_TTL_MS,
+        n: deps.randomNonce(),
+      });
+      return json(200, { url: deps.google.buildAuthUrl(state) }, cors);
+    }
+
+    case "connect":
+      return connectOwnerDrive(request, userId, weddingId, row, deps, cors, trace);
+
+    case "disconnect":
+      return disconnectOwnerDrive(weddingId, row, deps, cors, trace);
   }
 
   // Daqui em diante: ações que leem o Drive. Exigem a linha e o token do Google.
   if (!row) return notEnabled();
+  const owner = isOwnerRow(row);
+  // Sem o Google do casal não há o que ler: o painel mostra "Reconectar".
+  if (owner && row.needsReconnect === true) return needsReconnect();
+
   trace.stage = "google:access_token";
-  const accessToken = await deps.getAccessToken();
+  let accessToken: string;
+  try {
+    accessToken = await deps.getAccessToken(accessRefFor(weddingId, row));
+  } catch (error) {
+    // O Google recusou o token do casal agora (já ficou marcado para reconectar).
+    if (owner && error instanceof NeedsReconnectError) return needsReconnect();
+    throw error;
+  }
 
   switch (request.action) {
     case "list": {
@@ -403,7 +693,7 @@ async function runAction(
 // Ordem das checagens (a autenticação vem antes de QUALQUER acesso a dados):
 //  1. Bearer presente   2. JWT válido        3. corpo e ação válidos
 //  4. casamento do usuário (weddingId derivado)     5. linha de conexão
-//  6. token do Google (só ações do Drive)           7. resposta.
+//  6. token do Google (só ações do Drive; `auth-url`, `connect` e `disconnect` cuidam do próprio fluxo)  7. resposta.
 async function handlePost(req: Request, deps: GoogleDriveAdminDeps, cors: Cors): Promise<Response> {
   const trace: Trace = { stage: "auth" };
   try {
@@ -427,7 +717,7 @@ async function handlePost(req: Request, deps: GoogleDriveAdminDeps, cors: Cors):
       return fail(404, "wedding_not_found", MESSAGES.wedding_not_found, cors);
     }
 
-    return await runAction(request, weddingId, deps, cors, trace);
+    return await runAction(request, user.userId, weddingId, deps, cors, trace);
   } catch (error) {
     return failFromError(error, trace.stage, cors);
   }

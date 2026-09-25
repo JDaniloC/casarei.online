@@ -23,6 +23,8 @@ import type { DriveFileSummary } from '../../supabase/functions/_shared/google-d
 const ENDPOINT = 'https://projeto.supabase.co/functions/v1/google-drive-admin';
 const ORIGIN = 'https://casarei.online';
 const ACCESS_TOKEN = 'ya29.token-de-acesso-secreto';
+// Campos que TODA resposta de conexão traz agora; um casal sem Google conectado é "platform".
+const PLATFORM_FIELDS = { driveMode: 'platform', googleEmail: null, needsReconnect: false, folderUrl: null };
 
 // Casal A: o usuário autenticado na maioria dos testes.
 const USER_A = 'aaaaaaaa-0000-4000-8000-00000000000a';
@@ -110,6 +112,11 @@ interface HarnessOptions {
 // devolve o que pertence ao weddingId RECEBIDO. Assim, se o handler passar o
 // weddingId errado, o vazamento aparece nos testes. `calls` guarda a ordem das
 // chamadas e `seenWeddingIds` todo weddingId que alguma dependência recebeu.
+// As ações do modo casal são testadas em google-drive-admin-owner.test.ts; aqui qualquer uso é bug.
+const unusedInThisSuite = (name: string) => async (): Promise<never> => {
+  throw new Error(`${name} não é usado por esta suíte (ver google-drive-admin-owner.test.ts)`);
+};
+
 function makeHarness(options: HarnessOptions = {}) {
   const calls: string[] = [];
   const seenWeddingIds: string[] = [];
@@ -251,10 +258,29 @@ function makeHarness(options: HarnessOptions = {}) {
       create: mocks.create,
       setEnabled: mocks.setEnabled,
       rotateToken: mocks.rotateToken,
+      connectOwner: unusedInThisSuite('connections.connectOwner'),
+      disconnectOwner: unusedInThisSuite('connections.disconnectOwner'),
     },
     countNamedGuestFolders: mocks.countNamedGuestFolders,
     generateToken: mocks.generateToken,
     getAccessToken: mocks.getAccessToken,
+    now: () => 0,
+    randomNonce: () => '',
+    signState: unusedInThisSuite('signState'),
+    verifyState: unusedInThisSuite('verifyState'),
+    encryptToken: unusedInThisSuite('encryptToken'),
+    decryptToken: unusedInThisSuite('decryptToken'),
+    loadOwnerCredentials: unusedInThisSuite('loadOwnerCredentials'),
+    getCoupleNames: unusedInThisSuite('getCoupleNames'),
+    clearGuestFolders: unusedInThisSuite('clearGuestFolders'),
+    google: {
+      buildAuthUrl: () => {
+        throw new Error('google.buildAuthUrl não é usado por esta suíte (ver google-drive-admin-owner.test.ts)');
+      },
+      exchangeCode: unusedInThisSuite('google.exchangeCode'),
+      revokeToken: unusedInThisSuite('google.revokeToken'),
+      createOwnerRootFolder: unusedInThisSuite('google.createOwnerRootFolder'),
+    },
     drive: {
       listGuestFiles: mocks.listGuestFiles,
       summarizeGuestFiles: mocks.summarizeGuestFiles,
@@ -538,7 +564,7 @@ describe('google-drive-admin: corpo e ação', () => {
     ['sem action', '{}'],
     ['action que não é texto', '{"action":7}'],
     ['action vazia', '{"action":""}'],
-    ['action desconhecida', '{"action":"disconnect"}'],
+    ['action desconhecida', '{"action":"delete"}'],
     ['action com maiúsculas trocadas', '{"action":"Status"}'],
     ['action herdada do Object (constructor)', '{"action":"constructor"}'],
     ['action herdada do Object (__proto__)', '{"action":"__proto__"}'],
@@ -574,21 +600,21 @@ describe('google-drive-admin: status', () => {
     const h = makeHarness();
     const res = await call(h, { action: 'status' });
     expect(res.status).toBe(200);
-    expect(await bodyOf(res)).toEqual({ enabled: true, uploadsEnabled: true, uploadToken: TOKEN_A });
+    expect(await bodyOf(res)).toEqual({ enabled: true, uploadsEnabled: true, uploadToken: TOKEN_A, ...PLATFORM_FIELDS });
     expect(h.mocks.get).toHaveBeenCalledWith(WEDDING_A);
   });
 
   it('recebimento desativado: enabled continua true e uploadsEnabled false', async () => {
     const h = makeHarness({ couples: [coupleA({ row: { uploadsEnabled: false, uploadToken: TOKEN_A } })] });
     const res = await call(h, { action: 'status' });
-    expect(await bodyOf(res)).toEqual({ enabled: true, uploadsEnabled: false, uploadToken: TOKEN_A });
+    expect(await bodyOf(res)).toEqual({ enabled: true, uploadsEnabled: false, uploadToken: TOKEN_A, ...PLATFORM_FIELDS });
   });
 
   it('sem conexão: recurso não ativado (enabled false, sem token) e sem criar nada', async () => {
     const h = makeHarness({ couples: [coupleA({ row: null })] });
     const res = await call(h, { action: 'status' });
     expect(res.status).toBe(200);
-    expect(await bodyOf(res)).toEqual({ enabled: false, uploadsEnabled: false, uploadToken: null });
+    expect(await bodyOf(res)).toEqual({ enabled: false, uploadsEnabled: false, uploadToken: null, ...PLATFORM_FIELDS });
     expect(h.mocks.create).not.toHaveBeenCalled();
     expect(h.mocks.generateToken).not.toHaveBeenCalled();
   });
@@ -602,11 +628,19 @@ describe('google-drive-admin: status', () => {
     expect(h.calls.filter((c) => c.startsWith('drive:'))).toEqual([]);
   });
 
-  it('devolve só os três campos do contrato, mesmo que a dependência devolva mais', async () => {
+  it('devolve só os campos do contrato, mesmo que a dependência devolva mais', async () => {
     const h = makeHarness({ leaky: true });
     const res = await call(h, { action: 'status' });
     const body = await bodyOf(res);
-    expect(Object.keys(body).sort()).toEqual(['enabled', 'uploadToken', 'uploadsEnabled']);
+    expect(Object.keys(body).sort()).toEqual([
+      'driveMode',
+      'enabled',
+      'folderUrl',
+      'googleEmail',
+      'needsReconnect',
+      'uploadToken',
+      'uploadsEnabled',
+    ]);
     expect(JSON.stringify(body)).not.toContain('raiz-secreta');
   });
 
@@ -626,7 +660,7 @@ describe('google-drive-admin: enable', () => {
     const h = makeHarness({ couples: [coupleA({ row: null })] });
     const res = await call(h, { action: 'enable' });
     expect(res.status).toBe(200);
-    expect(await bodyOf(res)).toEqual({ enabled: true, uploadsEnabled: true, uploadToken: generated(1) });
+    expect(await bodyOf(res)).toEqual({ enabled: true, uploadsEnabled: true, uploadToken: generated(1), ...PLATFORM_FIELDS });
     expect(h.mocks.generateToken).toHaveBeenCalledTimes(1);
     expect(h.mocks.create).toHaveBeenCalledTimes(1);
     expect(h.mocks.create).toHaveBeenCalledWith(WEDDING_A, generated(1));
@@ -637,7 +671,7 @@ describe('google-drive-admin: enable', () => {
     const h = makeHarness();
     const res = await call(h, { action: 'enable' });
     expect(res.status).toBe(200);
-    expect(await bodyOf(res)).toEqual({ enabled: true, uploadsEnabled: true, uploadToken: TOKEN_A });
+    expect(await bodyOf(res)).toEqual({ enabled: true, uploadsEnabled: true, uploadToken: TOKEN_A, ...PLATFORM_FIELDS });
     expect(h.mocks.generateToken).not.toHaveBeenCalled();
     expect(h.mocks.create).not.toHaveBeenCalled();
     expect(h.rows.get(WEDDING_A)?.uploadToken).toBe(TOKEN_A);
@@ -655,7 +689,7 @@ describe('google-drive-admin: enable', () => {
   it('não reativa o recebimento que o casal desligou (só cria a linha se faltar)', async () => {
     const h = makeHarness({ couples: [coupleA({ row: { uploadsEnabled: false, uploadToken: TOKEN_A } })] });
     const res = await call(h, { action: 'enable' });
-    expect(await bodyOf(res)).toEqual({ enabled: true, uploadsEnabled: false, uploadToken: TOKEN_A });
+    expect(await bodyOf(res)).toEqual({ enabled: true, uploadsEnabled: false, uploadToken: TOKEN_A, ...PLATFORM_FIELDS });
     expect(h.mocks.setEnabled).not.toHaveBeenCalled();
   });
 
@@ -702,7 +736,7 @@ describe('google-drive-admin: set-enabled', () => {
     const h = makeHarness();
     const res = await call(h, { action: 'set-enabled', enabled: false });
     expect(res.status).toBe(200);
-    expect(await bodyOf(res)).toEqual({ enabled: true, uploadsEnabled: false, uploadToken: TOKEN_A });
+    expect(await bodyOf(res)).toEqual({ enabled: true, uploadsEnabled: false, uploadToken: TOKEN_A, ...PLATFORM_FIELDS });
     expect(h.mocks.setEnabled).toHaveBeenCalledWith(WEDDING_A, false);
     expect(h.rows.get(WEDDING_A)?.uploadsEnabled).toBe(false);
   });
@@ -710,7 +744,7 @@ describe('google-drive-admin: set-enabled', () => {
   it('enabled true: religa o recebimento e mantém o token', async () => {
     const h = makeHarness({ couples: [coupleA({ row: { uploadsEnabled: false, uploadToken: TOKEN_A } })] });
     const res = await call(h, { action: 'set-enabled', enabled: true });
-    expect(await bodyOf(res)).toEqual({ enabled: true, uploadsEnabled: true, uploadToken: TOKEN_A });
+    expect(await bodyOf(res)).toEqual({ enabled: true, uploadsEnabled: true, uploadToken: TOKEN_A, ...PLATFORM_FIELDS });
     expect(h.mocks.setEnabled).toHaveBeenCalledWith(WEDDING_A, true);
   });
 
@@ -763,7 +797,7 @@ describe('google-drive-admin: rotate-token', () => {
     const res = await call(h, { action: 'rotate-token' });
     expect(res.status).toBe(200);
     const body = await bodyOf(res);
-    expect(body).toEqual({ enabled: true, uploadsEnabled: true, uploadToken: generated(1) });
+    expect(body).toEqual({ enabled: true, uploadsEnabled: true, uploadToken: generated(1), ...PLATFORM_FIELDS });
     expect(body.uploadToken).not.toBe(TOKEN_A);
     expect(h.mocks.rotateToken).toHaveBeenCalledWith(WEDDING_A, generated(1));
     expect(h.rows.get(WEDDING_A)?.uploadToken).toBe(generated(1));
