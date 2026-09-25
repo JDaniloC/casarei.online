@@ -2,12 +2,14 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { parseAllowedOrigins } from "../_shared/cors.ts";
 import {
-  ensureFolder,
+  ensureCoupleRootFolder,
   initResumableSession,
   refreshAccessToken,
   resolveGuestFolder,
+  trashFolder,
   type FetchFn,
   type GuestFolderStore,
+  type PlatformRootStore,
 } from "../_shared/google-drive.ts";
 import { getQuota } from "../_shared/google-drive-read.ts";
 import { rateLimitDbFromSupabase } from "../_shared/rate-limit.ts";
@@ -135,6 +137,49 @@ const guestFolders: GuestFolderStore = {
   },
 };
 
+// --- Pasta "Casarei.online" (tabela platform_drive_settings) -----------------
+
+const PLATFORM_SETTINGS = "platform_drive_settings";
+const PLATFORM_ROOT_KEY = "platform_root";
+
+// Uma única linha (key = 'platform_root') com o id da pasta que contém a pasta de
+// cada casal. Mesmo cuidado do guestFolders: mensagens fixas, sem ids.
+const platformRootStore: PlatformRootStore = {
+  async get() {
+    const { data, error } = await supabase
+      .from(PLATFORM_SETTINGS)
+      .select("folder_id")
+      .eq("key", PLATFORM_ROOT_KEY)
+      .maybeSingle();
+    if (error) throw new Error("Falha ao ler a pasta da plataforma");
+    return data?.folder_id ?? null;
+  },
+
+  // ON CONFLICT DO NOTHING seguido de select: quem perde a corrida do primeiro uso
+  // recebe o id da pasta que já estava lá (o vencedor).
+  async insertIfAbsent(folderId) {
+    const { error } = await supabase
+      .from(PLATFORM_SETTINGS)
+      .upsert({ key: PLATFORM_ROOT_KEY, folder_id: folderId }, { onConflict: "key", ignoreDuplicates: true });
+    if (error) throw new Error("Falha ao registrar a pasta da plataforma");
+    const { data, error: selectError } = await supabase
+      .from(PLATFORM_SETTINGS)
+      .select("folder_id")
+      .eq("key", PLATFORM_ROOT_KEY)
+      .single();
+    if (selectError || !data) throw new Error("Falha ao ler a pasta da plataforma registrada");
+    return data.folder_id;
+  },
+
+  async update(folderId) {
+    const { error } = await supabase
+      .from(PLATFORM_SETTINGS)
+      .update({ folder_id: folderId })
+      .eq("key", PLATFORM_ROOT_KEY);
+    if (error) throw new Error("Falha ao atualizar a pasta da plataforma");
+  },
+};
+
 // --- Dependências do handler -------------------------------------------------
 
 const allowedOrigins = parseAllowedOrigins(Deno.env.get("ALLOWED_ORIGINS"));
@@ -207,7 +252,8 @@ const deps: GuestUploadDeps = {
 
   drive: {
     getAccessToken,
-    ensureRootFolder: (accessToken, opts) => ensureFolder(fetchFn, accessToken, opts),
+    ensureRootFolder: (accessToken, opts) => ensureCoupleRootFolder(fetchFn, accessToken, platformRootStore, opts),
+    trashFolder: (accessToken, folderId) => trashFolder(fetchFn, accessToken, folderId),
     resolveGuestFolder: (accessToken, store, opts) => resolveGuestFolder(fetchFn, accessToken, store, opts),
     initSession: (accessToken, opts) => initResumableSession(fetchFn, accessToken, opts),
     getQuota: getCachedQuota,

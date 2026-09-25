@@ -113,6 +113,9 @@ function makeHarness(options: HarnessOptions = {}) {
       calls.push('drive:ensureRootFolder');
       return opts.folderId ?? 'root-novo';
     }),
+    trashFolder: vi.fn<GuestUploadDeps['drive']['trashFolder']>(async () => {
+      calls.push('drive:trashFolder');
+    }),
     resolveGuestFolder: vi.fn<GuestUploadDeps['drive']['resolveGuestFolder']>(async () => {
       calls.push('drive:resolveGuestFolder');
       return 'pasta-convidado-1';
@@ -139,6 +142,7 @@ function makeHarness(options: HarnessOptions = {}) {
     drive: {
       getAccessToken: mocks.getAccessToken,
       ensureRootFolder: mocks.ensureRootFolder,
+      trashFolder: mocks.trashFolder,
       resolveGuestFolder: mocks.resolveGuestFolder,
       getQuota: mocks.getQuota,
       initSession: mocks.initSession,
@@ -825,7 +829,7 @@ describe('guest-upload: POST (8) sanitização e (9) token de acesso', () => {
 });
 
 describe('guest-upload: POST (10) pasta raiz', () => {
-  it('cria/garante a raiz com o nome "<casal> – casarei.online" passado por sanitizeFileName', async () => {
+  it('cria/garante a raiz com o nome do casal (só ele, sem sufixo) passado por sanitizeFileName', async () => {
     const h = makeHarness({
       names: { coupleName: 'Ana/Bruno  &  Cia', partner1Name: 'Ana', partner2Name: 'Bruno' },
     });
@@ -834,10 +838,51 @@ describe('guest-upload: POST (10) pasta raiz', () => {
     expect(token).toBe(ACCESS_TOKEN);
     expect(opts).toEqual({
       weddingId: WEDDING_ID,
-      name: sanitizeFileName('Ana/Bruno  &  Cia – casarei.online'),
+      name: sanitizeFileName('Ana/Bruno  &  Cia'),
       folderId: 'root-1',
     });
-    expect(opts.name).toBe('AnaBruno & Cia – casarei.online');
+    expect(opts.name).toBe('AnaBruno & Cia');
+  });
+
+  it('o nome da raiz não leva mais o sufixo antigo "– casarei.online"', async () => {
+    const h = makeHarness();
+    await h.handler(postReq(validBody()));
+    const { name } = h.mocks.ensureRootFolder.mock.calls[0][1];
+    expect(name).toBe('Ana & Bruno');
+    expect(name.toLowerCase()).not.toContain('casarei');
+  });
+
+  it('nome do casal com acento é mantido (NFC) como está', async () => {
+    const h = makeHarness({ names: { coupleName: 'Danilo e Késia', partner1Name: 'Danilo', partner2Name: 'Késia' } });
+    await h.handler(postReq(validBody()));
+    expect(h.mocks.ensureRootFolder.mock.calls[0][1].name).toBe('Danilo e Késia');
+  });
+
+  it.each([
+    ['nome do casal vazio: usa os dois parceiros com " & "', '', 'Ana', 'Bruno', 'Ana & Bruno'],
+    ['nome do casal só com espaços: usa os parceiros', '   ', 'Ana', 'Bruno', 'Ana & Bruno'],
+    ['nome do casal só com barras (nada aproveitável): usa os parceiros', '///', 'Ana', 'Bruno', 'Ana & Bruno'],
+    ['nome do casal vazio e parceiro 2 vazio: só o parceiro 1', '', 'Ana', '', 'Ana'],
+    ['nome do casal vazio e parceiro 1 só com espaços: só o parceiro 2', '', '   ', 'Bruno', 'Bruno'],
+    ['parceiros com espaços nas pontas são aparados antes de juntar', '', '  Ana  ', ' Bruno ', 'Ana & Bruno'],
+    ['parceiro com barra é sanitizado', '', 'A/na', 'Bruno', 'Ana & Bruno'],
+    ['tudo vazio: "Casal"', '', '', '', 'Casal'],
+    ['tudo só com espaços: "Casal"', '  ', ' ', '   ', 'Casal'],
+    ['nome do casal ilegível e parceiros vazios: "Casal"', '///', '', '', 'Casal'],
+  ])('%s', async (_label, coupleName, partner1Name, partner2Name, expected) => {
+    const h = makeHarness({ names: { coupleName, partner1Name, partner2Name } });
+    const res = await h.handler(postReq(validBody()));
+    expect(res.status).toBe(200);
+    expect(h.mocks.ensureRootFolder.mock.calls[0][1].name).toBe(expected);
+  });
+
+  it('nome do casal muito longo é cortado em 150 caracteres pelo sanitizeFileName', async () => {
+    const coupleName = 'x'.repeat(400);
+    const h = makeHarness({ names: { coupleName, partner1Name: 'Ana', partner2Name: 'Bruno' } });
+    await h.handler(postReq(validBody()));
+    const { name } = h.mocks.ensureRootFolder.mock.calls[0][1];
+    expect(name).toBe(sanitizeFileName(coupleName));
+    expect(name).toHaveLength(150);
   });
 
   it('raiz inalterada: não grava nem limpa nada', async () => {
@@ -856,7 +901,13 @@ describe('guest-upload: POST (10) pasta raiz', () => {
   const firstRoot: GuestUploadConnection = { weddingId: WEDDING_ID, uploadsEnabled: true, folderId: null };
   const rootSteps = (h: Harness) =>
     h.calls.filter((c) =>
-      ['drive:ensureRootFolder', 'saveRootFolder', 'clearGuestFolders', 'drive:resolveGuestFolder'].includes(c),
+      [
+        'drive:ensureRootFolder',
+        'saveRootFolder',
+        'drive:trashFolder',
+        'clearGuestFolders',
+        'drive:resolveGuestFolder',
+      ].includes(c),
     );
 
   it('raiz substituída (a antiga foi apagada) e esta requisição vence: grava com o id esperado e depois limpa as pastas de convidado', async () => {
@@ -912,7 +963,140 @@ describe('guest-upload: POST (10) pasta raiz', () => {
     expect(h.mocks.saveRootFolder).toHaveBeenCalledWith(WEDDING_ID, null, 'root-novo');
     expect(h.mocks.clearGuestFolders).not.toHaveBeenCalled();
     expect(h.mocks.resolveGuestFolder.mock.calls[0][2].rootFolderId).toBe('root-vencedora');
-    expect(rootSteps(h)).toEqual(['drive:ensureRootFolder', 'saveRootFolder', 'drive:resolveGuestFolder']);
+    // quem perde joga a raiz que criou na lixeira antes de seguir para o convidado
+    expect(rootSteps(h)).toEqual([
+      'drive:ensureRootFolder',
+      'saveRootFolder',
+      'drive:trashFolder',
+      'drive:resolveGuestFolder',
+    ]);
+  });
+
+  describe('raiz criada por esta requisição que perde a gravação condicional', () => {
+    const loseTo = (h: Harness, winner: string) =>
+      h.mocks.saveRootFolder.mockImplementationOnce(async () => {
+        h.calls.push('saveRootFolder');
+        return winner;
+      });
+
+    it('primeira raiz perdida: manda a raiz criada (a que ela mesma criou) para a lixeira, uma vez, e segue com a vencedora', async () => {
+      const h = makeHarness({ connection: firstRoot });
+      loseTo(h, 'root-vencedora');
+      const res = await h.handler(postReq(validBody()));
+      expect(res.status).toBe(200);
+      expect(await bodyOf(res)).toEqual({ uploadUrl: UPLOAD_URL });
+      expect(h.mocks.trashFolder).toHaveBeenCalledTimes(1);
+      expect(h.mocks.trashFolder).toHaveBeenCalledWith(ACCESS_TOKEN, 'root-novo');
+      expect(h.mocks.resolveGuestFolder.mock.calls[0][2].rootFolderId).toBe('root-vencedora');
+      expect(h.mocks.initSession).toHaveBeenCalledTimes(1);
+      expect(h.mocks.clearGuestFolders).not.toHaveBeenCalled();
+    });
+
+    it('raiz substituída perdida: a criada (root-2) vai para a lixeira, não a antiga (root-1) nem a vencedora', async () => {
+      const h = makeHarness();
+      ensureReturns(h, 'root-2');
+      loseTo(h, 'root-vencedora');
+      const res = await h.handler(postReq(validBody()));
+      expect(res.status).toBe(200);
+      expect(h.mocks.trashFolder).toHaveBeenCalledTimes(1);
+      expect(h.mocks.trashFolder).toHaveBeenCalledWith(ACCESS_TOKEN, 'root-2');
+      expect(h.mocks.clearGuestFolders).not.toHaveBeenCalled();
+      expect(h.mocks.resolveGuestFolder.mock.calls[0][2].rootFolderId).toBe('root-vencedora');
+    });
+
+    it('a ordem registrada é saveRootFolder, trashFolder, resolveGuestFolder (a lixeira é aguardada)', async () => {
+      const h = makeHarness({ connection: firstRoot });
+      loseTo(h, 'root-vencedora');
+      h.mocks.trashFolder.mockImplementationOnce(async () => {
+        h.calls.push('drive:trashFolder:start');
+        await new Promise((resolve) => setTimeout(resolve, 5));
+        h.calls.push('drive:trashFolder:end');
+      });
+      await h.handler(postReq(validBody()));
+      const order = h.calls.filter((c) =>
+        ['saveRootFolder', 'drive:trashFolder:start', 'drive:trashFolder:end', 'drive:resolveGuestFolder'].includes(c),
+      );
+      expect(order).toEqual([
+        'saveRootFolder',
+        'drive:trashFolder:start',
+        'drive:trashFolder:end',
+        'drive:resolveGuestFolder',
+      ]);
+    });
+
+    it('a resposta é a mesma de quem não precisou descartar nada', async () => {
+      const winner = makeHarness({ connection: firstRoot });
+      const loser = makeHarness({ connection: firstRoot });
+      loseTo(loser, 'root-vencedora');
+      const a = await winner.handler(postReq(validBody()));
+      const b = await loser.handler(postReq(validBody()));
+      expect(b.status).toBe(a.status);
+      expect(await bodyOf(b)).toEqual(await bodyOf(a));
+      expect(errorSpy).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ['rejeita', () => Promise.reject(new Error(`falha do Drive com ${ACCESS_TOKEN}`))],
+      [
+        'lança na hora',
+        () => {
+          throw new DriveApiError('Erro do Google Drive (HTTP 500)', 500, true);
+        },
+      ],
+    ])('trashFolder que %s não muda a resposta 200, não loga e não impede o resto do envio', async (_label, failure) => {
+      const h = makeHarness({ connection: firstRoot });
+      loseTo(h, 'root-vencedora');
+      h.mocks.trashFolder.mockImplementationOnce(failure);
+      const res = await h.handler(postReq(validBody()));
+      expect(res.status).toBe(200);
+      expect(await bodyOf(res)).toEqual({ uploadUrl: UPLOAD_URL });
+      expect(h.mocks.trashFolder).toHaveBeenCalledTimes(1);
+      expect(h.mocks.resolveGuestFolder.mock.calls[0][2].rootFolderId).toBe('root-vencedora');
+      expect(h.mocks.getQuota).toHaveBeenCalledTimes(1);
+      expect(h.mocks.initSession).toHaveBeenCalledTimes(1);
+      expect(errorSpy).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('quem vence ou reaproveita a raiz nunca manda nada para a lixeira', () => {
+    it('primeira raiz e esta requisição vence: não descarta nada', async () => {
+      const h = makeHarness({ connection: firstRoot });
+      const res = await h.handler(postReq(validBody()));
+      expect(res.status).toBe(200);
+      expect(h.mocks.saveRootFolder).toHaveBeenCalledTimes(1);
+      expect(h.mocks.trashFolder).not.toHaveBeenCalled();
+    });
+
+    it('raiz substituída e esta requisição vence: limpa as pastas de convidado e não descarta nada', async () => {
+      const h = makeHarness();
+      ensureReturns(h, 'root-2');
+      const res = await h.handler(postReq(validBody()));
+      expect(res.status).toBe(200);
+      expect(h.mocks.clearGuestFolders).toHaveBeenCalledTimes(1);
+      expect(h.mocks.trashFolder).not.toHaveBeenCalled();
+    });
+
+    it('raiz existente ainda viva (ensuredRootId === folderId): não grava e não descarta nada', async () => {
+      const h = makeHarness();
+      const res = await h.handler(postReq(validBody()));
+      expect(res.status).toBe(200);
+      expect(h.mocks.saveRootFolder).not.toHaveBeenCalled();
+      expect(h.mocks.trashFolder).not.toHaveBeenCalled();
+    });
+
+    it('saveRootFolder que lança (não se sabe quem venceu): 503 e nada é descartado', async () => {
+      const h = makeHarness({ connection: firstRoot });
+      h.mocks.saveRootFolder.mockRejectedValueOnce(new Error('banco fora do ar'));
+      await expectError(await h.handler(postReq(validBody())), 503, 'unavailable');
+      expect(h.mocks.trashFolder).not.toHaveBeenCalled();
+    });
+
+    it('ensureRootFolder que falha: nada é descartado', async () => {
+      const h = makeHarness({ connection: firstRoot });
+      h.mocks.ensureRootFolder.mockRejectedValueOnce(new DriveApiError('Erro do Google Drive (HTTP 500)', 500, true));
+      await expectError(await h.handler(postReq(validBody())), 503, 'unavailable');
+      expect(h.mocks.trashFolder).not.toHaveBeenCalled();
+    });
   });
 
   it('DriveApiError ao garantir a raiz: 503 unavailable', async () => {

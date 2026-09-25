@@ -45,11 +45,17 @@ export interface CoupleNames {
 export interface GuestUploadDrive {
   /** Access token da conta da plataforma (com cache). Pode lançar `NeedsReconnectError`. */
   getAccessToken(): Promise<string>;
-  /** Garante a pasta raiz do casal; devolve o id (o mesmo de `folderId` se ela ainda existe). */
+  /**
+   * Garante a pasta raiz do casal (dentro de "Casarei.online", ou onde já estiver
+   * se `folderId` ainda for uma pasta viva); devolve o id (o mesmo de `folderId`
+   * se ela ainda existe).
+   */
   ensureRootFolder(
     accessToken: string,
     opts: { weddingId: string; name: string; folderId: string | null },
   ): Promise<string>;
+  /** Manda uma pasta do Drive para a lixeira. Best effort: nunca lança (falhas são ignoradas). */
+  trashFolder(accessToken: string, folderId: string): Promise<void>;
   /** Descobre ou cria a pasta do convidado dentro da raiz (`guestName` "" = Anônimo). */
   resolveGuestFolder(
     accessToken: string,
@@ -107,6 +113,7 @@ const MAX_FILE_NAME_CHARS = 255;
 const MAX_MIME_TYPE_CHARS = 100;
 const MAX_GUEST_NAME_CHARS = 200;
 const MAX_IDENTIFIER_CHARS = 64;
+const FALLBACK_COUPLE_FOLDER_NAME = "Casal";
 
 // Cada arquivo custa um POST, e os convidados de um salão dividem o mesmo IP (NAT),
 // então os limites por IP são folgados: quem protege de verdade é o do casamento.
@@ -160,6 +167,22 @@ function failFromError(error: unknown, stage: string, cors: Cors): Response {
 
 const isValidToken = (value: unknown): value is string =>
   typeof value === "string" && TOKEN_PATTERN.test(value);
+
+// Nome da pasta do casal no Drive: só o nome do casal, sanitizado (sem sufixo, a
+// pasta já fica dentro de "Casarei.online"). "Vazio" é o que sobra sem nada
+// aproveitável depois da limpeza: só espaços, barras e caracteres invisíveis contam
+// como vazio (sanitizeFileName trocaria isso por "arquivo"). Sem nome do casal usa
+// os parceiros unidos por " & " (pulando os vazios); sem nada, "Casal". Casais com o
+// mesmo nome geram pastas de mesmo nome, de propósito: o Drive permite.
+function rootFolderName(names: CoupleNames): string {
+  const hasContent = (value: string) => sanitizeGuestName(value) !== "";
+  const partners = [names.partner1Name, names.partner2Name]
+    .map((name) => name.trim())
+    .filter(hasContent)
+    .join(" & ");
+  const name = [names.coupleName, partners].find(hasContent);
+  return name === undefined ? FALLBACK_COUPLE_FOLDER_NAME : sanitizeFileName(name);
+}
 
 interface UploadRequest {
   token: string;
@@ -351,23 +374,31 @@ async function handlePost(
     stage = "post:access_token";
     const accessToken = await deps.drive.getAccessToken();
 
-    // 10. Pasta raiz do casal. Se o id mudou (primeiro envio ou a pasta foi
-    // apagada), a gravação é CONDICIONAL: só vale se a raiz gravada ainda for a
-    // que esta requisição leu. Várias requisições simultâneas criam uma raiz cada,
-    // mas só uma grava; as outras adotam a raiz vencedora (a que criaram fica
-    // vazia no Drive). As pastas de convidado só são limpas por quem venceu E
+    // 10. Pasta raiz do casal (dentro de "Casarei.online"). Se o id mudou (primeiro
+    // envio ou a pasta foi apagada), a gravação é CONDICIONAL: só vale se a raiz
+    // gravada ainda for a que esta requisição leu. Várias requisições simultâneas
+    // criam uma raiz cada, mas só uma grava; as outras adotam a raiz vencedora e
+    // mandam para a lixeira a que criaram (best effort: se falhar, sobra uma pasta
+    // vazia e o envio segue). Quem só reaproveitou uma raiz viva não criou nada e
+    // nunca descarta. As pastas de convidado só são limpas por quem venceu E
     // substituiu uma raiz anterior: sem raiz anterior não há pasta legítima, e
     // limpar apagaria linhas que outra requisição acabou de inserir.
     stage = "post:root_folder";
     const ensuredRootId = await deps.drive.ensureRootFolder(accessToken, {
       weddingId: connection.weddingId,
-      name: sanitizeFileName(`${names.coupleName} – casarei.online`),
+      name: rootFolderName(names),
       folderId: connection.folderId,
     });
     let rootFolderId = ensuredRootId;
     if (ensuredRootId !== connection.folderId) {
       rootFolderId = await deps.saveRootFolder(connection.weddingId, connection.folderId, ensuredRootId);
-      if (rootFolderId === ensuredRootId && connection.folderId !== null) {
+      if (rootFolderId !== ensuredRootId) {
+        try {
+          await deps.drive.trashFolder(accessToken, ensuredRootId);
+        } catch {
+          // ignorado de propósito: uma lixeira que falha não pode derrubar o envio
+        }
+      } else if (connection.folderId !== null) {
         await deps.clearGuestFolders(connection.weddingId);
       }
     }
