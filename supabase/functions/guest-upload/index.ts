@@ -240,6 +240,7 @@ const deps: GuestUploadDeps = {
 
   drive: {
     getAccessToken: driveAccess.getAccessToken,
+    invalidateAccessToken: driveAccess.invalidateAccessToken,
     ensureRootFolder: (accessToken, opts) => ensureCoupleRootFolder(fetchFn, accessToken, platformRootStore, opts),
     // Modo casal: a raiz fica no topo do Drive do casal (sem "Casarei.online" no meio).
     ensureOwnerRootFolder: (accessToken, opts) => ensureFolder(fetchFn, accessToken, opts),

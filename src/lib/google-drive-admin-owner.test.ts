@@ -115,6 +115,9 @@ function makeHarness(options: HarnessOptions = {}) {
       return `gen${String(tokenCounter).padStart(2, '0')}${'Q'.repeat(27)}`;
     }),
     getAccessToken: vi.fn<GoogleDriveAdminDeps['getAccessToken']>(async () => ACCESS),
+    invalidateAccessToken: vi.fn<GoogleDriveAdminDeps['invalidateAccessToken']>(() => {
+      calls.push('invalidateAccessToken');
+    }),
     signState: vi.fn<GoogleDriveAdminDeps['signState']>(async (payload) => `signed:${JSON.stringify(payload)}`),
     verifyState: vi.fn<GoogleDriveAdminDeps['verifyState']>(async (state) => {
       if (!state.startsWith('signed:')) return null;
@@ -176,6 +179,7 @@ function makeHarness(options: HarnessOptions = {}) {
     countNamedGuestFolders: mocks.countNamedGuestFolders,
     generateToken: mocks.generateToken,
     getAccessToken: mocks.getAccessToken,
+    invalidateAccessToken: mocks.invalidateAccessToken,
     now: () => NOW,
     randomNonce: () => '00'.repeat(16),
     signState: mocks.signState,
@@ -625,5 +629,88 @@ describe('google-drive-admin: leituras no modo casal', () => {
     const platform = makeHarness();
     await post(platform, { action: 'list' });
     expect(platform.mocks.getAccessToken).toHaveBeenCalledWith({ kind: 'platform' });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 401 do Drive: o token em cache não vale mais
+// ---------------------------------------------------------------------------
+
+// Depois de o casal revogar o app no Google, um isolate "quente" continua servindo o access
+// token em cache até ele expirar; o Drive responde 401 e o refresh nunca acontece, então o
+// `invalid_grant` (e a marca de reconexão) nunca aparece. Um 401 do Drive descarta o token
+// dessa conta: o PRÓXIMO pedido renova. A resposta atual segue sendo o 503 genérico.
+const READ_MOCKS: Array<[string, Record<string, unknown>, 'listGuestFiles' | 'summarizeGuestFiles' | 'getThumbnails']> = [
+  ['list', { action: 'list' }, 'listGuestFiles'],
+  ['summary', { action: 'summary' }, 'summarizeGuestFiles'],
+  ['thumbnails', { action: 'thumbnails', fileIds: ['f1'] }, 'getThumbnails'],
+];
+
+describe('google-drive-admin: 401 do Drive descarta o token em cache', () => {
+  it.each(READ_MOCKS)(
+    'modo casal, %s: 401 do Drive vira 503 unavailable e descarta o token do casal',
+    async (_name, request, mockName) => {
+      const h = makeHarness({ row: ownerRow({ connectedAt: EPOCH_OLD }) });
+      h.mocks[mockName].mockRejectedValueOnce(new DriveApiError('Erro do Google Drive (HTTP 401)', 401, false));
+
+      const res = await post(h, request);
+
+      expect(res.status).toBe(503);
+      expect((await bodyOf(res)).code).toBe('unavailable');
+      expect(h.mocks.invalidateAccessToken).toHaveBeenCalledTimes(1);
+      expect(h.mocks.invalidateAccessToken).toHaveBeenCalledWith({
+        kind: 'owner',
+        weddingId: WEDDING_A,
+        epoch: EPOCH_OLD,
+      });
+    },
+  );
+
+  it.each(READ_MOCKS)('modo plataforma, %s: 401 do Drive descarta o token da plataforma', async (_name, request, mockName) => {
+    const h = makeHarness();
+    h.mocks[mockName].mockRejectedValueOnce(new DriveApiError('Erro do Google Drive (HTTP 401)', 401, false));
+
+    const res = await post(h, request);
+
+    expect(res.status).toBe(503);
+    expect(h.mocks.invalidateAccessToken).toHaveBeenCalledTimes(1);
+    expect(h.mocks.invalidateAccessToken).toHaveBeenCalledWith({ kind: 'platform' });
+  });
+
+  it.each([
+    ['500', new DriveApiError('Erro do Google Drive (HTTP 500)', 500, true)],
+    ['403', new DriveApiError('Erro do Google Drive (HTTP 403)', 403, false)],
+    ['erro de rede', new TypeError('fetch failed')],
+  ])('%s do Drive não descarta o token', async (_label, error) => {
+    const h = makeHarness({ row: ownerRow() });
+    h.mocks.listGuestFiles.mockRejectedValueOnce(error);
+
+    const res = await post(h, { action: 'list' });
+
+    expect(res.status).toBe(503);
+    expect(h.mocks.invalidateAccessToken).not.toHaveBeenCalled();
+  });
+
+  it('se descartar o token lançar, a resposta continua sendo o 503 genérico', async () => {
+    const h = makeHarness({ row: ownerRow() });
+    h.mocks.listGuestFiles.mockRejectedValueOnce(new DriveApiError('Erro do Google Drive (HTTP 401)', 401, false));
+    h.mocks.invalidateAccessToken.mockImplementationOnce(() => {
+      throw new Error('cache quebrado');
+    });
+
+    const res = await post(h, { action: 'list' });
+
+    expect(res.status).toBe(503);
+    expect((await bodyOf(res)).code).toBe('unavailable');
+  });
+
+  it('o log leva só a classe e o status do erro, nunca a mensagem nem o token', async () => {
+    const h = makeHarness({ row: ownerRow() });
+    h.mocks.listGuestFiles.mockRejectedValueOnce(new DriveApiError(`Bearer ${ACCESS} recusado`, 401, false));
+
+    await post(h, { action: 'list' });
+
+    expect(loggedText()).toContain('DriveApiError status=401');
+    expect(loggedText()).not.toContain(ACCESS);
   });
 });

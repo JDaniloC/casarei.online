@@ -230,6 +230,7 @@ const deps: GoogleDriveAdminDeps = {
   generateToken: () => generateUploadToken((bytes) => crypto.getRandomValues(bytes)),
 
   getAccessToken: driveAccess.getAccessToken,
+  invalidateAccessToken: driveAccess.invalidateAccessToken,
 
   now: () => Date.now(),
   randomNonce: () => bytesToHex(crypto.getRandomValues(new Uint8Array(16))),

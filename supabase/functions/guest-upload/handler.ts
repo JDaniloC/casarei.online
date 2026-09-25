@@ -47,6 +47,12 @@ export interface GuestUploadDrive {
   /** Access token da conta indicada (plataforma ou casal), com cache. Pode lançar `NeedsReconnectError`. */
   getAccessToken(ref: DriveAccessRef): Promise<string>;
   /**
+   * Descarta o token em cache da conta indicada: o Drive respondeu 401 com ele (por exemplo, o
+   * casal removeu o app na conta Google). O próximo `getAccessToken` renova e, se o Google
+   * recusar o refresh token, já marca a reconexão. Chamada de melhor esforço.
+   */
+  invalidateAccessToken(ref: DriveAccessRef): void;
+  /**
    * Garante a pasta raiz do casal (dentro de "Casarei.online", ou onde já estiver
    * se `folderId` ainda for uma pasta viva); devolve o id (o mesmo de `folderId`
    * se ela ainda existe).
@@ -334,6 +340,9 @@ async function handlePost(
   cors: Cors,
 ): Promise<Response> {
   let stage = "post:origin";
+  // Conta do Google desta requisição; só é preenchida no passo 9. Fica fora do `try` para o
+  // `catch` saber qual token descartar se o Drive responder 401.
+  let accessRef: DriveAccessRef | null = null;
   try {
     // 1. Origin: nada mais roda (nem a leitura do corpo) para origem não permitida.
     if (origin === null || !isOriginAllowed(origin, deps.allowedOrigins)) {
@@ -388,7 +397,7 @@ async function handlePost(
 
     // 9. Token de acesso do Google (pode lançar NeedsReconnectError: 503).
     stage = "post:access_token";
-    const accessRef = accessRefFor(connection);
+    accessRef = accessRefFor(connection);
     const accessToken = await deps.drive.getAccessToken(accessRef);
 
     // 10. Pasta raiz do casal (dentro de "Casarei.online"). Se o id mudou (primeiro
@@ -450,6 +459,16 @@ async function handlePost(
     // 14. A URL da sessão é um segredo do próprio envio: só vai na resposta.
     return json(200, { uploadUrl }, cors);
   } catch (error) {
+    // Um 401 do Drive quer dizer que o access token em cache não vale mais: descarta o token
+    // dessa conta para o PRÓXIMO envio renovar (e ver o `invalid_grant`, se for o caso). Não
+    // repete nada aqui, e o que acontecer com o descarte nunca muda a resposta.
+    if (accessRef !== null && error instanceof DriveApiError && error.status === 401) {
+      try {
+        deps.drive.invalidateAccessToken(accessRef);
+      } catch {
+        // ignorado de propósito: descartar o cache é só uma otimização de recuperação
+      }
+    }
     return failFromError(error, stage, cors);
   }
 }

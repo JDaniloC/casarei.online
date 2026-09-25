@@ -26,7 +26,8 @@ export function createDenoDriveAccess(
   logPrefix: string,
 ): {
   getAccessToken(ref: DriveAccessRef): Promise<string>;
-  loadOwnerCredentials(weddingId: string): Promise<OwnerCredentials | null>;
+  /** Descarta o token em cache da conta (o Drive respondeu 401 com ele); o próximo pedido renova. */
+  invalidateAccessToken(ref: DriveAccessRef): void;
 } {
   // Os erros do banco não entram nas mensagens: podem carregar ids e detalhes internos.
   async function loadOwnerCredentials(weddingId: string): Promise<OwnerCredentials | null> {
@@ -68,5 +69,5 @@ export function createDenoDriveAccess(
     },
   });
 
-  return { getAccessToken: provider.getAccessToken, loadOwnerCredentials };
+  return { getAccessToken: provider.getAccessToken, invalidateAccessToken: provider.invalidate };
 }

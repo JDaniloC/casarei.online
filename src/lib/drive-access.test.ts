@@ -101,6 +101,81 @@ describe('drive-access: modo plataforma', () => {
   });
 });
 
+describe('drive-access: invalidate (o Drive respondeu 401)', () => {
+  it('depois de invalidar, o próximo getAccessToken da plataforma renova em vez de servir o cache', async () => {
+    const { provider, fetchCalls } = makeProvider();
+    const first = await provider.getAccessToken(platform);
+    await provider.getAccessToken(platform);
+    expect(fetchCalls).toHaveLength(1);
+
+    provider.invalidate(platform);
+
+    const renewed = await provider.getAccessToken(platform);
+    expect(fetchCalls).toHaveLength(2);
+    expect(renewed).not.toBe(first);
+  });
+
+  it('depois de invalidar, o próximo getAccessToken do casal renova e vê o invalid_grant do Google', async () => {
+    const { provider, deps, fetchCalls, credentials } = makeProvider();
+    credentials.set('w1', await seal('1//casal-1'));
+    await provider.getAccessToken(owner('w1', 'e1'));
+
+    // O casal revogou o app no Google: o cache ainda serve o token, até o Drive dizer 401.
+    credentials.set('w1', await seal('1//revogado'));
+    await expect(provider.getAccessToken(owner('w1', 'e1'))).resolves.toContain('1//casal-1');
+    expect(fetchCalls).toHaveLength(1);
+
+    provider.invalidate(owner('w1', 'e1'));
+
+    await expect(provider.getAccessToken(owner('w1', 'e1'))).rejects.toBeInstanceOf(NeedsReconnectError);
+    expect(fetchCalls).toHaveLength(2);
+    expect(deps.markNeedsReconnect).toHaveBeenCalledWith('w1', 'e1');
+  });
+
+  it('invalidar um casamento não afeta outro casamento, outra época nem a plataforma', async () => {
+    const { provider, fetchCalls, credentials } = makeProvider();
+    credentials.set('w1', await seal('1//casal-1'));
+    credentials.set('w2', await seal('1//casal-2'));
+    await provider.getAccessToken(owner('w1', 'e1'));
+    await provider.getAccessToken(owner('w1', 'e2'));
+    await provider.getAccessToken(owner('w2', 'e1'));
+    await provider.getAccessToken(platform);
+    expect(fetchCalls).toHaveLength(4);
+
+    provider.invalidate(owner('w1', 'e1'));
+
+    await provider.getAccessToken(owner('w1', 'e2'));
+    await provider.getAccessToken(owner('w2', 'e1'));
+    await provider.getAccessToken(platform);
+    expect(fetchCalls).toHaveLength(4);
+
+    await provider.getAccessToken(owner('w1', 'e1'));
+    expect(fetchCalls).toHaveLength(5);
+  });
+
+  it('invalidar a plataforma não afeta os casais', async () => {
+    const { provider, fetchCalls, credentials } = makeProvider();
+    credentials.set('w1', await seal('1//casal-1'));
+    await provider.getAccessToken(owner('w1'));
+    await provider.getAccessToken(platform);
+
+    provider.invalidate(platform);
+
+    await provider.getAccessToken(owner('w1'));
+    expect(fetchCalls).toHaveLength(2);
+  });
+
+  it('invalidar uma referência desconhecida não faz nada (nem lança)', async () => {
+    const { provider, fetchCalls } = makeProvider();
+    const cached = await provider.getAccessToken(platform);
+
+    expect(() => provider.invalidate(owner('nunca-visto', 'e9'))).not.toThrow();
+
+    await expect(provider.getAccessToken(platform)).resolves.toBe(cached);
+    expect(fetchCalls).toHaveLength(1);
+  });
+});
+
 describe('drive-access: modo casal', () => {
   it('decifra o refresh token do casal e o troca com o client do app', async () => {
     const { provider, deps, fetchCalls, credentials } = makeProvider();

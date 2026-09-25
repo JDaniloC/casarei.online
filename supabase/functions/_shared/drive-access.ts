@@ -59,6 +59,12 @@ export function accessCacheKey(ref: DriveAccessRef): string {
 
 export function createAccessTokenProvider(deps: AccessTokenProviderDeps): {
   getAccessToken(ref: DriveAccessRef): Promise<string>;
+  /**
+   * Descarta o token em cache desta conta (o Drive respondeu 401 com ele). O PRÓXIMO
+   * `getAccessToken` renova e, se o Google recusar o refresh token (`invalid_grant`), já
+   * marca a reconexão. Não mexe em troca em andamento nem em nenhuma outra conta.
+   */
+  invalidate(ref: DriveAccessRef): void;
 } {
   const cache = new Map<string, { value: string; expiresAt: number }>();
   const inFlight = new Map<string, Promise<string>>();
@@ -118,5 +124,9 @@ export function createAccessTokenProvider(deps: AccessTokenProviderDeps): {
     return promise;
   }
 
-  return { getAccessToken };
+  function invalidate(ref: DriveAccessRef): void {
+    cache.delete(accessCacheKey(ref));
+  }
+
+  return { getAccessToken, invalidate };
 }

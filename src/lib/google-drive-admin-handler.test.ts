@@ -264,6 +264,7 @@ function makeHarness(options: HarnessOptions = {}) {
     countNamedGuestFolders: mocks.countNamedGuestFolders,
     generateToken: mocks.generateToken,
     getAccessToken: mocks.getAccessToken,
+    invalidateAccessToken: () => {},
     now: () => 0,
     randomNonce: () => '',
     signState: unusedInThisSuite('signState'),

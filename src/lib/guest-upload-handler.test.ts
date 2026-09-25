@@ -141,6 +141,7 @@ function makeHarness(options: HarnessOptions = {}) {
     guestFolders,
     drive: {
       getAccessToken: mocks.getAccessToken,
+      invalidateAccessToken: () => {},
       ensureRootFolder: mocks.ensureRootFolder,
       ensureOwnerRootFolder: async () => {
         throw new Error('modo casal não é usado por esta suíte (ver guest-upload-owner.test.ts)');

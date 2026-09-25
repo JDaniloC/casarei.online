@@ -4,7 +4,11 @@ import {
   type GuestUploadConnection,
   type GuestUploadDeps,
 } from '../../supabase/functions/guest-upload/handler';
-import { NeedsReconnectError, type GuestFolderStore } from '../../supabase/functions/_shared/google-drive';
+import {
+  DriveApiError,
+  NeedsReconnectError,
+  type GuestFolderStore,
+} from '../../supabase/functions/_shared/google-drive';
 import type { RateLimitDb } from '../../supabase/functions/_shared/rate-limit';
 
 const ENDPOINT = 'https://projeto.supabase.co/functions/v1/guest-upload';
@@ -64,6 +68,9 @@ function makeHarness(connection: Partial<GuestUploadConnection> = {}) {
       calls.push('drive:getAccessToken');
       return ACCESS_TOKEN;
     }),
+    invalidateAccessToken: vi.fn<GuestUploadDeps['drive']['invalidateAccessToken']>(() => {
+      calls.push('drive:invalidateAccessToken');
+    }),
     ensureRootFolder: vi.fn<GuestUploadDeps['drive']['ensureRootFolder']>(async (_t, opts) => {
       calls.push('drive:ensureRootFolder');
       return opts.folderId ?? 'root-plataforma-novo';
@@ -100,6 +107,7 @@ function makeHarness(connection: Partial<GuestUploadConnection> = {}) {
     guestFolders,
     drive: {
       getAccessToken: mocks.getAccessToken,
+      invalidateAccessToken: mocks.invalidateAccessToken,
       ensureRootFolder: mocks.ensureRootFolder,
       ensureOwnerRootFolder: mocks.ensureOwnerRootFolder,
       trashFolder: mocks.trashFolder,
@@ -243,5 +251,82 @@ describe('guest-upload: modo plataforma (sem mudança)', () => {
       folderId: 'root-1',
     });
     expect(h.mocks.ensureOwnerRootFolder).not.toHaveBeenCalled();
+  });
+});
+
+// Depois de o casal remover o app na conta Google, um isolate "quente" continua servindo o
+// access token em cache; o Drive responde 401 e o refresh nunca acontece, então o
+// `invalid_grant` (e a marca de reconexão) nunca aparece. Um 401 do Drive descarta o token
+// dessa conta: o PRÓXIMO envio renova. A resposta atual segue sendo o 503 genérico.
+describe('guest-upload: 401 do Drive descarta o token em cache', () => {
+  const unauthorized = () => new DriveApiError('Erro do Google Drive (HTTP 401)', 401, false);
+
+  it('modo casal, initSession: 401 vira 503 unavailable e descarta o token do casal, uma vez', async () => {
+    const h = makeHarness({ connectedAt: EPOCH });
+    h.mocks.initSession.mockRejectedValueOnce(unauthorized());
+
+    const res = await h.handler(postReq());
+
+    expect(res.status).toBe(503);
+    expect(await json(res)).toEqual({ error: 'Envio temporariamente indisponível', code: 'unavailable' });
+    expect(h.mocks.invalidateAccessToken).toHaveBeenCalledTimes(1);
+    expect(h.mocks.invalidateAccessToken).toHaveBeenCalledWith({ kind: 'owner', weddingId: WEDDING_ID, epoch: EPOCH });
+  });
+
+  it('modo casal, getQuota: 401 também descarta o token do casal', async () => {
+    const h = makeHarness({ connectedAt: EPOCH });
+    h.mocks.getQuota.mockRejectedValueOnce(unauthorized());
+
+    const res = await h.handler(postReq());
+
+    expect(res.status).toBe(503);
+    expect(h.mocks.invalidateAccessToken).toHaveBeenCalledTimes(1);
+    expect(h.mocks.invalidateAccessToken).toHaveBeenCalledWith({ kind: 'owner', weddingId: WEDDING_ID, epoch: EPOCH });
+  });
+
+  it('modo plataforma: 401 descarta o token da plataforma', async () => {
+    const h = makeHarness({ folderId: 'root-1' });
+    h.mocks.initSession.mockRejectedValueOnce(unauthorized());
+
+    const res = await h.handler(postReq());
+
+    expect(res.status).toBe(503);
+    expect(h.mocks.invalidateAccessToken).toHaveBeenCalledTimes(1);
+    expect(h.mocks.invalidateAccessToken).toHaveBeenCalledWith({ kind: 'platform' });
+  });
+
+  it.each([
+    ['503', new DriveApiError('Erro do Google Drive (HTTP 503)', 503, true)],
+    ['403', new DriveApiError('Erro do Google Drive (HTTP 403)', 403, false)],
+    ['erro de rede', new TypeError('fetch failed')],
+  ])('%s do Drive não descarta o token', async (_label, error) => {
+    const h = makeHarness({ connectedAt: EPOCH });
+    h.mocks.initSession.mockRejectedValueOnce(error);
+
+    const res = await h.handler(postReq());
+
+    expect(res.status).toBe(503);
+    expect(h.mocks.invalidateAccessToken).not.toHaveBeenCalled();
+  });
+
+  it('recusa antes de haver token do Google (tamanho inválido) não descarta nada', async () => {
+    const h = makeHarness({ connectedAt: EPOCH });
+    const res = await h.handler(postReq({ ...validBody(), size: 0 }));
+
+    expect(res.status).toBe(400);
+    expect(h.mocks.invalidateAccessToken).not.toHaveBeenCalled();
+  });
+
+  it('se descartar o token lançar, a resposta continua sendo o 503 genérico', async () => {
+    const h = makeHarness({ connectedAt: EPOCH });
+    h.mocks.initSession.mockRejectedValueOnce(unauthorized());
+    h.mocks.invalidateAccessToken.mockImplementationOnce(() => {
+      throw new Error('cache quebrado');
+    });
+
+    const res = await h.handler(postReq());
+
+    expect(res.status).toBe(503);
+    expect(await json(res)).toEqual({ error: 'Envio temporariamente indisponível', code: 'unavailable' });
   });
 });

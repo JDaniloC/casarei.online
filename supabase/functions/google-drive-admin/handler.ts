@@ -130,6 +130,12 @@ export interface GoogleDriveAdminDeps {
   generateToken(): string;
   /** Access token do Google da conta indicada (plataforma ou casal), com cache. Pode lançar (vira 503). */
   getAccessToken(ref: DriveAccessRef): Promise<string>;
+  /**
+   * Descarta o token em cache da conta indicada: o Drive respondeu 401 com ele (por exemplo, o
+   * casal removeu o app na conta Google). O próximo `getAccessToken` renova e, se o Google
+   * recusar o refresh token, já marca a reconexão. Chamada de melhor esforço.
+   */
+  invalidateAccessToken(ref: DriveAccessRef): void;
   /** Relógio em milissegundos (validade do `state`). */
   now(): number;
   /** 16 bytes aleatórios em hex (nonce do `state`). */
@@ -625,27 +631,48 @@ async function runAction(
   // Sem o Google do casal não há o que ler: o painel mostra "Reconectar".
   if (owner && row.needsReconnect === true) return needsReconnect();
 
+  const accessRef = accessRefFor(weddingId, row);
   trace.stage = "google:access_token";
   let accessToken: string;
   try {
-    accessToken = await deps.getAccessToken(accessRefFor(weddingId, row));
+    accessToken = await deps.getAccessToken(accessRef);
   } catch (error) {
     // O Google recusou o token do casal agora (já ficou marcado para reconectar).
     if (owner && error instanceof NeedsReconnectError) return needsReconnect();
     throw error;
   }
 
+  // Um 401 do Drive quer dizer que o access token em cache não vale mais (por exemplo, o
+  // casal removeu o app na conta Google). Descarta o token dessa conta para que o PRÓXIMO
+  // pedido renove e veja o `invalid_grant`; a resposta desta requisição não muda (503).
+  const readDrive = async <T>(read: () => Promise<T>): Promise<T> => {
+    try {
+      return await read();
+    } catch (error) {
+      if (error instanceof DriveApiError && error.status === 401) {
+        try {
+          deps.invalidateAccessToken(accessRef);
+        } catch {
+          // ignorado de propósito: descartar o cache é só uma otimização de recuperação
+        }
+      }
+      throw error;
+    }
+  };
+
   switch (request.action) {
     case "list": {
       trace.stage = "drive:list";
-      const listed = await deps.drive.listGuestFiles(accessToken, weddingId, { pageToken: request.pageToken });
+      const listed = await readDrive(() =>
+        deps.drive.listGuestFiles(accessToken, weddingId, { pageToken: request.pageToken }),
+      );
       const nextPageToken = typeof listed.nextPageToken === "string" ? listed.nextPageToken : null;
       return json(200, { files: listed.files.map(fileBody), nextPageToken }, cors);
     }
 
     case "summary": {
       trace.stage = "drive:summary";
-      const { count, totalBytes } = await deps.drive.summarizeGuestFiles(accessToken, weddingId);
+      const { count, totalBytes } = await readDrive(() => deps.drive.summarizeGuestFiles(accessToken, weddingId));
       trace.stage = "guest_folders:count";
       const guests = await deps.countNamedGuestFolders(weddingId);
       return json(200, { count, totalBytes, guests }, cors);
@@ -653,7 +680,7 @@ async function runAction(
 
     case "thumbnails": {
       trace.stage = "drive:thumbnails";
-      const returned = await deps.drive.getThumbnails(accessToken, weddingId, request.fileIds);
+      const returned = await readDrive(() => deps.drive.getThumbnails(accessToken, weddingId, request.fileIds));
       return json(200, { thumbnails: thumbnailsBody(returned, request.fileIds) }, cors);
     }
   }
