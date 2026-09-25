@@ -18,6 +18,7 @@ import {
   type GuestFolderStore,
 } from "../_shared/google-drive.ts";
 import { corsHeadersFor, isOriginAllowed } from "../_shared/cors.ts";
+import { coupleFolderName, type CoupleNames } from "../_shared/couple-folder.ts";
 import { checkAndLog, clientIp, type RateLimitDb } from "../_shared/rate-limit.ts";
 import {
   MAX_BYTES,
@@ -34,12 +35,7 @@ export interface GuestUploadConnection {
   folderId: string | null;
 }
 
-/** Nomes do casal (colunas de `weddings`); vazios viram string vazia. */
-export interface CoupleNames {
-  coupleName: string;
-  partner1Name: string;
-  partner2Name: string;
-}
+export type { CoupleNames };
 
 /** Operações no Google Drive. O `accessToken` vem de `getAccessToken`. */
 export interface GuestUploadDrive {
@@ -113,7 +109,6 @@ const MAX_FILE_NAME_CHARS = 255;
 const MAX_MIME_TYPE_CHARS = 100;
 const MAX_GUEST_NAME_CHARS = 200;
 const MAX_IDENTIFIER_CHARS = 64;
-const FALLBACK_COUPLE_FOLDER_NAME = "Casal";
 
 // Cada arquivo custa um POST, e os convidados de um salão dividem o mesmo IP (NAT),
 // então os limites por IP são folgados: quem protege de verdade é o do casamento.
@@ -167,22 +162,6 @@ function failFromError(error: unknown, stage: string, cors: Cors): Response {
 
 const isValidToken = (value: unknown): value is string =>
   typeof value === "string" && TOKEN_PATTERN.test(value);
-
-// Nome da pasta do casal no Drive: só o nome do casal, sanitizado (sem sufixo, a
-// pasta já fica dentro de "Casarei.online"). "Vazio" é o que sobra sem nada
-// aproveitável depois da limpeza: só espaços, barras e caracteres invisíveis contam
-// como vazio (sanitizeFileName trocaria isso por "arquivo"). Sem nome do casal usa
-// os parceiros unidos por " & " (pulando os vazios); sem nada, "Casal". Casais com o
-// mesmo nome geram pastas de mesmo nome, de propósito: o Drive permite.
-function rootFolderName(names: CoupleNames): string {
-  const hasContent = (value: string) => sanitizeGuestName(value) !== "";
-  const partners = [names.partner1Name, names.partner2Name]
-    .map((name) => name.trim())
-    .filter(hasContent)
-    .join(" & ");
-  const name = [names.coupleName, partners].find(hasContent);
-  return name === undefined ? FALLBACK_COUPLE_FOLDER_NAME : sanitizeFileName(name);
-}
 
 interface UploadRequest {
   token: string;
@@ -386,7 +365,7 @@ async function handlePost(
     stage = "post:root_folder";
     const ensuredRootId = await deps.drive.ensureRootFolder(accessToken, {
       weddingId: connection.weddingId,
-      name: rootFolderName(names),
+      name: coupleFolderName(names),
       folderId: connection.folderId,
     });
     let rootFolderId = ensuredRootId;
