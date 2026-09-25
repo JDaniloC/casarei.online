@@ -14,6 +14,8 @@ const api = vi.hoisted(() => ({
   listFiles: vi.fn(),
   getSummary: vi.fn(),
   getThumbnails: vi.fn(),
+  getAuthUrl: vi.fn(),
+  disconnectDrive: vi.fn(),
 }));
 vi.mock('@/lib/driveAdminApi', () => api);
 
@@ -152,15 +154,20 @@ async function renderEnabled(ui: React.ReactElement = <DashboardGuestUploads wed
 }
 
 function expectNoDriveAnywhere(container: HTMLElement) {
-  expect(container.textContent ?? '').not.toMatch(DRIVE_WORD);
-  for (const el of Array.from(container.querySelectorAll('*'))) {
+  // O cartão "Onde ficam as fotos" fala do Drive de propósito (é onde o casal conecta o dele);
+  // o resto do painel continua sem nenhuma menção.
+  const scope = container.cloneNode(true) as HTMLElement;
+  scope.querySelectorAll('[data-testid="drive-connection-card"]').forEach((card) => card.remove());
+
+  expect(scope.textContent ?? '').not.toMatch(DRIVE_WORD);
+  for (const el of Array.from(scope.querySelectorAll('*'))) {
     for (const attr of Array.from(el.attributes)) {
       // Só o que o casal pode ver ou clicar: nenhum atributo (href, title, aria-label...) cita o Drive.
       if (attr.name === 'class' || attr.name === 'src' || attr.name.startsWith('data-')) continue;
       expect(`${attr.name}=${attr.value}`).not.toMatch(DRIVE_WORD);
     }
   }
-  for (const anchor of Array.from(container.querySelectorAll('[href]'))) {
+  for (const anchor of Array.from(scope.querySelectorAll('[href]'))) {
     expect(anchor.getAttribute('href')).not.toMatch(/drive\.google\.com|google\.com|googleapis/i);
   }
 }
@@ -1028,7 +1035,7 @@ describe('"Atualizar"', () => {
 // ---------------------------------------------------------------------------
 
 describe('nenhuma referência ao Drive', () => {
-  it('nenhum estado do painel mostra a palavra "Drive" nem link para ele', async () => {
+  it('fora do cartão de conexão, nenhum estado do painel mostra a palavra "Drive" nem link para ele', async () => {
     api.getSummary.mockResolvedValue({ count: 3, totalBytes: 5 * MB, guests: 2 });
     api.listFiles.mockResolvedValue({
       files: [
@@ -1144,5 +1151,84 @@ describe('logs', () => {
     expect(errorSpy).toHaveBeenCalled();
     expect(JSON.stringify(errorSpy.mock.calls)).not.toContain(TOKEN);
     expect(JSON.stringify(mockToast.mock.calls)).not.toContain(TOKEN);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Cartão "Onde ficam as fotos" (Drive do casal)
+// ---------------------------------------------------------------------------
+
+const FOLDER_URL = 'https://drive.google.com/drive/folders/pastaDoCasal_123456';
+
+const ownerConnection = (overrides: Record<string, unknown> = {}) =>
+  connection({
+    driveMode: 'owner',
+    googleEmail: 'ana@example.com',
+    needsReconnect: false,
+    folderUrl: FOLDER_URL,
+    ...overrides,
+  });
+
+describe('cartão "Onde ficam as fotos"', () => {
+  it('aparece no painel ativado (modo plataforma) e não aparece antes de ativar', async () => {
+    api.getStatus.mockResolvedValueOnce(notEnabled());
+    const off = render(<DashboardGuestUploads weddingId={WEDDING_ID} />);
+    await screen.findByRole('button', { name: 'Ativar envio de fotos' });
+    expect(screen.queryByTestId('drive-connection-card')).not.toBeInTheDocument();
+    off.unmount();
+
+    await renderEnabled();
+    expect(screen.getByTestId('drive-connection-card')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Guardar no meu Google Drive' })).toBeInTheDocument();
+    expect(screen.getByText(/Aqui aparecem os arquivos enviados pelos convidados/)).toBeInTheDocument();
+  });
+
+  it('modo casal: mostra a conta, o link da pasta e diz no álbum onde estão os originais', async () => {
+    api.getStatus.mockResolvedValue(ownerConnection());
+
+    await renderEnabled();
+
+    expect(screen.getByText(/Conectado como ana@example\.com/)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /Abrir pasta no Google Drive/ })).toHaveAttribute('href', FOLDER_URL);
+    expect(screen.getByText(/Os originais estão na pasta do seu Google Drive/)).toBeInTheDocument();
+    expect(screen.queryByText(/entre em contato com a equipe/)).not.toBeInTheDocument();
+  });
+
+  it('precisa reconectar: não lê o álbum, mostra o aviso e o botão Reconectar', async () => {
+    api.getStatus.mockResolvedValue(ownerConnection({ needsReconnect: true }));
+
+    render(<DashboardGuestUploads weddingId={WEDDING_ID} />);
+
+    expect(await screen.findByRole('button', { name: 'Reconectar' })).toBeInTheDocument();
+    expect(screen.getByText(/O álbum volta a aparecer assim que você reconectar o Google Drive/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Atualizar' })).toBeDisabled();
+    expect(screen.queryByText('Carregando os arquivos…')).not.toBeInTheDocument();
+    expect(api.getSummary).not.toHaveBeenCalled();
+    expect(api.listFiles).not.toHaveBeenCalled();
+  });
+
+  it('desconectar volta ao modo plataforma, zera o álbum e recarrega do Drive de agora', async () => {
+    api.getStatus.mockResolvedValue(ownerConnection());
+    api.getSummary
+      .mockResolvedValueOnce({ count: 2, totalBytes: 5 * MB, guests: 1 })
+      .mockResolvedValue({ count: 1, totalBytes: 2 * MB, guests: 1 });
+    api.listFiles
+      .mockResolvedValueOnce({ files: files(1, 2), nextPageToken: null })
+      .mockResolvedValue({ files: [file(9)], nextPageToken: null });
+    api.disconnectDrive.mockResolvedValue(connection());
+
+    await renderEnabled();
+    await waitFor(() => expect(screen.getAllByRole('listitem')).toHaveLength(2));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Desconectar' }));
+    const dialog = await screen.findByRole('alertdialog');
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Desconectar' }));
+
+    // Álbum do Drive de agora (o da plataforma): só a foto nova, não as do Drive do casal.
+    await waitFor(() => expect(screen.getAllByRole('listitem')).toHaveLength(1));
+    expect(screen.getByRole('button', { name: 'Guardar no meu Google Drive' })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /Abrir pasta no Google Drive/ })).not.toBeInTheDocument();
+    expect(api.listFiles).toHaveBeenCalledTimes(2);
+    expect(api.getSummary).toHaveBeenCalledTimes(2);
   });
 });
