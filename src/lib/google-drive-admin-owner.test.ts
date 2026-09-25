@@ -377,6 +377,28 @@ describe('google-drive-admin: connect', () => {
     expect((await bodyOf(res)).code).toBe('unavailable');
   });
 
+  it('cifra o token ANTES de criar a pasta (uma chave ruim não pode deixar pasta órfã no Drive do casal)', async () => {
+    const h = makeHarness();
+    await post(h, connectBody());
+
+    const [sealed] = h.mocks.encryptToken.mock.invocationCallOrder;
+    const [created] = h.mocks.createOwnerRootFolder.mock.invocationCallOrder;
+    expect(sealed).toBeLessThan(created);
+  });
+
+  it('falha ao cifrar o token (chave ausente ou inválida): 503 unavailable, sem criar pasta e sem gravar', async () => {
+    const h = makeHarness();
+    h.mocks.encryptToken.mockRejectedValueOnce(new Error('google_config_missing'));
+
+    const res = await post(h, connectBody());
+
+    expect(res.status).toBe(503);
+    expect((await bodyOf(res)).code).toBe('unavailable');
+    expect(h.mocks.createOwnerRootFolder).not.toHaveBeenCalled();
+    expect(h.mocks.connectOwner).not.toHaveBeenCalled();
+    expect(h.mocks.clearGuestFolders).not.toHaveBeenCalled();
+  });
+
   it('falha ao criar a pasta: 503 unavailable e nada é gravado', async () => {
     const h = makeHarness();
     h.mocks.createOwnerRootFolder.mockRejectedValueOnce(new DriveApiError('Erro do Google Drive (HTTP 500)', 500, true));

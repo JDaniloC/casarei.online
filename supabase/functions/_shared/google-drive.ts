@@ -204,7 +204,10 @@ export interface CodeExchange {
   expiresIn: number;
   /** Escopos realmente concedidos (o casal pode desmarcar o do Drive). */
   scopes: string[];
-  /** E-mail da conta, só para exibição; `null` se o Google não o trouxe verificado. */
+  /**
+   * E-mail da conta, só para exibição; `null` se o Google marcou o e-mail como não
+   * verificado; se o campo faltar, é aceito porque só serve para exibição.
+   */
   email: string | null;
 }
 

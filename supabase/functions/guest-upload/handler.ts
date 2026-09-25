@@ -329,10 +329,12 @@ async function handleGet(req: Request, deps: GuestUploadDeps, cors: Cors): Promi
 
 // Ordem das checagens (do mais barato e mais perto da borda para o mais caro):
 //  1. Origin permitido      2. corpo válido        3. conexão pelo token
-//  4. envio ativado         5. tamanho             6. tipo do arquivo
-//  7. rate limits           8. sanitização         9. token do Google
-// 10. pasta raiz           11. pasta do convidado 12. cota do Drive
-// 13. sessão de upload     14. resposta.
+//  4. envio ativado
+// 4b. o casal precisa reconectar o Google (modo casal): 503 antes de QUALQUER chamada ao Google
+//  5. tamanho               6. tipo do arquivo     7. rate limits
+//  8. sanitização           9. token do Google    10. pasta raiz
+// 11. pasta do convidado   12. cota do Drive      13. sessão de upload
+// 14. resposta.
 async function handlePost(
   req: Request,
   origin: string | null,
@@ -400,15 +402,16 @@ async function handlePost(
     accessRef = accessRefFor(connection);
     const accessToken = await deps.drive.getAccessToken(accessRef);
 
-    // 10. Pasta raiz do casal (dentro de "Casarei.online"). Se o id mudou (primeiro
-    // envio ou a pasta foi apagada), a gravação é CONDICIONAL: só vale se a raiz
-    // gravada ainda for a que esta requisição leu. Várias requisições simultâneas
-    // criam uma raiz cada, mas só uma grava; as outras adotam a raiz vencedora e
-    // mandam para a lixeira a que criaram (best effort: se falhar, sobra uma pasta
-    // vazia e o envio segue). Quem só reaproveitou uma raiz viva não criou nada e
-    // nunca descarta. As pastas de convidado só são limpas por quem venceu E
-    // substituiu uma raiz anterior: sem raiz anterior não há pasta legítima, e
-    // limpar apagaria linhas que outra requisição acabou de inserir.
+    // 10. Pasta raiz do casal: dentro de "Casarei.online" no modo plataforma e no topo do
+    // Drive do próprio casal no modo casal. Se o id mudou (primeiro envio ou a pasta foi
+    // apagada), a gravação é CONDICIONAL: só vale se a raiz gravada ainda for a que esta
+    // requisição leu. Várias requisições simultâneas criam uma raiz cada, mas só uma
+    // grava; as outras adotam a raiz vencedora e mandam para a lixeira a que criaram
+    // (best effort: se falhar, sobra uma pasta vazia e o envio segue). Quem só
+    // reaproveitou uma raiz viva não criou nada e nunca descarta. As pastas de convidado
+    // só são limpas por quem venceu E substituiu uma raiz anterior: sem raiz anterior
+    // não há pasta legítima, e limpar apagaria linhas que outra requisição acabou de
+    // inserir.
     stage = "post:root_folder";
     const rootOpts = { weddingId: connection.weddingId, folderId: connection.folderId };
     const ensuredRootId =

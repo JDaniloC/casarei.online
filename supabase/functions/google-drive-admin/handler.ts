@@ -2,9 +2,10 @@
 // recurso de envio de fotos e vídeos dos convidados (ativar, ligar/desligar, girar
 // o token do QR code, listar, resumir e ver miniaturas).
 //
-// FRONTEIRA DE ISOLAMENTO ENTRE CASAIS. Todos os casais compartilham um único
-// Drive; o que separa um do outro é o `weddingId` que chega aos helpers de leitura
-// do Drive e às tabelas. Por isso ele sai EXCLUSIVAMENTE de
+// FRONTEIRA DE ISOLAMENTO ENTRE CASAIS. A fronteira entre um casal e outro é o
+// `weddingId`, que chega aos helpers de leitura do Drive e às tabelas (no modo
+// plataforma os casais dividem o Drive da plataforma; no modo casal, o casal também
+// pode usar o PRÓPRIO Drive). Por isso ele sai EXCLUSIVAMENTE de
 // `deps.getWeddingIdForUser(userId)`, com o `userId` vindo do JWT já verificado
 // (`weddings.user_id = user.id`). Nada do corpo da requisição (weddingId,
 // wedding_id, userId...) é lido: o corpo só escolhe a ação e seus parâmetros.
@@ -465,7 +466,7 @@ function newUploadToken(deps: GoogleDriveAdminDeps): string {
 type ConnectRequest = Extract<AdminRequest, { action: "connect" }>;
 
 // Conclui a conexão do Google do casal. Ordem: state -> troca do código -> escopo ->
-// nomes -> pasta -> cifra -> gravação (uma só) -> limpeza das pastas de convidado.
+// cifra -> nomes -> pasta -> gravação (uma só) -> limpeza das pastas de convidado.
 // NADA é revogado no Google, em caminho nenhum: revogar um refresh token derruba a
 // autorização inteira do par (conta Google, app), e a mesma conta pode ser a da
 // plataforma ou a de outro casamento; revogar quebraria os dois. Se algo falhar depois
@@ -498,6 +499,11 @@ async function connectOwnerDrive(
     return fail(400, "missing_scope", MESSAGES.missing_scope, cors);
   }
 
+  // Cifra ANTES de criar a pasta: uma chave de cifra ausente ou inválida falha aqui, e não
+  // deixa uma pasta órfã no Drive do casal.
+  trace.stage = "connect:seal_token";
+  const sealed = await deps.encryptToken(exchange.refreshToken);
+
   trace.stage = "connect:couple_names";
   const names = await deps.getCoupleNames(weddingId);
   if (!names) throw new Error("Casamento sem nomes");
@@ -507,9 +513,6 @@ async function connectOwnerDrive(
     weddingId,
     name: ownerRootFolderName(names),
   });
-
-  trace.stage = "connect:seal_token";
-  const sealed = await deps.encryptToken(exchange.refreshToken);
 
   trace.stage = "connect:save";
   // Só cria o token do QR se ainda não houver linha; com linha, o existente nunca é trocado.

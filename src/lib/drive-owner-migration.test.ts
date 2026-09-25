@@ -19,8 +19,27 @@ describe('migration 20260925150000_drive_owner_connection', () => {
     expect(sql).toContain('(refresh_token_encrypted IS NULL) = (connected_at IS NULL)');
   });
 
+  it('a CHECK une as duas igualdades com AND (uma só regra, não duas alternativas)', () => {
+    expect(sql).toMatch(
+      /\(refresh_token_encrypted IS NULL\) = \(refresh_token_iv IS NULL\)\s*AND\s*\(refresh_token_encrypted IS NULL\) = \(connected_at IS NULL\)/,
+    );
+  });
+
   it('é idempotente também na constraint (pode rodar duas vezes)', () => {
     expect(sql).toMatch(/IF NOT EXISTS \(\s*SELECT 1 FROM pg_constraint WHERE conname = 'wedding_drive_connections_owner_token_shape'/);
+  });
+
+  it('a guarda da constraint olha só a tabela desta migration (conrelid), não outra de mesmo nome de constraint', () => {
+    expect(sql).toMatch(
+      /WHERE conname = 'wedding_drive_connections_owner_token_shape'\s+AND conrelid = 'public\.wedding_drive_connections'::regclass/,
+    );
+  });
+
+  it('tem dois ALTER TABLE de mudança (colunas e constraint) e liga o RLS', () => {
+    expect(sql.match(/ALTER TABLE public\.wedding_drive_connections\s+ADD /g)).toHaveLength(2);
+    expect(sql).toMatch(/ALTER TABLE public\.wedding_drive_connections\s+ADD COLUMN IF NOT EXISTS/);
+    expect(sql).toMatch(/ALTER TABLE public\.wedding_drive_connections\s+ADD CONSTRAINT wedding_drive_connections_owner_token_shape CHECK/);
+    expect(sql).toContain('ALTER TABLE public.wedding_drive_connections ENABLE ROW LEVEL SECURITY');
   });
 
   it('mantém a tabela fechada: sem policies, sem GRANT, com REVOKE para anon e authenticated', () => {

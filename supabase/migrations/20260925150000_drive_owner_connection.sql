@@ -24,10 +24,12 @@ ALTER TABLE public.wedding_drive_connections
   ADD COLUMN IF NOT EXISTS connected_at TIMESTAMPTZ,
   ADD COLUMN IF NOT EXISTS needs_reconnect BOOLEAN NOT NULL DEFAULT false;
 
+-- ADD CONSTRAINT não tem IF NOT EXISTS: por isso o bloco confere o catálogo antes (e só nesta tabela).
 DO $$
 BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM pg_constraint WHERE conname = 'wedding_drive_connections_owner_token_shape'
+      AND conrelid = 'public.wedding_drive_connections'::regclass
   ) THEN
     ALTER TABLE public.wedding_drive_connections
       ADD CONSTRAINT wedding_drive_connections_owner_token_shape CHECK (
