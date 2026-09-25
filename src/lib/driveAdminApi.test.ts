@@ -10,7 +10,10 @@ import {
   DriveAdminError,
   GENERIC_ERROR_MESSAGE,
   MAX_THUMBNAIL_BATCH,
+  connectDrive,
+  disconnectDrive,
   enable,
+  getAuthUrl,
   getStatus,
   getSummary,
   getThumbnails,
@@ -413,5 +416,110 @@ describe('resposta 2xx com formato inesperado', () => {
   it('thumbnails sem o objeto "thumbnails" vira erro genérico', async () => {
     mockInvoke.mockResolvedValueOnce({ data: {}, error: null });
     expect((await rejectionOf(getThumbnails(['a']))).message).toBe(GENERIC_ERROR_MESSAGE);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Drive do casal (modo casal)
+// ---------------------------------------------------------------------------
+
+describe('Drive do casal', () => {
+  const FOLDER_URL = 'https://drive.google.com/drive/folders/pastaDoCasal_123456';
+  const owner = {
+    ...connection,
+    driveMode: 'owner',
+    googleEmail: 'ana@example.com',
+    needsReconnect: false,
+    folderUrl: FOLDER_URL,
+  };
+
+  it('getStatus devolve os campos do modo casal quando o servidor os envia', async () => {
+    mockInvoke.mockResolvedValue({ data: owner, error: null });
+    await expect(getStatus()).resolves.toEqual(owner);
+  });
+
+  it('getStatus com o formato antigo (sem os campos novos) continua válido', async () => {
+    mockInvoke.mockResolvedValue({ data: connection, error: null });
+    const result = await getStatus();
+    expect(result).toEqual(connection);
+    expect(result.driveMode).toBeUndefined();
+    expect(result.folderUrl).toBeUndefined();
+  });
+
+  it('modo plataforma com campos nulos: mantém os nulos', async () => {
+    const platform = { ...connection, driveMode: 'platform', googleEmail: null, needsReconnect: false, folderUrl: null };
+    mockInvoke.mockResolvedValue({ data: platform, error: null });
+    await expect(getStatus()).resolves.toEqual(platform);
+  });
+
+  it('ignora valores inválidos dos campos novos (a tela nunca quebra por um 2xx malformado)', async () => {
+    mockInvoke.mockResolvedValue({
+      data: { ...connection, driveMode: 'outro', googleEmail: 42, needsReconnect: 'sim', folderUrl: 42 },
+      error: null,
+    });
+    await expect(getStatus()).resolves.toEqual(connection);
+  });
+
+  it('só aceita link de pasta que seja do Google Drive', async () => {
+    mockInvoke.mockResolvedValue({
+      data: { ...owner, folderUrl: 'https://malicioso.example/drive/folders/abc' },
+      error: null,
+    });
+    const result = await getStatus();
+    expect(result.folderUrl).toBeUndefined();
+  });
+
+  it('as respostas de enable, setEnabled e rotateToken também trazem os campos do modo casal', async () => {
+    mockInvoke.mockResolvedValue({ data: owner, error: null });
+    await expect(enable()).resolves.toEqual(owner);
+    await expect(setEnabled(true)).resolves.toEqual(owner);
+    await expect(rotateToken()).resolves.toEqual(owner);
+  });
+
+  it('getAuthUrl envia { action: "auth-url" } e devolve a URL do Google', async () => {
+    const url = 'https://accounts.google.com/o/oauth2/v2/auth?client_id=abc&state=xyz';
+    mockInvoke.mockResolvedValue({ data: { url }, error: null });
+
+    await expect(getAuthUrl()).resolves.toBe(url);
+    expect(lastBody()).toEqual({ action: 'auth-url' });
+  });
+
+  it.each([
+    ['sem url', {}],
+    ['url que não é texto', { url: 42 }],
+    ['url de outro domínio', { url: 'https://malicioso.example/auth' }],
+    ['corpo que não é objeto', 'oi'],
+  ])('getAuthUrl recusa resposta malformada (%s)', async (_label, data) => {
+    mockInvoke.mockResolvedValue({ data, error: null });
+    expect((await rejectionOf(getAuthUrl())).message).toBe(GENERIC_ERROR_MESSAGE);
+  });
+
+  it('connectDrive envia { action: "connect", code, state } e devolve o status do modo casal', async () => {
+    mockInvoke.mockResolvedValue({ data: owner, error: null });
+
+    await expect(connectDrive({ code: 'codigo', state: 'st.ate' })).resolves.toEqual(owner);
+    expect(lastBody()).toEqual({ action: 'connect', code: 'codigo', state: 'st.ate' });
+  });
+
+  it('disconnectDrive envia { action: "disconnect" } e devolve o status do modo plataforma', async () => {
+    mockInvoke.mockResolvedValue({ data: connection, error: null });
+
+    await expect(disconnectDrive()).resolves.toEqual(connection);
+    expect(lastBody()).toEqual({ action: 'disconnect' });
+  });
+
+  it.each([
+    ['invalid_state', 400, 'O link de autorização expirou ou é inválido. Tente conectar de novo.'],
+    ['invalid_code', 400, 'Não foi possível concluir a conexão com o Google. Tente conectar de novo.'],
+    ['missing_scope', 400, 'Marque a permissão de acesso ao Google Drive para conectar.'],
+    ['needs_reconnect', 409, 'É preciso reconectar o Google Drive para continuar.'],
+  ])('erro %s do servidor vira DriveAdminError com o texto e o código dele', async (code, status, message) => {
+    mockInvoke.mockResolvedValue({ data: null, error: httpError(status, { error: message, code }) });
+
+    const error = await rejectionOf(connectDrive({ code: 'c', state: 's' }));
+
+    expect(error.message).toBe(message);
+    expect(error.code).toBe(code);
+    expect(error.status).toBe(status);
   });
 });
