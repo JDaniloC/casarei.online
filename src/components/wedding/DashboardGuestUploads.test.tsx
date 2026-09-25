@@ -1231,4 +1231,32 @@ describe('cartão "Onde ficam as fotos"', () => {
     expect(api.listFiles).toHaveBeenCalledTimes(2);
     expect(api.getSummary).toHaveBeenCalledTimes(2);
   });
+
+  it('desconectar com a chave "Receber envios" em andamento não a deixa travada', async () => {
+    api.getStatus.mockResolvedValue(ownerConnection());
+    const pendingToggle = deferred<ReturnType<typeof connection>>();
+    api.setEnabled.mockReturnValueOnce(pendingToggle.promise);
+    api.disconnectDrive.mockResolvedValue(connection());
+
+    await renderEnabled();
+    const receiving = screen.getByRole('switch', { name: 'Receber envios' });
+    fireEvent.click(receiving);
+    await waitFor(() => expect(receiving).toBeDisabled());
+
+    // O casal desconecta o Drive antes de o servidor responder à chave.
+    fireEvent.click(screen.getByRole('button', { name: 'Desconectar' }));
+    fireEvent.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Desconectar' }));
+    await screen.findByRole('button', { name: 'Guardar no meu Google Drive' });
+    await settle();
+
+    // A resposta atrasada da chave é de antes da desconexão: é descartada, e a chave não pode ficar travada.
+    await act(async () => {
+      pendingToggle.resolve(connection({ uploadsEnabled: false }));
+    });
+    await waitFor(() => expect(screen.getByRole('switch', { name: 'Receber envios' })).toBeEnabled());
+
+    fireEvent.click(screen.getByRole('switch', { name: 'Receber envios' }));
+    await waitFor(() => expect(api.setEnabled).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(screen.getByRole('switch', { name: 'Receber envios' })).toBeEnabled());
+  });
 });

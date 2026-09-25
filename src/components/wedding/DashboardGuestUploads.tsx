@@ -471,6 +471,10 @@ export default function DashboardGuestUploads({ weddingId }: DashboardGuestUploa
   // qualquer leitura em andamento, zera o álbum e recarrega do Drive de agora.
   const handleDriveDisconnected = (next: DriveConnection) => {
     runRef.current += 1;
+    mutatingRef.current = false;
+    setPendingUploads(null);
+    setRotating(false);
+    setActivating(false);
     busyRef.current = false;
     thumbnailsRef.current = new Map();
     setThumbnails(thumbnailsRef.current);
