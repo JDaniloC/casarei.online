@@ -1,11 +1,19 @@
 // Cliente do Google Drive para os uploads dos convidados: troca de token, pastas
-// (raiz do casal e uma por convidado) e criação da sessão de upload resumível.
+// (raiz da plataforma, raiz do casal e uma por convidado) e criação da sessão de
+// upload resumível.
 // Módulo puro: sem Deno.*, sem imports por URL e sem APIs só do Node. O `fetch`
 // entra como parâmetro, para rodar tanto na edge function quanto no vitest.
 //
+// Hierarquia no Drive:
+//   Casarei.online/   (UMA pasta para toda a plataforma)
+//     <casal>/        (uma por casamento)
+//       <convidado>/  (uma por convidado)
+//
 // O app usa o escopo `drive.file` num Drive compartilhado por TODOS os casais.
-// Por isso toda pasta e todo upload levam `appProperties.w = <weddingId>`; é essa
-// marca que separa os arquivos de um casal dos de outro.
+// Por isso toda pasta de casal, de convidado e todo upload levam
+// `appProperties.w = <weddingId>`; é essa marca que separa os arquivos de um casal
+// dos de outro. A pasta da plataforma não pertence a nenhum casamento e leva
+// `appProperties.k = "platform-root"`.
 
 import {
   ANONYMOUS_LABEL,
@@ -20,6 +28,12 @@ export const DRIVE_FOLDER_MIME = "application/vnd.google-apps.folder";
 
 /** Teto de pastas de convidado por casamento; acima dele, novos convidados vão para "Anônimo". */
 export const MAX_GUEST_FOLDERS = 300;
+
+/** Nome da pasta única da plataforma, que guarda a pasta de cada casal. */
+export const PLATFORM_ROOT_NAME = "Casarei.online";
+
+// Marca da pasta da plataforma (no lugar de `w`, que identifica um casamento).
+const PLATFORM_ROOT_PROPERTIES: Record<string, string> = Object.freeze({ k: "platform-root" });
 
 /** O refresh token foi revogado ou expirou: alguém precisa reconectar a conta Google. */
 export class NeedsReconnectError extends Error {}
@@ -154,18 +168,36 @@ const jsonHeaders = (accessToken: string) => ({
   "Content-Type": "application/json",
 });
 
+/**
+ * Como a pasta é marcada: `appProperties` (quando informado) vale NO LUGAR do
+ * `{ w: weddingId }` padrão. Pelo menos um dos dois é obrigatório.
+ */
+interface FolderMarking {
+  weddingId?: string;
+  appProperties?: Record<string, string>;
+}
+
+// Decide as appProperties da pasta a criar. Pasta sem marca nenhuma seria
+// impossível de atribuir a um casamento (ou à plataforma), então é erro de programação.
+function folderProperties(opts: FolderMarking): Record<string, string> {
+  if (opts.appProperties !== undefined) return opts.appProperties;
+  if (opts.weddingId) return { w: opts.weddingId };
+  throw new Error("Informe weddingId ou appProperties para marcar a pasta");
+}
+
 async function createFolder(
   fetchFn: FetchFn,
   accessToken: string,
-  opts: { weddingId: string; name: string; parentId?: string | null },
+  opts: FolderMarking & { name: string; parentId?: string | null },
 ): Promise<string> {
+  const appProperties = folderProperties(opts);
   const res = await fetchFn(`${DRIVE_API}/files?fields=id`, {
     method: "POST",
     headers: jsonHeaders(accessToken),
     body: JSON.stringify({
       name: opts.name,
       mimeType: DRIVE_FOLDER_MIME,
-      appProperties: { w: opts.weddingId },
+      appProperties,
       ...(opts.parentId ? { parents: [opts.parentId] } : {}),
     }),
   });
@@ -177,29 +209,36 @@ async function createFolder(
   return body.id;
 }
 
+// A pasta ainda existe e não está na lixeira? 404 = não (o corpo é descartado,
+// para a conexão não ficar presa); `trashed: true` = não; outro erro HTTP sobe
+// mapeado por mapDriveError.
+async function isFolderAlive(fetchFn: FetchFn, accessToken: string, folderId: string): Promise<boolean> {
+  const res = await fetchFn(`${DRIVE_API}/files/${encodeURIComponent(folderId)}?fields=id,trashed`, {
+    method: "GET",
+    headers: authHeaders(accessToken),
+  });
+  if (res.status === 404) {
+    await discard(res);
+    return false;
+  }
+  const body = await readBody(res);
+  if (!res.ok) throw mapDriveError(res.status, body);
+  return !isRecord(body) || body.trashed !== true;
+}
+
 /**
  * Garante uma pasta viva: devolve `folderId` se ela ainda existe (e não está na
- * lixeira); caso contrário cria uma nova, marcada com o casamento, e devolve o id.
+ * lixeira); caso contrário cria uma nova e devolve o id. A pasta nova é marcada
+ * com `{ w: weddingId }`, ou com `appProperties` quando este for informado (que
+ * então vale no lugar de `w`). Sem nenhum dos dois lança um `Error`.
  */
 export async function ensureFolder(
   fetchFn: FetchFn,
   accessToken: string,
-  opts: { weddingId: string; name: string; folderId?: string | null; parentId?: string | null },
+  opts: FolderMarking & { name: string; folderId?: string | null; parentId?: string | null },
 ): Promise<string> {
-  if (opts.folderId) {
-    const res = await fetchFn(`${DRIVE_API}/files/${encodeURIComponent(opts.folderId)}?fields=id,trashed`, {
-      method: "GET",
-      headers: authHeaders(accessToken),
-    });
-    if (res.status !== 404) {
-      const body = await readBody(res);
-      if (!res.ok) throw mapDriveError(res.status, body);
-      if (!isRecord(body) || body.trashed !== true) return opts.folderId;
-    } else {
-      // A pasta sumiu: o corpo do 404 não interessa, e não pode ficar preso.
-      await discard(res);
-    }
-  }
+  folderProperties(opts); // falha cedo, antes de qualquer chamada ao Drive
+  if (opts.folderId && (await isFolderAlive(fetchFn, accessToken, opts.folderId))) return opts.folderId;
   return createFolder(fetchFn, accessToken, opts);
 }
 
@@ -212,18 +251,85 @@ export interface GuestFolderStore {
   update(weddingId: string, guestKey: string, folderId: string): Promise<void>;
 }
 
-// Manda uma pasta para a lixeira. Best effort: falha (HTTP ou de rede) é ignorada,
-// no pior caso sobra uma pasta vazia.
-async function trashFolder(fetchFn: FetchFn, accessToken: string, folderId: string): Promise<void> {
+/**
+ * Manda uma pasta para a lixeira. Best effort: nunca lança. Falha (HTTP ou de
+ * rede) é ignorada; no pior caso sobra uma pasta vazia.
+ */
+export async function trashFolder(fetchFn: FetchFn, accessToken: string, folderId: string): Promise<void> {
   try {
-    await fetchFn(`${DRIVE_API}/files/${encodeURIComponent(folderId)}`, {
+    const res = await fetchFn(`${DRIVE_API}/files/${encodeURIComponent(folderId)}`, {
       method: "PATCH",
       headers: jsonHeaders(accessToken),
       body: JSON.stringify({ trashed: true }),
     });
+    // O resultado não interessa: só solta a conexão.
+    await discard(res);
   } catch {
     // ignorado de propósito
   }
+}
+
+/** Id da pasta "Casarei.online" guardado no banco (tabela `platform_drive_settings`, chave `platform_root`). */
+export interface PlatformRootStore {
+  /** Id guardado, ou `null` se a pasta ainda não foi criada (nunca `undefined`). */
+  get(): Promise<string | null>;
+  /** Insere se ainda não existir a linha; devolve o id da pasta vencedora (o novo ou o que já estava lá). */
+  insertIfAbsent(folderId: string): Promise<string>;
+  update(folderId: string): Promise<void>;
+}
+
+/**
+ * Garante a pasta "Casarei.online" (uma para toda a plataforma, na raiz do Drive)
+ * e devolve o id. Se o id guardado ainda aponta para uma pasta viva, é ele; se a
+ * pasta sumiu ou foi para a lixeira, cria outra e atualiza o store. No primeiro
+ * uso de todos, o `insertIfAbsent` do store é o "lock" contra requisições
+ * simultâneas: quem perde a corrida joga a pasta que criou na lixeira e usa a do
+ * vencedor.
+ */
+export async function ensurePlatformRoot(
+  fetchFn: FetchFn,
+  accessToken: string,
+  store: PlatformRootStore,
+): Promise<string> {
+  const stored = await store.get();
+  if (stored) {
+    const alive = await ensureFolder(fetchFn, accessToken, {
+      folderId: stored,
+      name: PLATFORM_ROOT_NAME,
+      appProperties: PLATFORM_ROOT_PROPERTIES,
+    });
+    if (alive !== stored) await store.update(alive);
+    return alive;
+  }
+
+  // Sem parentId a pasta nasce na raiz do Drive.
+  const created = await ensureFolder(fetchFn, accessToken, {
+    name: PLATFORM_ROOT_NAME,
+    appProperties: PLATFORM_ROOT_PROPERTIES,
+  });
+  const winner = await store.insertIfAbsent(created);
+  if (winner !== created) await trashFolder(fetchFn, accessToken, created);
+  return winner;
+}
+
+/**
+ * Garante a pasta raiz do casal, dentro de "Casarei.online". Se `folderId` (o id
+ * gravado em `wedding_drive_connections`) ainda aponta para uma pasta viva, é ela,
+ * onde quer que esteja (pastas antigas, criadas direto na raiz do Drive, continuam
+ * valendo) e nem a pasta da plataforma nem o store são consultados. Se está ausente,
+ * apagada ou na lixeira, resolve "Casarei.online" e cria a pasta do casal dentro
+ * dela, marcada com o casamento. O `name` vale como recebido: quem chama o sanitiza.
+ * Não grava o id no banco: quem chama decide (é uma gravação condicional).
+ */
+export async function ensureCoupleRootFolder(
+  fetchFn: FetchFn,
+  accessToken: string,
+  platformStore: PlatformRootStore,
+  opts: { weddingId: string; name: string; folderId: string | null },
+): Promise<string> {
+  if (opts.folderId && (await isFolderAlive(fetchFn, accessToken, opts.folderId))) return opts.folderId;
+  const parentId = await ensurePlatformRoot(fetchFn, accessToken, platformStore);
+  return createFolder(fetchFn, accessToken, { weddingId: opts.weddingId, name: opts.name, parentId });
 }
 
 /**

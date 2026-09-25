@@ -2,16 +2,21 @@ import { describe, it, expect } from 'vitest';
 import {
   DRIVE_FOLDER_MIME,
   MAX_GUEST_FOLDERS,
+  PLATFORM_ROOT_NAME,
   NeedsReconnectError,
   QuotaExceededError,
   DriveApiError,
   mapDriveError,
   refreshAccessToken,
   ensureFolder,
+  trashFolder,
+  ensurePlatformRoot,
+  ensureCoupleRootFolder,
   resolveGuestFolder,
   initResumableSession,
   type FetchFn,
   type GuestFolderStore,
+  type PlatformRootStore,
 } from '../../supabase/functions/_shared/google-drive';
 
 // ---------------------------------------------------------------------------
@@ -363,6 +368,121 @@ describe('ensureFolder', () => {
     expect(error.status).toBe(502);
     expect(error.retryable).toBe(true);
   });
+
+  it('appProperties informado marca a pasta NO LUGAR de { w: weddingId }', async () => {
+    const { fetchFn, calls } = scripted(json({ id: 'folder-9' }));
+
+    await ensureFolder(fetchFn, TOKEN, {
+      weddingId: WEDDING,
+      name: 'Casal',
+      parentId: ROOT,
+      appProperties: { k: 'platform-root' },
+    });
+
+    const body = parseBody(calls[0]);
+    expect(body.appProperties).toEqual({ k: 'platform-root' });
+    expect(body.appProperties).not.toHaveProperty('w');
+    expect(body).toEqual({
+      name: 'Casal',
+      mimeType: DRIVE_FOLDER_MIME,
+      appProperties: { k: 'platform-root' },
+      parents: [ROOT],
+    });
+  });
+
+  it('appProperties sem weddingId basta para criar a pasta', async () => {
+    const { fetchFn, calls } = scripted(json({ id: 'folder-9' }));
+
+    const id = await ensureFolder(fetchFn, TOKEN, { name: 'Casal', appProperties: { k: 'platform-root' } });
+
+    expect(id).toBe('folder-9');
+    expect(parseBody(calls[0]).appProperties).toEqual({ k: 'platform-root' });
+  });
+
+  it('sem weddingId e sem appProperties lança um Error simples e não chama o Drive', async () => {
+    const { fetchFn, calls } = scripted();
+
+    const error = await ensureFolder(fetchFn, TOKEN, { name: 'Casal' }).catch((e) => e);
+
+    expect(error).toBeInstanceOf(Error);
+    expect(error.constructor).toBe(Error);
+    expect(error).not.toBeInstanceOf(DriveApiError);
+    expect(calls).toHaveLength(0);
+  });
+
+  it('a checagem de weddingId/appProperties vale também com folderId (falha antes da consulta)', async () => {
+    const { fetchFn, calls } = scripted(json({ id: 'folder-1', trashed: false }));
+
+    const error = await ensureFolder(fetchFn, TOKEN, { name: 'Casal', folderId: 'folder-1' }).catch((e) => e);
+
+    expect(error.constructor).toBe(Error);
+    expect(calls).toHaveLength(0);
+  });
+
+  it('com appProperties e folderId vivo devolve o id sem criar', async () => {
+    const { fetchFn, calls } = scripted(json({ id: 'folder-1', trashed: false }));
+
+    const id = await ensureFolder(fetchFn, TOKEN, {
+      name: 'Casarei.online',
+      folderId: 'folder-1',
+      appProperties: { k: 'platform-root' },
+    });
+
+    expect(id).toBe('folder-1');
+    expect(calls.map((c) => c.method)).toEqual(['GET']);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// trashFolder
+// ---------------------------------------------------------------------------
+
+describe('trashFolder', () => {
+  it('manda a pasta para a lixeira com PATCH { trashed: true }', async () => {
+    const { fetchFn, calls } = scripted(json({ id: 'f-1', trashed: true }));
+
+    await expect(trashFolder(fetchFn, TOKEN, 'f-1')).resolves.toBeUndefined();
+
+    expect(calls).toHaveLength(1);
+    expect(calls[0].method).toBe('PATCH');
+    expect(calls[0].url).toBe('https://www.googleapis.com/drive/v3/files/f-1');
+    expect(calls[0].headers).toEqual({ ...AUTH, 'Content-Type': 'application/json' });
+    expect(parseBody(calls[0])).toEqual({ trashed: true });
+  });
+
+  it('codifica o id na URL', async () => {
+    const { fetchFn, calls } = scripted(json({}));
+
+    await trashFolder(fetchFn, TOKEN, 'a/b c');
+
+    expect(calls[0].url).toBe('https://www.googleapis.com/drive/v3/files/a%2Fb%20c');
+  });
+
+  it('erro HTTP do Drive é ignorado (best effort)', async () => {
+    const { fetchFn } = scripted(driveError(500, 'backendError'));
+
+    await expect(trashFolder(fetchFn, TOKEN, 'f-1')).resolves.toBeUndefined();
+  });
+
+  it('falha de rede é ignorada (best effort)', async () => {
+    const { fetchFn } = createFakeFetch(() => {
+      throw new TypeError('network down');
+    });
+
+    await expect(trashFolder(fetchFn, TOKEN, 'f-1')).resolves.toBeUndefined();
+  });
+
+  it('o corpo da resposta é descartado, com sucesso ou com erro', async () => {
+    const ok = scripted(json({ id: 'f-1', trashed: true }));
+    await trashFolder(ok.fetchFn, TOKEN, 'f-1');
+    expect(ok.responses[0].body).not.toBeNull();
+    expectBodiesConsumed(ok.responses);
+
+    const failed = scripted(driveError(503, 'backendError'));
+    await trashFolder(failed.fetchFn, TOKEN, 'f-1');
+    expect(failed.responses[0].body).not.toBeNull();
+    expectBodiesConsumed(failed.responses);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -700,6 +820,359 @@ describe('resolveGuestFolder', () => {
       resolveGuestFolder(fetchFn, TOKEN, store, { weddingId: WEDDING, rootFolderId: ROOT, guestName: 'Maria' }),
     ).rejects.toBeInstanceOf(QuotaExceededError);
     expect(store.events.some((e) => e.startsWith('insert:') || e.startsWith('update:'))).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// ensurePlatformRoot e ensureCoupleRootFolder
+// ---------------------------------------------------------------------------
+
+interface MemoryPlatformStore extends PlatformRootStore {
+  value: string | null;
+  events: string[];
+}
+
+// Store em memória da pasta "Casarei.online"; insertIfAbsent é atômico (o primeiro
+// a chegar vence), como a chave primária do banco. `forcedWinner` simula outra
+// requisição que gravou antes.
+function platformStore(initial: string | null = null, options: { forcedWinner?: string } = {}): MemoryPlatformStore {
+  const store: MemoryPlatformStore = {
+    value: initial,
+    events: [],
+    async get() {
+      store.events.push('get');
+      return store.value;
+    },
+    async insertIfAbsent(folderId) {
+      store.events.push(`insert:${folderId}`);
+      if (options.forcedWinner) return options.forcedWinner;
+      if (store.value !== null) return store.value;
+      store.value = folderId;
+      return folderId;
+    },
+    async update(folderId) {
+      store.events.push(`update:${folderId}`);
+      store.value = folderId;
+    },
+  };
+  return store;
+}
+
+const PLATFORM_MARK = { k: 'platform-root' };
+const trashes = (calls: Call[]) => calls.filter((c) => c.method === 'PATCH');
+
+describe('ensurePlatformRoot', () => {
+  it('a pasta se chama exatamente "Casarei.online"', () => {
+    expect(PLATFORM_ROOT_NAME).toBe('Casarei.online');
+  });
+
+  it('nada guardado: cria "Casarei.online" na raiz do Drive, marcada com k, e registra no store', async () => {
+    const store = platformStore();
+    const { fetchFn, calls } = scripted(json({ id: 'plat-1' }));
+
+    const id = await ensurePlatformRoot(fetchFn, TOKEN, store);
+
+    expect(id).toBe('plat-1');
+    expect(calls).toHaveLength(1);
+    expect(calls[0].method).toBe('POST');
+    expect(calls[0].url).toBe('https://www.googleapis.com/drive/v3/files?fields=id');
+    const body = parseBody(calls[0]);
+    expect(body).toEqual({ name: 'Casarei.online', mimeType: DRIVE_FOLDER_MIME, appProperties: PLATFORM_MARK });
+    expect(body).not.toHaveProperty('parents');
+    expect(store.events).toEqual(['get', 'insert:plat-1']);
+    expect(store.value).toBe('plat-1');
+  });
+
+  it('guardada e viva: só consulta a pasta, sem criar, inserir nem atualizar', async () => {
+    const store = platformStore('plat-1');
+    const { fetchFn, calls } = scripted(json({ id: 'plat-1', trashed: false }));
+
+    const id = await ensurePlatformRoot(fetchFn, TOKEN, store);
+
+    expect(id).toBe('plat-1');
+    expect(calls).toHaveLength(1);
+    expect(calls[0].method).toBe('GET');
+    expect(calls[0].url).toBe('https://www.googleapis.com/drive/v3/files/plat-1?fields=id,trashed');
+    expect(store.events).toEqual(['get']);
+  });
+
+  it('guardada mas na lixeira: recria "Casarei.online" e atualiza o store (sem insert)', async () => {
+    const store = platformStore('plat-velha');
+    const { fetchFn, calls } = scripted(json({ id: 'plat-velha', trashed: true }), json({ id: 'plat-nova' }));
+
+    const id = await ensurePlatformRoot(fetchFn, TOKEN, store);
+
+    expect(id).toBe('plat-nova');
+    expect(calls.map((c) => c.method)).toEqual(['GET', 'POST']);
+    const body = parseBody(calls[1]);
+    expect(body).toEqual({ name: 'Casarei.online', mimeType: DRIVE_FOLDER_MIME, appProperties: PLATFORM_MARK });
+    expect(body).not.toHaveProperty('parents');
+    expect(store.events).toEqual(['get', 'update:plat-nova']);
+    expect(store.value).toBe('plat-nova');
+  });
+
+  it('guardada mas apagada (404): recria, descarta o corpo do 404 e atualiza o store', async () => {
+    const store = platformStore('plat-velha');
+    const { fetchFn, calls, responses } = scripted(driveError(404, 'notFound'), json({ id: 'plat-nova' }));
+
+    const id = await ensurePlatformRoot(fetchFn, TOKEN, store);
+
+    expect(id).toBe('plat-nova');
+    expect(calls.map((c) => c.method)).toEqual(['GET', 'POST']);
+    expect(store.events).toEqual(['get', 'update:plat-nova']);
+    expectBodiesConsumed(responses);
+  });
+
+  it('corrida perdida: a pasta criada vai para a lixeira e o id vencedor é devolvido', async () => {
+    const store = platformStore(null, { forcedWinner: 'plat-vencedora' });
+    const { fetchFn, calls } = scripted(json({ id: 'plat-minha' }), json({ id: 'plat-minha', trashed: true }));
+
+    const id = await ensurePlatformRoot(fetchFn, TOKEN, store);
+
+    expect(id).toBe('plat-vencedora');
+    expect(calls).toHaveLength(2);
+    expect(calls[1].method).toBe('PATCH');
+    expect(calls[1].url).toBe('https://www.googleapis.com/drive/v3/files/plat-minha');
+    expect(parseBody(calls[1])).toEqual({ trashed: true });
+    expect(store.events).toEqual(['get', 'insert:plat-minha']);
+  });
+
+  it('corrida vencida: nada vai para a lixeira', async () => {
+    const store = platformStore();
+    const { fetchFn, calls } = scripted(json({ id: 'plat-1' }));
+
+    await ensurePlatformRoot(fetchFn, TOKEN, store);
+
+    expect(trashes(calls)).toHaveLength(0);
+  });
+
+  it('corrida perdida: falha (HTTP ou de rede) ao mandar para a lixeira é ignorada', async () => {
+    const http = scripted(json({ id: 'plat-minha' }), driveError(500, 'backendError'));
+    expect(await ensurePlatformRoot(http.fetchFn, TOKEN, platformStore(null, { forcedWinner: 'plat-v' }))).toBe('plat-v');
+    expect(http.calls[1].method).toBe('PATCH');
+
+    const network = createFakeFetch((call) => {
+      if (call.method === 'PATCH') throw new TypeError('network down');
+      return json({ id: 'plat-minha' });
+    });
+    expect(await ensurePlatformRoot(network.fetchFn, TOKEN, platformStore(null, { forcedWinner: 'plat-v' }))).toBe(
+      'plat-v',
+    );
+  });
+
+  it('dois primeiros usos simultâneos terminam na mesma pasta e a extra é descartada', async () => {
+    const store = platformStore();
+    let createdCount = 0;
+    const { fetchFn, calls } = createFakeFetch(async (call) => {
+      if (call.method === 'POST') {
+        const id = `plat-${++createdCount}`;
+        // Deixa as duas chamadas se intercalarem antes do insertIfAbsent.
+        await Promise.resolve();
+        return json({ id });
+      }
+      return json({ id: 'ok' });
+    });
+
+    const [a, b] = await Promise.all([
+      ensurePlatformRoot(fetchFn, TOKEN, store),
+      ensurePlatformRoot(fetchFn, TOKEN, store),
+    ]);
+
+    expect(a).toBe(b);
+    expect(store.value).toBe(a);
+    expect(creates(calls)).toHaveLength(2);
+    const trashed = trashes(calls);
+    expect(trashed).toHaveLength(1);
+    expect(trashed[0].url.split('/').pop()).not.toBe(a);
+  });
+
+  it('erro do Drive ao criar propaga e não registra nada no store', async () => {
+    const store = platformStore();
+    const { fetchFn } = scripted(driveError(403, 'storageQuotaExceeded'));
+
+    await expect(ensurePlatformRoot(fetchFn, TOKEN, store)).rejects.toBeInstanceOf(QuotaExceededError);
+    expect(store.events).toEqual(['get']);
+  });
+
+  it('erro do store ao ler propaga sem chamar o Drive', async () => {
+    const store = platformStore();
+    store.get = async () => {
+      throw new Error('banco fora do ar');
+    };
+    const { fetchFn, calls } = scripted();
+
+    await expect(ensurePlatformRoot(fetchFn, TOKEN, store)).rejects.toThrow('banco fora do ar');
+    expect(calls).toHaveLength(0);
+  });
+
+  it('erro do Drive ao consultar a pasta guardada propaga e não recria nada', async () => {
+    const store = platformStore('plat-1');
+    const { fetchFn, calls } = scripted(driveError(500, 'backendError'));
+
+    const error = await ensurePlatformRoot(fetchFn, TOKEN, store).catch((e) => e);
+
+    expect(error).toBeInstanceOf(DriveApiError);
+    expect(calls).toHaveLength(1);
+    expect(store.events).toEqual(['get']);
+  });
+});
+
+describe('ensureCoupleRootFolder', () => {
+  const couple = (folderId: string | null) => ({ weddingId: WEDDING, name: 'Danilo e Késia', folderId });
+
+  it('pasta do casal viva: exatamente uma consulta, sem tocar na raiz da plataforma nem no store', async () => {
+    const store = platformStore();
+    const { fetchFn, calls } = scripted(json({ id: 'casal-1', trashed: false }));
+
+    const id = await ensureCoupleRootFolder(fetchFn, TOKEN, store, couple('casal-1'));
+
+    expect(id).toBe('casal-1');
+    expect(calls).toHaveLength(1);
+    expect(calls[0].method).toBe('GET');
+    expect(calls[0].url).toBe('https://www.googleapis.com/drive/v3/files/casal-1?fields=id,trashed');
+    expect(store.events).toEqual([]);
+  });
+
+  it('sem folderId: resolve a raiz da plataforma primeiro e cria a pasta do casal dentro dela', async () => {
+    const store = platformStore();
+    const { fetchFn, calls } = scripted(json({ id: 'plat-1' }), json({ id: 'casal-novo' }));
+
+    const id = await ensureCoupleRootFolder(fetchFn, TOKEN, store, couple(null));
+
+    expect(id).toBe('casal-novo');
+    expect(calls.map((c) => c.method)).toEqual(['POST', 'POST']);
+    expect(parseBody(calls[0])).toEqual({ name: 'Casarei.online', mimeType: DRIVE_FOLDER_MIME, appProperties: PLATFORM_MARK });
+    expect(parseBody(calls[1])).toEqual({
+      name: 'Danilo e Késia',
+      mimeType: DRIVE_FOLDER_MIME,
+      appProperties: { w: WEDDING },
+      parents: ['plat-1'],
+    });
+    expect(store.events).toEqual(['get', 'insert:plat-1']);
+  });
+
+  it('sem folderId e com a raiz da plataforma já viva: só consulta a raiz e cria a pasta do casal', async () => {
+    const store = platformStore('plat-1');
+    const { fetchFn, calls } = scripted(json({ id: 'plat-1', trashed: false }), json({ id: 'casal-novo' }));
+
+    const id = await ensureCoupleRootFolder(fetchFn, TOKEN, store, couple(null));
+
+    expect(id).toBe('casal-novo');
+    expect(calls.map((c) => c.method)).toEqual(['GET', 'POST']);
+    expect(calls[0].url).toBe('https://www.googleapis.com/drive/v3/files/plat-1?fields=id,trashed');
+    expect(parseBody(calls[1]).parents).toEqual(['plat-1']);
+    expect(store.events).toEqual(['get']);
+  });
+
+  it('usa o nome recebido, sem alterá-lo', async () => {
+    const store = platformStore('plat-1');
+    const { fetchFn, calls } = scripted(json({ id: 'plat-1', trashed: false }), json({ id: 'casal-novo' }));
+
+    await ensureCoupleRootFolder(fetchFn, TOKEN, store, { weddingId: WEDDING, name: 'Carla & Ewerton', folderId: null });
+
+    expect(parseBody(calls[1]).name).toBe('Carla & Ewerton');
+  });
+
+  it('pasta do casal na lixeira: age como sem folderId (raiz da plataforma e depois a nova pasta)', async () => {
+    const store = platformStore('plat-1');
+    const { fetchFn, calls } = scripted(
+      json({ id: 'casal-velha', trashed: true }),
+      json({ id: 'plat-1', trashed: false }),
+      json({ id: 'casal-novo' }),
+    );
+
+    const id = await ensureCoupleRootFolder(fetchFn, TOKEN, store, couple('casal-velha'));
+
+    expect(id).toBe('casal-novo');
+    expect(calls.map((c) => `${c.method} ${c.url.split('/files')[1]}`)).toEqual([
+      'GET /casal-velha?fields=id,trashed',
+      'GET /plat-1?fields=id,trashed',
+      'POST ?fields=id',
+    ]);
+    expect(parseBody(calls[2])).toEqual({
+      name: 'Danilo e Késia',
+      mimeType: DRIVE_FOLDER_MIME,
+      appProperties: { w: WEDDING },
+      parents: ['plat-1'],
+    });
+  });
+
+  it('pasta do casal apagada (404): age como sem folderId e descarta o corpo do 404', async () => {
+    const store = platformStore('plat-1');
+    const { fetchFn, calls, responses } = scripted(
+      driveError(404, 'notFound'),
+      json({ id: 'plat-1', trashed: false }),
+      json({ id: 'casal-novo' }),
+    );
+
+    const id = await ensureCoupleRootFolder(fetchFn, TOKEN, store, couple('casal-velha'));
+
+    expect(id).toBe('casal-novo');
+    expect(calls).toHaveLength(3);
+    expect(parseBody(calls[2]).parents).toEqual(['plat-1']);
+    expectBodiesConsumed(responses);
+  });
+
+  it('pasta do casal morta e raiz da plataforma também morta: recria as duas, na ordem certa', async () => {
+    const store = platformStore('plat-velha');
+    const { fetchFn, calls } = scripted(
+      driveError(404, 'notFound'),
+      json({ id: 'plat-velha', trashed: true }),
+      json({ id: 'plat-nova' }),
+      json({ id: 'casal-novo' }),
+    );
+
+    const id = await ensureCoupleRootFolder(fetchFn, TOKEN, store, couple('casal-velha'));
+
+    expect(id).toBe('casal-novo');
+    expect(parseBody(calls[3]).parents).toEqual(['plat-nova']);
+    expect(store.events).toEqual(['get', 'update:plat-nova']);
+  });
+
+  it('erro do Drive ao consultar a pasta do casal propaga sem tocar na raiz da plataforma', async () => {
+    const store = platformStore();
+    const { fetchFn, calls } = scripted(driveError(500, 'backendError'));
+
+    const error = await ensureCoupleRootFolder(fetchFn, TOKEN, store, couple('casal-1')).catch((e) => e);
+
+    expect(error).toBeInstanceOf(DriveApiError);
+    expect(error.status).toBe(500);
+    expect(calls).toHaveLength(1);
+    expect(store.events).toEqual([]);
+  });
+
+  it('falha ao resolver a raiz da plataforma propaga e a pasta do casal não é criada', async () => {
+    const store = platformStore();
+    const { fetchFn, calls } = scripted(driveError(403, 'storageQuotaExceeded'));
+
+    await expect(ensureCoupleRootFolder(fetchFn, TOKEN, store, couple(null))).rejects.toBeInstanceOf(
+      QuotaExceededError,
+    );
+    expect(calls).toHaveLength(1);
+    expect(store.events).toEqual(['get']);
+  });
+
+  it('erro do store da plataforma propaga sem criar nenhuma pasta', async () => {
+    const store = platformStore();
+    store.get = async () => {
+      throw new Error('banco fora do ar');
+    };
+    const { fetchFn, calls } = scripted();
+
+    await expect(ensureCoupleRootFolder(fetchFn, TOKEN, store, couple(null))).rejects.toThrow('banco fora do ar');
+    expect(calls).toHaveLength(0);
+  });
+
+  it('perder a corrida da raiz da plataforma descarta só a pasta extra dela, e o casal fica dentro da vencedora', async () => {
+    const store = platformStore(null, { forcedWinner: 'plat-vencedora' });
+    const { fetchFn, calls } = scripted(json({ id: 'plat-minha' }), json({ id: 'plat-minha' }), json({ id: 'casal-novo' }));
+
+    const id = await ensureCoupleRootFolder(fetchFn, TOKEN, store, couple(null));
+
+    expect(id).toBe('casal-novo');
+    expect(calls.map((c) => c.method)).toEqual(['POST', 'PATCH', 'POST']);
+    expect(calls[1].url).toBe('https://www.googleapis.com/drive/v3/files/plat-minha');
+    expect(parseBody(calls[2]).parents).toEqual(['plat-vencedora']);
   });
 });
 
