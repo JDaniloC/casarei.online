@@ -63,7 +63,7 @@ const FURNITURE_ICONS: Record<string, string> = {
 
 const SCENE_WIDTH = 1220;
 const SCENE_HEIGHT = (9 + 6) * (TILE_H / 2) + 260; // 740
-const ASSET_VERSION = "35";
+const ASSET_VERSION = "36";
 
 const STRUCTURAL_ITEMS = ["foundation", "floor_coverings", "walls", "painting", "doors_windows", "roof", "electric", "plumbing"];
 
