@@ -16,8 +16,8 @@ export const ISO_ROOMS = {
   kitchen: { minX: 0, maxX: 3, minY: 0, maxY: 3 },
   bathroom: { minX: 4, maxX: 5, minY: 0, maxY: 3 },
   bedroom: { minX: 6, maxX: 9, minY: 0, maxY: 3 },
-  laundry: { minX: 0, maxX: 1, minY: 4, maxY: 6 },
-  living_room: { minX: 2, maxX: 9, minY: 4, maxY: 6 },
+  laundry: { minX: 0, maxX: 3, minY: 4, maxY: 6 },
+  living_room: { minX: 4, maxX: 9, minY: 4, maxY: 6 },
 };
 
 export interface FurnitureFootprint {
@@ -37,9 +37,11 @@ export const FURNITURE_SIZES: Record<string, FurnitureFootprint> = {
   stove: { w: 1, h: 1 },
   microwave: { w: 1, h: 1 },
   sink_counter: { w: 2, h: 1 },
-  dining_table: { w: 2, h: 2 },
+  dining_table: { w: 2, h: 1 },
+  dining_chair: { w: 1, h: 1 },
+  dining_chair_back: { w: 1, h: 1 },
   dining_table_simple: { w: 2, h: 1 },
-  kitchen_cabinet: { w: 2, h: 1 },
+  kitchen_cabinet: { w: 1, h: 2 },
   dishwasher: { w: 1, h: 1 },
   sofa: { w: 2, h: 1 },
   tv_rack: { w: 2, h: 1 },
@@ -63,31 +65,33 @@ export const FURNITURE_SIZES: Record<string, FurnitureFootprint> = {
 
 export const FURNITURE_PIXEL_SIZES: Record<string, FurniturePixelSize> = {
   fridge: { w: 128, h: 160 },
-  stove: { w: 128, h: 128, offsetX: 2, offsetY: -2 },
-  microwave: { w: 72, h: 54, offsetX: 36, offsetY: -74 },
+  stove: { w: 128, h: 128, offsetX: -4, offsetY: -2 },
+  microwave: { w: 72, h: 54, offsetX: 28, offsetY: -64 },
   sink_counter: { w: 192, h: 128 },
-  dining_table: { w: 256, h: 192, offsetX: -64 },
+  dining_table: { w: 192, h: 128 },
+  dining_chair: { w: 128, h: 128 },
+  dining_chair_back: { w: 128, h: 128 },
   dining_table_simple: { w: 192, h: 128 },
-  kitchen_cabinet: { w: 192, h: 128, offsetX: 16, offsetY: 8 },
-  dishwasher: { w: 128, h: 128 },
+  kitchen_cabinet: { w: 192, h: 128, offsetX: -64, offsetY: 0 },
+  dishwasher: { w: 128, h: 128, offsetX: -6, offsetY: -3 },
   sofa: { w: 192, h: 160 },
-  tv_rack: { w: 192, h: 160 },
+  tv_rack: { w: 192, h: 160, offsetY: -4 },
   coffee_table: { w: 128, h: 80 },
-  armchair: { w: 128, h: 128 },
+  armchair: { w: 128, h: 128, offsetY: 0 },
   bed: { w: 256, h: 192, offsetX: -64, offsetY: -4 },
-  wardrobe: { w: 192, h: 186 },
+  wardrobe: { w: 192, h: 186, offsetX: 0, offsetY: -8 },
   dresser: { w: 192, h: 128 },
   vanity: { w: 128, h: 128 },
-  toilet: { w: 128, h: 128, offsetX: 0, offsetY: 0 },
-  bathroom_sink: { w: 128, h: 160, offsetX: -14 },
+  toilet: { w: 128, h: 128 },
+  bathroom_sink: { w: 128, h: 160, offsetX: 0, offsetY: -4 },
   shower: { w: 128, h: 186 },
-  washing_machine: { w: 128, h: 128 },
-  dryer: { w: 128, h: 128 },
-  laundry_sink: { w: 128, h: 128 },
-  coffee_maker: { w: 64, h: 56, offsetX: 32, offsetY: -66 },
-  air_fryer: { w: 64, h: 56, offsetX: 40, offsetY: -62 },
-  robot_vacuum: { w: 64, h: 48, offsetX: 32, offsetY: 0 },
-  generic: { w: 128, h: 128 },
+  washing_machine: { w: 128, h: 128, offsetX: -6, offsetY: -3 },
+  dryer: { w: 128, h: 128, offsetX: -6, offsetY: -3 },
+  laundry_sink: { w: 128, h: 128, offsetX: -6, offsetY: -3 },
+  coffee_maker: { w: 64, h: 56, offsetX: 36, offsetY: -62 },
+  air_fryer: { w: 64, h: 56, offsetX: 32, offsetY: -62 },
+  robot_vacuum: { w: 64, h: 48, offsetX: 32, offsetY: -8 },
+  generic: { w: 128, h: 128, offsetY: 0 },
 };
 
 // Posição padrão (grid x/y) de cada móvel do catálogo dentro do seu cômodo,
@@ -95,40 +99,41 @@ export const FURNITURE_PIXEL_SIZES: Record<string, FurniturePixelSize> = {
 // pagamento), sem exigir posicionamento manual no Dashboard.
 export const DEFAULT_FURNITURE_POSITIONS: Record<string, { x: number; y: number }> = {
   // Cozinha (ISO_ROOMS.kitchen: x0-3, y0-3)
-  fridge: { x: 0, y: 0 },
-  dishwasher: { x: 0, y: 2 }, // Parede lateral na linha da ilha, liberando 100% da visão da geladeira e corredor livre em y=1
-  sink_counter: { x: 1, y: 0 },
-  coffee_maker: { x: 1, y: 0 }, // Senta na bancada da pia (1,0) sob a janela
-  stove: { x: 3, y: 0 },
-  kitchen_cabinet: { x: 2, y: 2 }, // Ilha gourmet central (2,2) e (3,2) com corredor de circulação livre em y=1
-  air_fryer: { x: 2, y: 2 }, // Senta na metade esquerda da ilha gourmet (2,2)
-  microwave: { x: 3, y: 2 }, // Senta na metade direita da ilha gourmet (3,2)
-  dining_table: { x: 2, y: 4 }, // Sala de jantar integrada entre cozinha e living
-  dining_table_simple: { x: 2, y: 4 },
+  kitchen_cabinet: { x: 0, y: 0 }, // 1x2 na parede NW (0,0)..(0,1) voltado para SE (+X)
+  microwave: { x: 0, y: 0 },       // Sobre kitchen_cabinet em (0,0) voltado para SE (+X)
+  air_fryer: { x: 0, y: 1 },       // Sobre kitchen_cabinet em (0,1) voltado para SE (+X)
+  sink_counter: { x: 1, y: 0 },    // 2x1 na parede NE (1,0)..(2,0) sob a janela x=1, voltado para SW (+Y)
+  coffee_maker: { x: 1, y: 0 },    // Sobre sink_counter em (1,0) voltada para SW (+Y)
+  fridge: { x: 3, y: 0 },          // Na parede NE (3,0) voltada para SW (+Y)
+  stove: { x: 0, y: 2 },           // Na parede NW (0,2) voltado para SE (+X)
+  dishwasher: { x: 0, y: 3 },      // Na parede NW (0,3) voltada para SE (+X)
+  dining_chair: { x: 2, y: 1 },    // Atrás da mesa olhando para SW (+Y)
+  dining_table: { x: 2, y: 2 },    // Mesa 2x1 em (2,2)..(3,2)
+  dining_table_simple: { x: 2, y: 2 },
 
   // Banheiro (ISO_ROOMS.bathroom: x4-5, y0-3)
-  shower: { x: 4, y: 0 }, // Box shower no canto reservado
-  bathroom_sink: { x: 5, y: 0 }, // Na parede de fundo com espelho LED (5,0)
-  toilet: { x: 4, y: 2 }, // Encostado na parede lateral divisória (4,2), deixando cuba e circulação 100% livres e longe do quarto
+  shower: { x: 4, y: 0 },
+  bathroom_sink: { x: 5, y: 0 },
+  toilet: { x: 5, y: 2 },          // Voltado para SW (+Y) dentro do banheiro
 
   // Quarto (ISO_ROOMS.bedroom: x6-9, y0-3)
-  wardrobe: { x: 8, y: 0 }, // Guarda-roupa 3 portas na parede de fundo
-  bed: { x: 6, y: 0 }, // Cama queen size encostada na parede de fundo (6,0)..(7,1)
-  vanity: { x: 8, y: 2 }, // Penteadeira com espelho camarim no closet ao lado do guarda-roupa
-  dresser: { x: 6, y: 3 }, // Cômoda 6 gavetas baixa na divisória, pés da cama livres e zero sobreposição com a TV
+  bed: { x: 6, y: 0 },             // Sob a janela NE em x=6
+  wardrobe: { x: 8, y: 0 },        // Canto direito NE (8,0)..(9,0)
+  dresser: { x: 6, y: 2 },
+  vanity: { x: 9, y: 2 },          // Voltada para SW (+Y) dentro do quarto
 
-  // Área de Serviço (ISO_ROOMS.laundry: x0-1, y4-6)
-  washing_machine: { x: 0, y: 4 },
-  dryer: { x: 0, y: 5 }, // Sob a janela da área de serviço
-  laundry_sink: { x: 0, y: 6 }, // Tanque inox no canto
+  // Área de Serviço (ISO_ROOMS.laundry: x0-3, y4-6)
+  dryer: { x: 0, y: 4 },           // Parede NW (0,4) voltada para SE (+X)
+  laundry_sink: { x: 0, y: 5 },    // Parede NW (0,5) sob a janela y=5, voltado para SE (+X)
+  washing_machine: { x: 0, y: 6 }, // Parede NW (0,6) voltada para SE (+X)
 
-  // Sala de Estar (ISO_ROOMS.living_room: x2-9, y4-6)
-  tv_rack: { x: 7, y: 4 }, // Centralizado na parede divisória do quarto
-  sofa: { x: 4, y: 5 }, // Sofá confortável
-  coffee_table: { x: 6, y: 5 }, // Mesa de centro integrada no living
-  armchair: { x: 7, y: 6 }, // Poltrona em ângulo aconchegante na frente
-  robot_vacuum: { x: 5, y: 6 }, // Robô aspirador no piso livre
-  generic: { x: 9, y: 4 }, // Presente surpresa decorativo no canto
+  // Sala de Estar (ISO_ROOMS.living_room: x4-9, y4-6)
+  tv_rack: { x: 7, y: 4 },
+  coffee_table: { x: 7, y: 5 },
+  armchair: { x: 5, y: 5 },        // Voltada para SE (+X) olhando para o lounge/TV
+  sofa: { x: 7, y: 6 },            // Visão traseira 3/4 voltado para NE (-Y) olhando para a TV
+  robot_vacuum: { x: 4, y: 6 },    // Piso livre da sala, 100% desobstruído
+  generic: { x: 9, y: 5 },
 };
 
 // Eletrodomésticos de bancada — os únicos tipos com permissão de dividir célula
@@ -136,6 +141,24 @@ export const DEFAULT_FURNITURE_POSITIONS: Record<string, { x: number; y: number 
 // entre dois itens é considerada colisão indevida — ver findCollisions().
 export const COUNTERTOP_ITEM_TYPES = ['microwave', 'coffee_maker', 'air_fryer'];
 export const COUNTER_SURFACE_ITEM_TYPES = ['sink_counter', 'kitchen_cabinet', 'dining_table', 'dining_table_simple'];
+
+export function getFurnitureSpriteKey(
+  itemType: string,
+  gridX: number,
+  gridY: number,
+  allPlacedItems?: PlacedItem[]
+): string {
+  if (itemType === "dining_chair") {
+    const table = allPlacedItems?.find(
+      (i) => i.type === "dining_table" || i.type === "dining_table_simple"
+    );
+    const tableY = table ? table.y : DEFAULT_FURNITURE_POSITIONS.dining_table.y;
+    if (gridY > tableY) {
+      return "dining_chair_back";
+    }
+  }
+  return itemType;
+}
 
 export function getFurniturePlacement(
   itemType: string,
@@ -186,9 +209,11 @@ export function getFurniturePlacement(
       }
     } else {
       if (itemType === 'air_fryer' && gridX === 2) hostFrontX = 3;
+      if (itemType === 'air_fryer' && gridX === 0) hostFrontX = 1;
       if (itemType === 'coffee_maker' && gridX === 1) hostFrontX = 2;
-      if (itemType === 'coffee_maker' && gridX === 0) hostFrontX = 1;
-      if (itemType === 'microwave' && gridX === 2) hostFrontX = 3;
+      if (itemType === 'microwave' && gridX === 1 && gridY === 3) { hostFrontX = 1; hostFrontY = 3; }
+      else if (itemType === 'microwave' && gridX === 1) hostFrontX = 2;
+      else if (itemType === 'microwave' && gridX === 2) hostFrontX = 2;
     }
   }
 
@@ -299,3 +324,32 @@ export function isCountertopProperlyPlaced(
   return { valid: true };
 }
 
+
+/** Altura (px) das paredes loft acima do piso: o beiral do telhado pousa aqui. */
+export const WALL_HEIGHT = 160;
+
+/**
+ * Medidas do sprite roof.png (700x400) obtidas por varredura de alfa:
+ * vertice esquerdo do beiral em y=184, vertice direito em x=698.
+ */
+export const ROOF_SPRITE = { width: 700, height: 400, rightX: 698, leftY: 184 };
+
+/**
+ * Posiciona o telhado para que o losango do beiral coincida com o topo das paredes:
+ * a escala vem da largura do piso (vertice esquerdo do tile 0,6 ate o vertice direito do tile 9,0)
+ * e o vertice esquerdo do beiral fica WALL_HEIGHT acima do vertice esquerdo do piso.
+ */
+export function getRoofPlacement(originX: number, originY: number) {
+  const bottomLeft = getIsoCoords(0, 6, originX, originY);
+  const topRight = getIsoCoords(9, 0, originX, originY);
+  const floorLeftX = bottomLeft.x;
+  const floorRightX = topRight.x + TILE_W;
+  const floorLeftY = bottomLeft.y + TILE_H / 2;
+  const scale = (floorRightX - floorLeftX) / ROOF_SPRITE.rightX;
+  return {
+    left: Math.round(floorLeftX),
+    top: Math.round(floorLeftY - WALL_HEIGHT - ROOF_SPRITE.leftY * scale),
+    width: Math.round(ROOF_SPRITE.width * scale),
+    height: Math.round(ROOF_SPRITE.height * scale),
+  };
+}

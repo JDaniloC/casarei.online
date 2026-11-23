@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Loader2, Armchair, Move, Trash2, HelpCircle } from "lucide-react";
+import { Loader2, Armchair, Move, Trash2, HelpCircle, ZoomIn, ZoomOut, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -10,7 +10,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { motion } from "framer-motion";
-import { getIsoCoords, TILE_W, TILE_H, ISO_ROOMS, FURNITURE_SIZES, getFurniturePlacement, isCountertopProperlyPlaced, COUNTERTOP_ITEM_TYPES, COUNTER_SURFACE_ITEM_TYPES } from "@/utils/isometric";
+import { getIsoCoords, TILE_W, TILE_H, ISO_ROOMS, FURNITURE_SIZES, getFurniturePlacement, getFurnitureSpriteKey, getRoofPlacement, WALL_HEIGHT, isCountertopProperlyPlaced, COUNTERTOP_ITEM_TYPES, COUNTER_SURFACE_ITEM_TYPES } from "@/utils/isometric";
 import { getGiftFundingProgress, isGiftFundingComplete } from "@/utils/giftFunding";
 
 interface DashboardVirtualHouseProps {
@@ -39,6 +39,10 @@ const ROOM_DISPLAY = {
   living_room: { name: "Sala de Estar", ...ISO_ROOMS.living_room },
 };
 
+const SCENE_WIDTH = 1220;
+const SCENE_HEIGHT = (9 + 6) * (TILE_H / 2) + 260; // 740
+const ASSET_VERSION = "35";
+
 const STRUCTURAL_ITEMS = ["foundation", "floor_coverings", "walls", "painting", "doors_windows", "roof", "electric", "plumbing"];
 
 const toFundable = (g: DBGift) => ({
@@ -55,7 +59,32 @@ export default function DashboardVirtualHouse({ weddingId }: DashboardVirtualHou
   const [gifts, setGifts] = useState<DBGift[]>([]);
   const [selectedFurniture, setSelectedFurniture] = useState<DBGift | null>(null);
   const [showRoof, setShowRoof] = useState(false);
-  const constraintsRef = useRef(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [containerWidth, setContainerWidth] = useState<number>(0);
+  const [viewportHeight, setViewportHeight] = useState<number>(typeof window !== "undefined" ? window.innerHeight : 900);
+  const [zoomLevel, setZoomLevel] = useState<number>(1.0);
+  const [resetKey, setResetKey] = useState<number>(0);
+
+  // O container só existe depois que `loading` termina, por isso `loading` é dependência
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const update = () => {
+      setContainerWidth(el.clientWidth);
+      setViewportHeight(window.innerHeight);
+    };
+    update();
+    window.addEventListener("resize", update);
+    let observer: ResizeObserver | null = null;
+    if (typeof ResizeObserver !== "undefined") {
+      observer = new ResizeObserver(update);
+      observer.observe(el);
+    }
+    return () => {
+      window.removeEventListener("resize", update);
+      observer?.disconnect();
+    };
+  }, [loading]);
 
   const [isLinkModalOpen, setIsLinkModalOpen] = useState(false);
   const [selectedLinkGift, setSelectedLinkGift] = useState("");
@@ -294,11 +323,18 @@ export default function DashboardVirtualHouse({ weddingId }: DashboardVirtualHou
     }
   }
 
-  // Calculate container dimensions based on isometric bounds
-  // Grid X max = 9, Grid Y max = 6
-  const mapOriginX = (6 * (TILE_W / 2)) + 100; // Offset enough to fit the left corner (y max)
+  // Câmera: encaixa a cena na largura do card (e na altura da janela no desktop).
+  const isDesktop = containerWidth >= 900;
+  const widthScale = containerWidth ? (containerWidth - 8) / SCENE_WIDTH : 1;
+  const heightCap = isDesktop ? Math.max(0.55, (viewportHeight - 150) / SCENE_HEIGHT) : Infinity;
+  const fitScale = Math.min(1.35, Math.max(0.2, Math.min(widthScale, heightCap)));
+  const currentScale = Math.min(3, Math.max(0.2, fitScale * zoomLevel));
+  const displayHeight = Math.round(SCENE_HEIGHT * fitScale);
+  const overflowX = Math.max(0, (SCENE_WIDTH * currentScale - containerWidth) / 2) + 40;
+  const overflowY = Math.max(0, (SCENE_HEIGHT * currentScale - displayHeight) / 2) + 40;
+
+  const mapOriginX = 450;
   const mapOriginY = 180;
-  const containerHeight = (9 + 6) * (TILE_H / 2) + 260; // rough bounds
 
   return (
     <div className="grid lg:grid-cols-12 gap-8 items-start animate-fade-in">
@@ -320,19 +356,46 @@ export default function DashboardVirtualHouse({ weddingId }: DashboardVirtualHou
           )}
         </div>
 
-        <div 
-          ref={constraintsRef} 
-          className="bg-[#1a1c1a] rounded-2xl border border-border shadow-card overflow-hidden w-full relative cursor-grab active:cursor-grabbing" 
-          style={{ minHeight: `${containerHeight}px` }}
+        <div
+          ref={containerRef}
+          className="bg-[#1a1c1a] rounded-2xl border border-border shadow-card overflow-hidden w-full relative select-none"
+          style={{ height: `${displayHeight}px`, touchAction: zoomLevel > 1.05 ? "none" : "pan-y" }}
         >
-          <motion.div 
-            drag 
-            dragConstraints={constraintsRef}
-            dragElastic={0.1}
-            className="relative mx-auto" 
-            style={{ width: '1200px', height: `${containerHeight}px` }}
+
+          {/* Controles de câmera */}
+          <div className="absolute bottom-3 right-3 z-30 flex items-center gap-1.5 bg-black/75 backdrop-blur-md px-2.5 py-1.5 rounded-xl border border-white/10 shadow-elevated">
+            <button type="button" onClick={() => setZoomLevel((z) => Math.max(0.6, Number((z - 0.2).toFixed(1))))} disabled={zoomLevel <= 0.6} title="Diminuir zoom" className="w-7 h-7 rounded-lg bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-all disabled:opacity-40">
+              <ZoomOut className="w-3.5 h-3.5" />
+            </button>
+            <span className="text-[11px] font-mono text-white/80 min-w-[38px] text-center select-none">{Math.round(currentScale * 100)}%</span>
+            <button type="button" onClick={() => setZoomLevel((z) => Math.min(2.5, Number((z + 0.2).toFixed(1))))} disabled={zoomLevel >= 2.5} title="Aumentar zoom" className="w-7 h-7 rounded-lg bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-all disabled:opacity-40">
+              <ZoomIn className="w-3.5 h-3.5" />
+            </button>
+            {zoomLevel !== 1 && (
+              <button type="button" onClick={() => { setZoomLevel(1); setResetKey((k) => k + 1); }} title="Ajustar à tela" className="px-2 h-7 rounded-lg bg-gold/20 hover:bg-gold/30 text-gold flex items-center text-[10px] font-medium transition-all ml-0.5">
+                <RotateCcw className="w-3 h-3 mr-1" />
+                Ajustar
+              </button>
+            )}
+          </div>
+
+          <motion.div
+            key={resetKey}
+            drag={zoomLevel > 1.05}
+            dragConstraints={{ left: -overflowX, right: overflowX, top: -overflowY, bottom: overflowY }}
+            dragElastic={0.05}
+            className="absolute shrink-0"
+            style={{
+              width: `${SCENE_WIDTH}px`,
+              height: `${SCENE_HEIGHT}px`,
+              left: "50%",
+              top: "50%",
+              marginLeft: `-${SCENE_WIDTH / 2}px`,
+              marginTop: `-${SCENE_HEIGHT / 2}px`,
+              scale: currentScale,
+            }}
           >
-            
+
             {/* Grid Foundation & Cells */}
             {gridCells.map(({ x, y, roomKey }) => {
               const iso = getIsoCoords(x, y, mapOriginX, mapOriginY);
@@ -341,13 +404,13 @@ export default function DashboardVirtualHouse({ weddingId }: DashboardVirtualHou
               // Floor texture determination
               let tileImg = null;
               if (floorCoveringsPaid && roomKey) {
-                if (roomKey === "kitchen") tileImg = "tile_kitchen.png";
-                if (roomKey === "bathroom") tileImg = "tile_bathroom.png";
-                if (roomKey === "bedroom") tileImg = "tile_bedroom.png";
-                if (roomKey === "laundry") tileImg = "tile_laundry.png";
-                if (roomKey === "living_room") tileImg = "tile_living.png";
+                if (roomKey === "kitchen") tileImg = "tile_kitchen.png?v=" + ASSET_VERSION;
+                if (roomKey === "bathroom") tileImg = "tile_bathroom.png?v=" + ASSET_VERSION;
+                if (roomKey === "bedroom") tileImg = "tile_bedroom.png?v=" + ASSET_VERSION;
+                if (roomKey === "laundry") tileImg = "tile_laundry.png?v=" + ASSET_VERSION;
+                if (roomKey === "living_room") tileImg = "tile_living.png?v=" + ASSET_VERSION;
               } else if (foundationPaid) {
-                tileImg = "tile_foundation.png";
+                tileImg = "tile_foundation.png?v=" + ASSET_VERSION;
               }
 
               return (
@@ -383,9 +446,9 @@ export default function DashboardVirtualHouse({ weddingId }: DashboardVirtualHou
             {wallsPaid && Array.from({ length: 10 }).map((_, x) => {
               // Back-right / North-East wall (along y=0 edge, x from 0 to 9)
               const iso = getIsoCoords(x, 0, mapOriginX, mapOriginY);
-              // Windows in Kitchen (x=1) and Bedroom (x=8) if doors_windows paid
-              const hasWindow = doorsWindowsPaid && (x === 1 || x === 8);
-              const wallImg = hasWindow ? "wall_ne_window.png" : "wall_ne_plain.png";
+              // Windows in Kitchen (x=1) and Bedroom (x=6, above bed headboard) if doors_windows paid
+              const hasWindow = doorsWindowsPaid && (x === 1 || x === 6);
+              const wallImg = hasWindow ? "wall_ne_window.png?v=" + ASSET_VERSION : "wall_ne_plain.png?v=" + ASSET_VERSION;
 
               return (
                 <div
@@ -409,7 +472,7 @@ export default function DashboardVirtualHouse({ weddingId }: DashboardVirtualHou
               const iso = getIsoCoords(0, y, mapOriginX, mapOriginY);
               // Window in Laundry (y=5) if doors_windows paid
               const hasWindow = doorsWindowsPaid && (y === 5);
-              const wallImg = hasWindow ? "wall_nw_window.png" : "wall_nw_plain.png";
+              const wallImg = hasWindow ? "wall_nw_window.png?v=" + ASSET_VERSION : "wall_nw_plain.png?v=" + ASSET_VERSION;
 
               return (
                 <div
@@ -449,6 +512,12 @@ export default function DashboardVirtualHouse({ weddingId }: DashboardVirtualHou
                   mapOriginY,
                   allPlacedItemsList
                 );
+                const spriteKey = getFurnitureSpriteKey(
+                  furniture.house_item_type,
+                  furniture.house_position_x,
+                  furniture.house_position_y,
+                  allPlacedItemsList
+                );
                 
                 return (
                   <div
@@ -464,7 +533,7 @@ export default function DashboardVirtualHouse({ weddingId }: DashboardVirtualHou
                     className="group pointer-events-auto"
                   >
                     <img 
-                      src={`/assets/iso/furniture_${furniture.house_item_type}.png?v=16`} 
+                      src={`/assets/iso/furniture_${spriteKey}.png?v=${ASSET_VERSION}`} 
                       alt={furniture.name}
                       className="w-full h-full object-contain drop-shadow-lg"
                       style={{ imageRendering: "pixelated" }}
@@ -488,44 +557,39 @@ export default function DashboardVirtualHouse({ weddingId }: DashboardVirtualHou
             });
           })()}
 
-            {/* Roof Overlay */}
+            {/* Fachada frontal: fecha a casa por baixo do telhado */}
+            {showRoof && roofPaid && (
+              <div className="absolute inset-0 pointer-events-none" style={{ zIndex: 195000 }}>
+                {Array.from({ length: 7 }).map((_, y) => {
+                  const iso = getIsoCoords(9, y, mapOriginX, mapOriginY);
+                  return (
+                    <div key={`facade-se-${y}`} style={{ position: "absolute", left: `${iso.x + TILE_W / 2}px`, top: `${iso.y + TILE_H - WALL_HEIGHT - 32}px`, width: "64px", height: "192px" }}>
+                      <img src={`/assets/iso/wall_nw_plain.png?v=${ASSET_VERSION}`} className="w-full h-full object-contain" alt="" />
+                    </div>
+                  );
+                })}
+                {Array.from({ length: 10 }).map((_, x) => {
+                  const iso = getIsoCoords(x, 6, mapOriginX, mapOriginY);
+                  return (
+                    <div key={`facade-sw-${x}`} style={{ position: "absolute", left: `${iso.x}px`, top: `${iso.y + TILE_H - WALL_HEIGHT - 32}px`, width: "64px", height: "192px" }}>
+                      <img src={`/assets/iso/wall_ne_plain.png?v=${ASSET_VERSION}`} className="w-full h-full object-contain" alt="" />
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Telhado: acima de móveis e fachada, beiral alinhado ao topo das paredes */}
             {showRoof && roofPaid && (() => {
-              // Compute roof position from the grid's bounding diamond
-              const topLeft = getIsoCoords(0, 0, mapOriginX, mapOriginY);
-              const topRight = getIsoCoords(9, 0, mapOriginX, mapOriginY);
-              const bottomLeft = getIsoCoords(0, 6, mapOriginX, mapOriginY);
-              const bottomRight = getIsoCoords(9, 6, mapOriginX, mapOriginY);
-              // Diamond extremes
-              const topY = topLeft.y;
-              const leftX = bottomLeft.x;
-              const rightX = topRight.x + TILE_W;
-              const bottomY = bottomRight.y + TILE_H;
-              const bbW = rightX - leftX;
-              // Use roof's native aspect ratio (700:400 = 1.75) to compute height
-              // so object-contain fills 100% of the container
-              const ROOF_ASPECT = 700 / 400;
-              const roofW = bbW + 160;
-              const roofH = roofW / ROOF_ASPECT;
-              // Center the roof over the grid
-              const roofLeft = leftX - 80;
-              const roofTop = topY - 180;
+              const roof = getRoofPlacement(mapOriginX, mapOriginY);
               return (
-                <div 
-                  className="absolute pointer-events-none"
-                  style={{
-                    left: `${roofLeft}px`,
-                    top: `${roofTop}px`,
-                    width: `${roofW}px`,
-                    height: `${roofH}px`,
-                    zIndex: 200,
-                  }}
-                >
-                  <img src="/assets/iso/roof.png" alt="Roof" className="w-full h-full drop-shadow-2xl opacity-95" />
+                <div className="absolute pointer-events-none" style={{ left: `${roof.left}px`, top: `${roof.top}px`, width: `${roof.width}px`, height: `${roof.height}px`, zIndex: 200000 }}>
+                  <img src={`/assets/iso/roof.png?v=${ASSET_VERSION}`} alt="Telhado" className="w-full h-full drop-shadow-2xl" style={{ imageRendering: "pixelated" }} />
                 </div>
               );
             })()}
 
-          </motion.div>
+            </motion.div>
         </div>
       </div>
 
@@ -566,7 +630,7 @@ export default function DashboardVirtualHouse({ weddingId }: DashboardVirtualHou
                   >
                     <div className="flex items-center gap-3">
                       <div className="w-8 h-8 relative">
-                          <img src={`/assets/iso/furniture_${furniture.house_item_type}.png?v=3`} alt="icon" className="w-full h-full object-contain drop-shadow" />
+                          <img src={`/assets/iso/furniture_${furniture.house_item_type}.png?v=${ASSET_VERSION}`} alt="icon" className="w-full h-full object-contain drop-shadow" />
                       </div>
                       <div>
                         <h4 className="font-medium text-xs text-foreground leading-none">{furniture.name}</h4>
@@ -634,9 +698,11 @@ export default function DashboardVirtualHouse({ weddingId }: DashboardVirtualHou
                 onChange={e => setSelectedLinkType(e.target.value)}
               >
                 <option value="">Selecione...</option>
-                {Object.keys(FURNITURE_SIZES).map(type => (
-                  <option key={type} value={type}>{type}</option>
-                ))}
+                {Object.keys(FURNITURE_SIZES)
+                  .filter((type) => type !== "dining_chair_back")
+                  .map(type => (
+                    <option key={type} value={type}>{type}</option>
+                  ))}
               </select>
             </div>
             <Button onClick={handleLinkGift} disabled={!selectedLinkGift || !selectedLinkRoom || !selectedLinkType || updating !== null} className="mt-2">
