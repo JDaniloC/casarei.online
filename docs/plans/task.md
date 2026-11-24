@@ -130,6 +130,7 @@
 | Task 131: Execução Step 4 - Validação do Build de Produção (npm run build) | COMPLETED | Build de produção concluído com sucesso (exit code 0, 2239 módulos) |
 | Task 132: Execução Step 5 - Validação Visual no Navegador e Captura de Evidências | COMPLETED | Inspecionados visualmente final_layout_desktop.png, final_layout_mobile.png, final_layout_roof.png e os 4 crops; 100% de coesão espacial e visual |
 | Task 133: Auditoria final de rotação/encaixe, reparo de 14 sprites e alinhamento 1.A + 2.A | COMPLETED | Reparo Sharp de bathroom_sink, washing_machine, microwave, stove, kitchen_cabinet (1x2), dining_chair + dining_chair_back, toilet, wardrobe, vanity, armchair, sofa e generic; lavanderia expandida y=4..6 na parede NW; cozinha em L y=0..3; janela NE movida p/ x=6; ASSET_VERSION=35; 80/80 vitest passando e build exit 0 |
+| Task 134: Sala de Estar Opção A (Lounge em "L" com Sofá Frontal, TV SE 1×2, Mesa de Centro 1×1 Pixel Art e Poltrona desobstruída) | COMPLETED | furniture_sofa restaurado frontal em (7,4) 2×1 SW (+Y); tv_rack 1×2 em (4,4)..(4,5) voltado para SE (+X) c/ offsetX -64; furniture_coffee_table 1×1 em Clean Cozy Pixel Art (7,5); armchair em (6,6) SE sem bloquear TV; robot_vacuum em (7,6) e generic em (9,6); ASSET_VERSION=38; 81/81 vitest passando, build exit 0 e validado via Playwright |
 
 
 

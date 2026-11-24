@@ -63,7 +63,7 @@ const FURNITURE_ICONS: Record<string, string> = {
 
 const SCENE_WIDTH = 1220;
 const SCENE_HEIGHT = (9 + 6) * (TILE_H / 2) + 260; // 740
-const ASSET_VERSION = "37";
+const ASSET_VERSION = "39";
 
 const STRUCTURAL_ITEMS = ["foundation", "floor_coverings", "walls", "painting", "doors_windows", "roof", "electric", "plumbing"];
 
@@ -107,12 +107,12 @@ export const DEMO_HOUSE_GIFTS: DBGift[] = [
   { id: "demo-washer", name: "Máquina de Lavar 13kg Front-Load", price: 2200, stock: 0, houseItemType: "washing_machine", houseRoom: "laundry", housePositionX: 0, housePositionY: 6 },
 
   // Sala de Estar
-  { id: "demo-tv", name: "Rack & Painel TV Smart OLED", price: 1950, stock: 0, houseItemType: "tv_rack", houseRoom: "living_room", housePositionX: 7, housePositionY: 4 },
+  { id: "demo-tv", name: "Rack & Painel TV Smart OLED", price: 1950, stock: 0, houseItemType: "tv_rack", houseRoom: "living_room", housePositionX: 4, housePositionY: 4 },
+  { id: "demo-sofa", name: "Sofá 2x1 Linha Reta", price: 2200, stock: 0, houseItemType: "sofa", houseRoom: "living_room", housePositionX: 7, housePositionY: 4 },
   { id: "demo-coffee-table", name: "Mesa de Centro Tampo Vidro", price: 550, stock: 0, houseItemType: "coffee_table", houseRoom: "living_room", housePositionX: 7, housePositionY: 5 },
-  { id: "demo-armchair", name: "Poltrona Sala de Estar", price: 850, stock: 0, houseItemType: "armchair", houseRoom: "living_room", housePositionX: 5, housePositionY: 5 },
-  { id: "demo-sofa", name: "Sofá 2x1 Linha Reta", price: 2200, stock: 0, houseItemType: "sofa", houseRoom: "living_room", housePositionX: 7, housePositionY: 6 },
-  { id: "demo-robot", name: "Robô Aspirador Inteligente", price: 1250, stock: 0, houseItemType: "robot_vacuum", houseRoom: "living_room", housePositionX: 4, housePositionY: 6 },
-  { id: "demo-generic", name: "Presente Surpresa para a Casa", price: 350, stock: 0, houseItemType: "generic", houseRoom: "living_room", housePositionX: 9, housePositionY: 5 },
+  { id: "demo-armchair", name: "Poltrona Sala de Estar", price: 850, stock: 0, houseItemType: "armchair", houseRoom: "living_room", housePositionX: 6, housePositionY: 6 },
+  { id: "demo-robot", name: "Robô Aspirador Inteligente", price: 1250, stock: 0, houseItemType: "robot_vacuum", houseRoom: "living_room", housePositionX: 7, housePositionY: 6 },
+  { id: "demo-generic", name: "Presente Surpresa para a Casa", price: 350, stock: 0, houseItemType: "generic", houseRoom: "living_room", housePositionX: 9, housePositionY: 6 },
 ];
 
 const DEMO_BUYERS: Record<string, string> = {

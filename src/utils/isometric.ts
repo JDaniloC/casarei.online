@@ -44,7 +44,7 @@ export const FURNITURE_SIZES: Record<string, FurnitureFootprint> = {
   kitchen_cabinet: { w: 1, h: 2 },
   dishwasher: { w: 1, h: 1 },
   sofa: { w: 2, h: 1 },
-  tv_rack: { w: 2, h: 1 },
+  tv_rack: { w: 1, h: 2 },
   coffee_table: { w: 1, h: 1 },
   armchair: { w: 1, h: 1 },
   bed: { w: 2, h: 2 },
@@ -74,8 +74,8 @@ export const FURNITURE_PIXEL_SIZES: Record<string, FurniturePixelSize> = {
   dining_table_simple: { w: 192, h: 128 },
   kitchen_cabinet: { w: 192, h: 128, offsetX: -64, offsetY: 0 },
   dishwasher: { w: 128, h: 128 },
-  sofa: { w: 192, h: 160 },
-  tv_rack: { w: 192, h: 160, offsetY: -4 },
+  sofa: { w: 192, h: 160, offsetY: -2 },
+  tv_rack: { w: 192, h: 160, offsetX: -64, offsetY: -4 },
   coffee_table: { w: 128, h: 80 },
   armchair: { w: 128, h: 128, offsetY: 0 },
   bed: { w: 256, h: 192, offsetX: -64, offsetY: -4 },
@@ -128,12 +128,12 @@ export const DEFAULT_FURNITURE_POSITIONS: Record<string, { x: number; y: number 
   washing_machine: { x: 0, y: 6 }, // Parede NW (0,6) voltada para SE (+X)
 
   // Sala de Estar (ISO_ROOMS.living_room: x4-9, y4-6)
-  tv_rack: { x: 7, y: 4 },
-  coffee_table: { x: 7, y: 5 },
-  armchair: { x: 5, y: 5 },        // Voltada para SE (+X) olhando para o lounge/TV
-  sofa: { x: 7, y: 6 },            // Visão traseira 3/4 voltado para NE (-Y) olhando para a TV
-  robot_vacuum: { x: 4, y: 6 },    // Piso livre da sala, 100% desobstruído
-  generic: { x: 9, y: 5 },
+  tv_rack: { x: 4, y: 4 },       // 1x2 na divisa esquerda (4,4)..(4,5) voltado para SE (+X)
+  sofa: { x: 7, y: 4 },          // 2x1 frontal em (7,4)..(8,4) voltado para SW (+Y)
+  coffee_table: { x: 7, y: 5 },  // Centralizada em frente ao sofá em (7,5)
+  armchair: { x: 6, y: 6 },      // Voltada para SE (+X) olhando para a mesa e sofá sem cobrir a TV
+  robot_vacuum: { x: 7, y: 6 },  // Piso livre da sala, 100% desobstruído
+  generic: { x: 9, y: 6 },       // Presente surpresa no canto frontal direito
 };
 
 // Eletrodomésticos de bancada — os únicos tipos com permissão de dividir célula

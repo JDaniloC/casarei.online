@@ -181,6 +181,18 @@ describe("Ordenação de profundidade isométrica (z-index)", () => {
     expect(giftBox.zIndex).toBeGreaterThan(sofa.zIndex);
   });
 
+  it("ordena corretamente os móveis da Sala Opção A (tv_rack 1x2 atrás da poltrona, mesa à frente do sofá frontal)", () => {
+    const tvRack = getFurniturePlacement("tv_rack", 4, 4);
+    const sofa = getFurniturePlacement("sofa", 7, 4);
+    const coffeeTable = getFurniturePlacement("coffee_table", 7, 5);
+    const armchair = getFurniturePlacement("armchair", 6, 6);
+    const giftBox = getFurniturePlacement("generic", 9, 6);
+
+    expect(coffeeTable.zIndex).toBeGreaterThan(sofa.zIndex);
+    expect(armchair.zIndex).toBeGreaterThan(tvRack.zIndex);
+    expect(giftBox.zIndex).toBeGreaterThan(coffeeTable.zIndex);
+  });
+
   it("garante que a camada do telhado (200.000) e botões de enxoval (185.000) ficam acima do móvel mais frontal", () => {
     const frontmostFurniture = getFurniturePlacement("generic", 9, 6);
     const ROOF_Z_INDEX = 200000;
