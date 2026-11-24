@@ -105,19 +105,24 @@ async function processImages() {
     const outputPath = path.join(OUTPUT_DIR, file);
 
     try {
-      // Step 1: Trim the transparent pixels from all edges
-      // Step 2: Resize to the target width/height exactly (forcing fit)
-      // We use "fill" fit to squeeze the cropped image exactly into the bounding box.
+      // Step 1: Trim the transparent/white pixels from all edges
+      // Step 2: Fit the trimmed art inside the target box preserving its
+      // original proportions, padding with transparency instead of
+      // stretching it (stretching was distorting the isometric perspective).
+      // Anchored to the bottom so the object's base still lines up with the
+      // tile grid the way the old fixed-size boxes assumed.
       await sharp(inputPath)
         .trim({ threshold: 10 }) // Removes transparent/empty edges
         .resize({
           width: targetSize.w,
           height: targetSize.h,
-          fit: 'fill' // Squeezes exact proportions
+          fit: 'contain',
+          position: 'bottom',
+          background: { r: 0, g: 0, b: 0, alpha: 0 },
         })
         .toFile(outputPath);
 
-      console.log(`✅ Processado: ${file} -> Crop e Resize para ${targetSize.w}x${targetSize.h}`);
+      console.log(`✅ Processado: ${file} -> Ajustado (sem distorcer) para ${targetSize.w}x${targetSize.h}`);
     } catch (err) {
       console.error(`❌ Erro processando ${file}:`, err.message);
     }

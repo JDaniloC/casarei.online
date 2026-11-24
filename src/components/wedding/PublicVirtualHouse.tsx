@@ -1,11 +1,14 @@
 import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 import { useCart } from "@/contexts/CartContext";
 import { Gift } from "@/contexts/WeddingContext";
-import { Loader2, ShoppingBag, X } from "lucide-react";
+import { Loader2, ShoppingBag, X, ZoomIn, ZoomOut, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { motion, AnimatePresence } from "framer-motion";
-import { getIsoCoords, TILE_W, TILE_H, ISO_ROOMS } from "@/utils/isometric";
+import { getIsoCoords, TILE_W, TILE_H, ISO_ROOMS, FURNITURE_SIZES, getFurniturePlacement, getFurnitureSpriteKey, getRoofPlacement, WALL_HEIGHT } from "@/utils/isometric";
+import { getGiftFundingProgress, isGiftFundingComplete } from "@/utils/giftFunding";
 
 interface PublicVirtualHouseProps {
   weddingId: string;
@@ -30,54 +33,211 @@ const ROOM_DISPLAY = {
 const FURNITURE_ICONS: Record<string, string> = {
   fridge: "🧊",
   stove: "🔥",
+  microwave: "📻",
+  sink_counter: "🚰",
+  kitchen_cabinet: "🗄️",
+  dishwasher: "🍽️",
+  coffee_maker: "☕",
+  air_fryer: "🍟",
   dining_table: "🍽️",
+  dining_table_simple: "🪵",
+  dining_chair: "🪑",
   sofa: "🛋️",
+  tv_rack: "📺",
   tv: "📺",
+  coffee_table: "🪵",
+  armchair: "🪑",
+  robot_vacuum: "🤖",
   bed: "🛏️",
+  wardrobe: "🚪",
+  dresser: "🗄️",
+  vanity: "💄",
+  toilet: "🚽",
+  bathroom_sink: "🪞",
+  shower: "🚿",
+  washing_machine: "🧺",
+  dryer: "💨",
+  laundry_sink: "🧼",
   generic: "📦",
 };
 
-const FURNITURE_SIZES: Record<string, { w: number; h: number }> = {
-  fridge: { w: 1, h: 1 },
-  stove: { w: 1, h: 1 },
-  microwave: { w: 1, h: 1 },
-  sink_counter: { w: 2, h: 1 },
-  dining_table: { w: 2, h: 2 },
-  kitchen_cabinet: { w: 2, h: 1 },
-  dishwasher: { w: 1, h: 1 },
-  sofa: { w: 2, h: 1 },
-  tv_rack: { w: 2, h: 1 },
-  coffee_table: { w: 1, h: 1 },
-  armchair: { w: 1, h: 1 },
-  bed: { w: 2, h: 2 },
-  wardrobe: { w: 2, h: 1 },
-  dresser: { w: 2, h: 1 },
-  vanity: { w: 1, h: 1 },
-  toilet: { w: 1, h: 1 },
-  bathroom_sink: { w: 1, h: 1 },
-  shower: { w: 1, h: 2 },
-  washing_machine: { w: 1, h: 1 },
-  dryer: { w: 1, h: 1 },
-  laundry_sink: { w: 1, h: 1 },
-  generic: { w: 1, h: 1 },
-};
+const SCENE_WIDTH = 1220;
+const SCENE_HEIGHT = (9 + 6) * (TILE_H / 2) + 260; // 740
+const ASSET_VERSION = "40";
 
 const STRUCTURAL_ITEMS = ["foundation", "floor_coverings", "walls", "painting", "doors_windows", "roof", "electric", "plumbing"];
+
+export const DEMO_HOUSE_GIFTS: DBGift[] = [
+  { id: "demo-foundation", name: "Fundação e Alicerce", price: 1500, stock: 0, houseItemType: "foundation", housePositionX: null, housePositionY: null },
+  { id: "demo-floors", name: "Pisos e Revestimentos", price: 1200, stock: 0, houseItemType: "floor_coverings", housePositionX: null, housePositionY: null },
+  { id: "demo-walls", name: "Paredes e Estrutura", price: 1800, stock: 0, houseItemType: "walls", housePositionX: null, housePositionY: null },
+  { id: "demo-painting", name: "Pintura Completa", price: 900, stock: 0, houseItemType: "painting", housePositionX: null, housePositionY: null },
+  { id: "demo-doors", name: "Portas e Janelas", price: 1100, stock: 0, houseItemType: "doors_windows", housePositionX: null, housePositionY: null },
+  { id: "demo-plumbing", name: "Instalação Hidráulica", price: 800, stock: 0, houseItemType: "plumbing", housePositionX: null, housePositionY: null },
+  { id: "demo-electric", name: "Instalação Elétrica", price: 850, stock: 0, houseItemType: "electric", housePositionX: null, housePositionY: null },
+  { id: "demo-roof", name: "Telhado da Casa", price: 4000, stock: 0, houseItemType: "roof", housePositionX: null, housePositionY: null },
+
+  // Cozinha
+  { id: "demo-cabinet", name: "Armários Planejados Cozinha", price: 3200, stock: 0, houseItemType: "kitchen_cabinet", houseRoom: "kitchen", housePositionX: 0, housePositionY: 0 },
+  { id: "demo-micro", name: "Micro-ondas Espelhado 30L", price: 650, stock: 0, houseItemType: "microwave", houseRoom: "kitchen", housePositionX: 0, housePositionY: 0 },
+  { id: "demo-airfryer", name: "Air Fryer Digital 4L", price: 390, stock: 0, houseItemType: "air_fryer", houseRoom: "kitchen", housePositionX: 0, housePositionY: 1 },
+  { id: "demo-sink", name: "Bancada com Pia & Torneira", price: 1850, stock: 0, houseItemType: "sink_counter", houseRoom: "kitchen", housePositionX: 1, housePositionY: 0 },
+  { id: "demo-coffee", name: "Cafeteira Expresso Italiana", price: 450, stock: 0, houseItemType: "coffee_maker", houseRoom: "kitchen", housePositionX: 1, housePositionY: 0 },
+  { id: "demo-fridge", name: "Geladeira French Door", price: 4200, stock: 0, houseItemType: "fridge", houseRoom: "kitchen", housePositionX: 3, housePositionY: 0 },
+  { id: "demo-stove", name: "Fogão Cooktop 4 Bocas Inox", price: 1650, stock: 0, houseItemType: "stove", houseRoom: "kitchen", housePositionX: 0, housePositionY: 2 },
+  { id: "demo-dishwasher", name: "Lava-Louças Inox 14 Serviços", price: 2800, stock: 0, houseItemType: "dishwasher", houseRoom: "kitchen", housePositionX: 0, housePositionY: 3 },
+  { id: "demo-chair-1", name: "Cadeira de Jantar Escandinava (A)", price: 350, stock: 0, houseItemType: "dining_chair", houseRoom: "kitchen", housePositionX: 2, housePositionY: 1 },
+  { id: "demo-table", name: "Mesa de Jantar 2x1", price: 1400, stock: 0, houseItemType: "dining_table", houseRoom: "kitchen", housePositionX: 2, housePositionY: 2 },
+  { id: "demo-chair-2", name: "Cadeira de Jantar Escandinava (B)", price: 350, stock: 0, houseItemType: "dining_chair", houseRoom: "kitchen", housePositionX: 3, housePositionY: 3 },
+
+  // Banheiro
+  { id: "demo-shower", name: "Box Blindex & Chuveiro Ducha", price: 1100, stock: 0, houseItemType: "shower", houseRoom: "bathroom", housePositionX: 4, housePositionY: 0 },
+  { id: "demo-bath-sink", name: "Gabinete & Cuba Esculpida", price: 890, stock: 0, houseItemType: "bathroom_sink", houseRoom: "bathroom", housePositionX: 5, housePositionY: 0 },
+  { id: "demo-toilet", name: "Vaso Sanitário Monobloco", price: 580, stock: 0, houseItemType: "toilet", houseRoom: "bathroom", housePositionX: 5, housePositionY: 2 },
+
+  // Quarto
+  { id: "demo-bed", name: "Cama Queen Size", price: 2400, stock: 0, houseItemType: "bed", houseRoom: "bedroom", housePositionX: 6, housePositionY: 0 },
+  { id: "demo-wardrobe", name: "Guarda-Roupa Casal 3 Portas", price: 2800, stock: 0, houseItemType: "wardrobe", houseRoom: "bedroom", housePositionX: 8, housePositionY: 0 },
+  { id: "demo-dresser", name: "Cômoda 6 Gavetas Carvalho", price: 1200, stock: 0, houseItemType: "dresser", houseRoom: "bedroom", housePositionX: 6, housePositionY: 2 },
+  { id: "demo-vanity", name: "Penteadeira com Espelho Camarim", price: 950, stock: 0, houseItemType: "vanity", houseRoom: "bedroom", housePositionX: 9, housePositionY: 2 },
+
+  // Área de Serviço
+  { id: "demo-dryer", name: "Secadora de Roupas Front-Load", price: 1800, stock: 0, houseItemType: "dryer", houseRoom: "laundry", housePositionX: 0, housePositionY: 4 },
+  { id: "demo-laundry-sink", name: "Tanque Inox com Gabinete", price: 680, stock: 0, houseItemType: "laundry_sink", houseRoom: "laundry", housePositionX: 0, housePositionY: 5 },
+  { id: "demo-washer", name: "Máquina de Lavar 13kg Front-Load", price: 2200, stock: 0, houseItemType: "washing_machine", houseRoom: "laundry", housePositionX: 0, housePositionY: 6 },
+
+  // Sala de Estar
+  { id: "demo-tv", name: "Rack & Painel TV Smart OLED", price: 1950, stock: 0, houseItemType: "tv_rack", houseRoom: "living_room", housePositionX: 4, housePositionY: 4 },
+  { id: "demo-sofa", name: "Sofá 2x1 Linha Reta", price: 2200, stock: 0, houseItemType: "sofa", houseRoom: "living_room", housePositionX: 7, housePositionY: 4 },
+  { id: "demo-coffee-table", name: "Mesa de Centro Tampo Vidro", price: 550, stock: 0, houseItemType: "coffee_table", houseRoom: "living_room", housePositionX: 7, housePositionY: 5 },
+  { id: "demo-armchair", name: "Poltrona Sala de Estar", price: 850, stock: 0, houseItemType: "armchair", houseRoom: "living_room", housePositionX: 6, housePositionY: 6 },
+  { id: "demo-robot", name: "Robô Aspirador Inteligente", price: 1250, stock: 0, houseItemType: "robot_vacuum", houseRoom: "living_room", housePositionX: 7, housePositionY: 6 },
+  { id: "demo-generic", name: "Presente Surpresa para a Casa", price: 350, stock: 0, houseItemType: "generic", houseRoom: "living_room", housePositionX: 9, housePositionY: 6 },
+];
+
+const DEMO_BUYERS: Record<string, string> = {
+  "demo-foundation": "Pais da Noiva",
+  "demo-floors": "Padrinhos Lucas & Ana",
+  "demo-walls": "Tios Roberto & Carla",
+  "demo-painting": "Primos Marcos & Julia",
+  "demo-doors": "Família Oliveira",
+  "demo-plumbing": "Amigos da Faculdade",
+  "demo-electric": "Tia Cecília",
+  "demo-roof": "Padrinhos & Família",
+  "demo-sink": "Vovó Helena",
+  "demo-cabinet": "Padrinho Gabriel",
+  "demo-stove": "Tia Cláudia & Tio Jorge",
+  "demo-micro": "Bruna & Thiago",
+  "demo-dishwasher": "Padrinhos Marcelo & Bia",
+  "demo-coffee": "Camila & Renato",
+  "demo-airfryer": "Primos Lucas & Sofia",
+  "demo-table": "Vovô Antônio",
+  "demo-chair": "Prima Mariana",
+  "demo-chair-1": "Prima Mariana",
+  "demo-chair-2": "Primo Rafael",
+  "demo-fridge": "Tios Carlos & Helena",
+  "demo-shower": "Família Souza",
+  "demo-toilet": "Amigos do Trabalho",
+  "demo-bath-sink": "Amigos de Infância",
+  "demo-wardrobe": "Pais do Noivo",
+  "demo-vanity": "Madrinha Juliana",
+  "demo-bed": "Irmãos e Cunhados",
+  "demo-dresser": "Tia Marisa & Tio Carlos",
+  "demo-washer": "Família Costa",
+  "demo-dryer": "Madrinha Mariana",
+  "demo-laundry-sink": "Tia Regina",
+  "demo-tv": "Tio Fernando",
+  "demo-coffee-table": "Colegas de Trabalho",
+  "demo-armchair": "Família Barreto",
+  "demo-sofa": "Padrinho Felipe",
+  "demo-robot": "Dindos Pedro & Laura",
+  "demo-generic": "Amigos dos Noivos",
+};
 
 export default function PublicVirtualHouse({ weddingId, onOpenCheckout }: PublicVirtualHouseProps) {
   const [loading, setLoading] = useState(true);
   const [gifts, setGifts] = useState<DBGift[]>([]);
   const [buyers, setBuyers] = useState<Record<string, string>>({}); // Mapping from gift_id to buyer guest_name
   const [selectedGhost, setSelectedGhost] = useState<DBGift | null>(null);
+  const [contributionAmount, setContributionAmount] = useState("");
   const [activeCabinet, setActiveCabinet] = useState<keyof typeof ROOM_DISPLAY | null>(null);
+  const [activeTooltipGiftId, setActiveTooltipGiftId] = useState<string | null>(null);
   const [showRoof, setShowRoof] = useState(false);
-  const constraintsRef = useRef(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const sceneRef = useRef<HTMLDivElement>(null);
+  const maskCache = useRef<Map<string, { w: number; h: number; data: Uint8ClampedArray } | null>>(new Map());
+  const pointerDownPos = useRef<{ x: number; y: number } | null>(null);
+  const [hoveredGiftId, setHoveredGiftId] = useState<string | null>(null);
+  const [containerWidth, setContainerWidth] = useState<number>(0);
+  const [viewportHeight, setViewportHeight] = useState<number>(typeof window !== "undefined" ? window.innerHeight : 900);
+  const [zoomLevel, setZoomLevel] = useState<number>(1.0);
+  const [resetKey, setResetKey] = useState<number>(0);
+
+  // O container só existe depois que `loading` termina, por isso `loading` é dependência
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const update = () => {
+      setContainerWidth(el.clientWidth);
+      setViewportHeight(window.innerHeight);
+    };
+    update();
+    window.addEventListener("resize", update);
+    let observer: ResizeObserver | null = null;
+    if (typeof ResizeObserver !== "undefined") {
+      observer = new ResizeObserver(update);
+      observer.observe(el);
+    }
+    return () => {
+      window.removeEventListener("resize", update);
+      observer?.disconnect();
+    };
+  }, [loading]);
+
+  // Máscaras de alfa dos sprites: o clique só vale onde o pixel do móvel é visível,
+  // assim a caixa transparente de um móvel não bloqueia o que está atrás dele.
+  useEffect(() => {
+    const placed = gifts
+      .filter((g) => g.houseItemType && g.housePositionX !== null && g.housePositionY !== null)
+      .map((g) => ({
+        type: g.houseItemType as string,
+        x: g.housePositionX as number,
+        y: g.housePositionY as number,
+      }));
+    const spriteKeys = new Set(
+      placed.map((p) => getFurnitureSpriteKey(p.type, p.x, p.y, placed))
+    );
+    spriteKeys.forEach((spriteKey) => {
+      if (maskCache.current.has(spriteKey)) return;
+      maskCache.current.set(spriteKey, null);
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        canvas.width = img.naturalWidth;
+        canvas.height = img.naturalHeight;
+        const ctx = canvas.getContext("2d", { willReadFrequently: true });
+        if (!ctx) return;
+        ctx.drawImage(img, 0, 0);
+        try {
+          maskCache.current.set(spriteKey, { w: canvas.width, h: canvas.height, data: ctx.getImageData(0, 0, canvas.width, canvas.height).data });
+        } catch {
+          /* sem máscara: usa a caixa do sprite */
+        }
+      };
+      img.src = `/assets/iso/furniture_${spriteKey}.png?v=${ASSET_VERSION}`;
+    });
+  }, [gifts]);
 
   const { addItem } = useCart();
 
   useEffect(() => {
     async function loadHouseData() {
-      if (!weddingId) return;
+      if (!weddingId) {
+        setGifts(DEMO_HOUSE_GIFTS);
+        setBuyers(DEMO_BUYERS);
+        setLoading(false);
+        return;
+      }
       try {
         setLoading(true);
 
@@ -109,11 +269,14 @@ export default function PublicVirtualHouse({ weddingId, onOpenCheckout }: Public
 
         setGifts(formattedGifts);
 
-        const { data: orderItems, error: ordersError } = await supabase
-          .from("order_items")
-          .select("gift_id, orders(guest_name, status)");
+        const giftIds = formattedGifts.map((g) => g.id);
+        if (giftIds.length > 0) {
+          const { data: orderItems, error: ordersError } = await supabase
+            .from("order_items")
+            .select("gift_id, orders(guest_name, status)")
+            .in("gift_id", giftIds);
 
-        if (!ordersError && orderItems) {
+          if (!ordersError && orderItems) {
           const buyersMap: Record<string, string> = {};
           orderItems.forEach((item: any) => {
             if (item.orders && item.orders.status === "approved" && item.gift_id) {
@@ -121,6 +284,7 @@ export default function PublicVirtualHouse({ weddingId, onOpenCheckout }: Public
             }
           });
           setBuyers(buyersMap);
+          }
         }
       } catch (err) {
         console.error("Error loading public virtual house:", err);
@@ -131,9 +295,7 @@ export default function PublicVirtualHouse({ weddingId, onOpenCheckout }: Public
     loadHouseData();
   }, [weddingId]);
 
-  const isGiftPaid = (g: DBGift) => {
-    return g.stock === 0 || (g.raisedAmount !== undefined && g.raisedAmount >= g.price);
-  };
+  const isGiftPaid = (g: DBGift) => isGiftFundingComplete(g);
 
   const getPaidStructural = (type: string) => {
     const item = gifts.find((g) => g.houseItemType === type);
@@ -149,22 +311,11 @@ export default function PublicVirtualHouse({ weddingId, onOpenCheckout }: Public
   const electricPaid = getPaidStructural("electric");
   const plumbingPaid = getPaidStructural("plumbing");
 
-  const placedFurniture = gifts.filter((g) => {
-    return g.houseItemType && g.housePositionX !== null && g.housePositionY !== null;
+  // Todo móvel já posicionado no grid, independente de já estar 100% financiado —
+  // a revelação gradual acontece na própria renderização, via getGiftFundingProgress.
+  const positionedFurniture = gifts.filter((g) => {
+    return g.houseItemType && !STRUCTURAL_ITEMS.includes(g.houseItemType) && g.housePositionX !== null && g.housePositionY !== null;
   });
-
-  const getFurnitureAt = (x: number, y: number) => {
-    return placedFurniture.find((g) => {
-      if (g.housePositionX === null || g.housePositionY === null) return false;
-      const size = FURNITURE_SIZES[g.houseItemType || ""] || { w: 1, h: 1 };
-      return (
-        x >= g.housePositionX &&
-        x < g.housePositionX + size.w &&
-        y >= g.housePositionY &&
-        y < g.housePositionY + size.h
-      );
-    });
-  };
 
   const getGhostItemAt = (x: number, y: number, roomKey: string) => {
     return gifts.find((g) => {
@@ -180,11 +331,25 @@ export default function PublicVirtualHouse({ weddingId, onOpenCheckout }: Public
 
   const handleGhostClick = (gift: DBGift) => {
     setSelectedGhost(gift);
+    setContributionAmount("");
   };
 
   const handleBuyGhost = () => {
     if (!selectedGhost) return;
-    addItem(selectedGhost);
+
+    let priceToUse = selectedGhost.price;
+    if (selectedGhost.totalQuotas && selectedGhost.price > 0) {
+      priceToUse = selectedGhost.price / selectedGhost.totalQuotas;
+    } else if (selectedGhost.isOpenPrice) {
+      const amount = parseFloat(contributionAmount) || 0;
+      if (amount <= 0) {
+        toast.error("Por favor, insira um valor válido para presentear.");
+        return;
+      }
+      priceToUse = amount;
+    }
+
+    addItem(selectedGhost, priceToUse);
     onOpenCheckout();
     setSelectedGhost(null);
   };
@@ -212,10 +377,83 @@ export default function PublicVirtualHouse({ weddingId, onOpenCheckout }: Public
     }
   }
 
-  // Calculate container dimensions based on isometric bounds
-  const mapOriginX = (6 * (TILE_W / 2)) + 100;
-  const mapOriginY = 100;
-  const containerHeight = (9 + 6) * (TILE_H / 2) + 200;
+  // Câmera: encaixa a cena na largura do card (e na altura da janela no desktop).
+  const isDesktop = containerWidth >= 900;
+  const widthScale = containerWidth ? (containerWidth - 8) / SCENE_WIDTH : 1;
+  const heightCap = isDesktop ? Math.max(0.55, (viewportHeight - 150) / SCENE_HEIGHT) : Infinity;
+  const fitScale = Math.min(1.35, Math.max(0.2, Math.min(widthScale, heightCap)));
+  const currentScale = Math.min(3, Math.max(0.2, fitScale * zoomLevel));
+  const displayHeight = Math.round(SCENE_HEIGHT * fitScale);
+  const overflowX = Math.max(0, (SCENE_WIDTH * currentScale - containerWidth) / 2) + 40;
+  const overflowY = Math.max(0, (SCENE_HEIGHT * currentScale - displayHeight) / 2) + 40;
+
+  const mapOriginX = 450;
+  const mapOriginY = 180;
+
+  const getPlacedWithPlacement = () => {
+    const placed = positionedFurniture.filter((f) => f.housePositionX !== null && f.housePositionY !== null && f.houseItemType);
+    const all = placed.map((f) => ({ type: f.houseItemType as string, x: f.housePositionX as number, y: f.housePositionY as number }));
+    return placed.map((f) => ({
+      furniture: f,
+      placement: getFurniturePlacement(f.houseItemType as string, f.housePositionX as number, f.housePositionY as number, mapOriginX, mapOriginY, all),
+    }));
+  };
+
+  const hitTest = (clientX: number, clientY: number) => {
+    const el = sceneRef.current;
+    if (!el) return null;
+    const rect = el.getBoundingClientRect();
+    if (!rect.width || !rect.height) return null;
+    const sx = ((clientX - rect.left) / rect.width) * SCENE_WIDTH;
+    const sy = ((clientY - rect.top) / rect.height) * SCENE_HEIGHT;
+    const items = getPlacedWithPlacement().sort((a, b) => b.placement.zIndex - a.placement.zIndex);
+    const allPlaced = items.map((i) => ({
+      type: i.furniture.houseItemType as string,
+      x: i.furniture.housePositionX as number,
+      y: i.furniture.housePositionY as number,
+    }));
+    for (const item of items) {
+      const { placement, furniture } = item;
+      const lx = sx - placement.left;
+      const ly = sy - placement.top;
+      if (lx < 0 || ly < 0 || lx >= placement.width || ly >= placement.height) continue;
+      const spriteKey = getFurnitureSpriteKey(
+        furniture.houseItemType as string,
+        furniture.housePositionX as number,
+        furniture.housePositionY as number,
+        allPlaced
+      );
+      const mask = maskCache.current.get(spriteKey);
+      if (mask) {
+        const px = Math.min(mask.w - 1, Math.floor((lx / placement.width) * mask.w));
+        const py = Math.min(mask.h - 1, Math.floor((ly / placement.height) * mask.h));
+        if (mask.data[(py * mask.w + px) * 4 + 3] < 24) continue;
+      }
+      return item;
+    }
+    return null;
+  };
+
+  const handleScenePointerMove = (e: React.PointerEvent) => {
+    if (e.pointerType !== "mouse") return;
+    const id = hitTest(e.clientX, e.clientY)?.furniture.id ?? null;
+    setHoveredGiftId((prev) => (prev === id ? prev : id));
+  };
+
+  const handleSceneClick = (e: React.MouseEvent) => {
+    const down = pointerDownPos.current;
+    if (down && Math.hypot(e.clientX - down.x, e.clientY - down.y) > 6) return; // foi arrasto
+    const hit = hitTest(e.clientX, e.clientY);
+    if (!hit) {
+      setActiveTooltipGiftId(null);
+      return;
+    }
+    if (getGiftFundingProgress(hit.furniture) >= 100) {
+      setActiveTooltipGiftId((prev) => (prev === hit.furniture.id ? null : hit.furniture.id));
+    } else {
+      handleGhostClick(hit.furniture);
+    }
+  };
 
   return (
     <section className="py-24 bg-cream relative overflow-hidden">
@@ -229,8 +467,34 @@ export default function PublicVirtualHouse({ weddingId, onOpenCheckout }: Public
           </p>
         </div>
 
-        <div className="bg-[#4a5f41] p-4 sm:p-8 rounded-3xl border-[6px] border-[#3e5036] shadow-elevated relative overflow-hidden max-w-5xl mx-auto">
-          <div className="absolute top-4 right-4 z-30 flex gap-2">
+        <div className="bg-[#141614] p-2 sm:p-4 rounded-3xl border border-white/10 shadow-elevated relative w-full mx-auto">
+          <div className="flex flex-wrap items-center justify-between gap-2 px-1 pb-3">
+            <div className="flex flex-wrap items-center gap-1.5">
+              {foundationPaid && (
+                <>
+                  <span className="hidden sm:inline text-[11px] uppercase tracking-widest text-white/50 mr-1">Armário de enxoval</span>
+                  {Object.entries(ROOM_DISPLAY).map(([key, room]) => {
+                    const hasCabinetItems = gifts.some((g) => g.houseRoom === key && !g.houseItemType && isGiftPaid(g));
+                    return (
+                      <button
+                        key={key}
+                        type="button"
+                        onClick={() => setActiveCabinet(key as keyof typeof ROOM_DISPLAY)}
+                        title={`Armário de Enxoval: ${room.name}`}
+                        className={`px-2.5 py-1.5 rounded-full border transition-all flex items-center gap-1.5 text-[11px] font-sans font-medium ${
+                          hasCabinetItems
+                            ? "bg-gold text-background border-gold-light hover:bg-gold-light"
+                            : "bg-white/5 text-white/80 border-white/15 hover:bg-white/10 hover:border-gold/50"
+                        }`}
+                      >
+                        <ShoppingBag className="w-3.5 h-3.5 shrink-0" />
+                        {room.name}
+                      </button>
+                    );
+                  })}
+                </>
+              )}
+            </div>
             {roofPaid && (
               <Button
                 variant="outline"
@@ -243,41 +507,70 @@ export default function PublicVirtualHouse({ weddingId, onOpenCheckout }: Public
             )}
           </div>
 
-          <div 
-            ref={constraintsRef} 
-            className="bg-[#1a1c1a] rounded-2xl border border-border shadow-card overflow-hidden w-full relative cursor-grab active:cursor-grabbing" 
-            style={{ minHeight: `${containerHeight}px` }}
+          <div
+            ref={containerRef}
+            className="bg-[#1a1c1a] rounded-2xl border border-border shadow-card overflow-hidden w-full relative select-none"
+            style={{ height: `${displayHeight}px`, touchAction: zoomLevel > 1.05 ? "none" : "pan-y" }}
           >
-            <motion.div 
-              drag 
-              dragConstraints={constraintsRef}
-              dragElastic={0.1}
-              className="relative mx-auto" 
-              style={{ width: '1200px', height: `${containerHeight}px` }}
+
+            {/* Controles de câmera */}
+            <div className="absolute bottom-3 right-3 z-30 flex items-center gap-1.5 bg-black/75 backdrop-blur-md px-2.5 py-1.5 rounded-xl border border-white/10 shadow-elevated">
+              <button type="button" onClick={() => setZoomLevel((z) => Math.max(0.6, Number((z - 0.2).toFixed(1))))} disabled={zoomLevel <= 0.6} title="Diminuir zoom" className="w-7 h-7 rounded-lg bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-all disabled:opacity-40">
+                <ZoomOut className="w-3.5 h-3.5" />
+              </button>
+              <span className="text-[11px] font-mono text-white/80 min-w-[38px] text-center select-none">{Math.round(currentScale * 100)}%</span>
+              <button type="button" onClick={() => setZoomLevel((z) => Math.min(2.5, Number((z + 0.2).toFixed(1))))} disabled={zoomLevel >= 2.5} title="Aumentar zoom" className="w-7 h-7 rounded-lg bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-all disabled:opacity-40">
+                <ZoomIn className="w-3.5 h-3.5" />
+              </button>
+              {zoomLevel !== 1 && (
+                <button type="button" onClick={() => { setZoomLevel(1); setResetKey((k) => k + 1); }} title="Ajustar à tela" className="px-2 h-7 rounded-lg bg-gold/20 hover:bg-gold/30 text-gold flex items-center text-[10px] font-medium transition-all ml-0.5">
+                  <RotateCcw className="w-3 h-3 mr-1" />
+                  Ajustar
+                </button>
+              )}
+            </div>
+
+            <motion.div
+              key={resetKey}
+              ref={sceneRef}
+              drag={zoomLevel > 1.05}
+              dragConstraints={{ left: -overflowX, right: overflowX, top: -overflowY, bottom: overflowY }}
+              dragElastic={0.05}
+              onPointerDown={(e) => { pointerDownPos.current = { x: e.clientX, y: e.clientY }; }}
+              onPointerMove={handleScenePointerMove}
+              onPointerLeave={() => setHoveredGiftId(null)}
+              onClick={handleSceneClick}
+              className="absolute shrink-0"
+              style={{
+                width: `${SCENE_WIDTH}px`,
+                height: `${SCENE_HEIGHT}px`,
+                left: "50%",
+                top: "50%",
+                marginLeft: `-${SCENE_WIDTH / 2}px`,
+                marginTop: `-${SCENE_HEIGHT / 2}px`,
+                scale: currentScale,
+                cursor: hoveredGiftId ? "pointer" : zoomLevel > 1.05 ? "grab" : "default",
+              }}
             >
-              
+
               {/* Grid Foundation & Cells */}
               {gridCells.map(({ x, y, roomKey }) => {
                 const iso = getIsoCoords(x, y, mapOriginX, mapOriginY);
-                const ghostItem = roomKey ? getGhostItemAt(x, y, roomKey) : null;
-                
+                                
                 let tileImg = null;
                 if (floorCoveringsPaid && roomKey) {
-                  if (roomKey === "kitchen") tileImg = "tile_kitchen.png";
-                  if (roomKey === "bathroom") tileImg = "tile_bathroom.png";
-                  if (roomKey === "bedroom") tileImg = "tile_bedroom.png";
-                  if (roomKey === "laundry") tileImg = "tile_laundry.png";
-                  if (roomKey === "living_room") tileImg = "tile_living.png";
+                  if (roomKey === "kitchen") tileImg = "tile_kitchen.png?v=" + ASSET_VERSION;
+                  if (roomKey === "bathroom") tileImg = "tile_bathroom.png?v=" + ASSET_VERSION;
+                  if (roomKey === "bedroom") tileImg = "tile_bedroom.png?v=" + ASSET_VERSION;
+                  if (roomKey === "laundry") tileImg = "tile_laundry.png?v=" + ASSET_VERSION;
+                  if (roomKey === "living_room") tileImg = "tile_living.png?v=" + ASSET_VERSION;
                 } else if (foundationPaid) {
-                  tileImg = "tile_foundation.png";
+                  tileImg = "tile_foundation.png?v=" + ASSET_VERSION;
                 }
 
                 return (
                   <div
                     key={`cell-${x}-${y}`}
-                    onClick={() => {
-                      if (ghostItem) handleGhostClick(ghostItem);
-                    }}
                     style={{
                       position: "absolute",
                       left: `${iso.x}px`,
@@ -285,10 +578,11 @@ export default function PublicVirtualHouse({ weddingId, onOpenCheckout }: Public
                       width: `${TILE_W}px`,
                       height: `${TILE_H}px`,
                       zIndex: iso.zIndex,
+                      clipPath: "polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)",
                     }}
                     className={`transition-all flex items-center justify-center
                       ${!tileImg ? "border border-white/20" : ""}
-                      ${ghostItem ? "cursor-pointer hover:brightness-125" : ""}
+                      
                     `}
                   >
                     {tileImg && (
@@ -298,192 +592,193 @@ export default function PublicVirtualHouse({ weddingId, onOpenCheckout }: Public
                     {!tileImg && (
                       <div className="w-1 h-1 rounded-full bg-white/30 absolute pointer-events-none" />
                     )}
-
-                    {/* Ghost item fallback icon (rendered behind if there's no img yet, or to show hover) */}
-                    {ghostItem && (
-                      <div className="absolute inset-0 flex items-center justify-center bg-gold/20 backdrop-blur-[1px] group z-20 pointer-events-none">
-                         <span className="text-3xl filter sepia saturate-200 drop-shadow-md">
-                           {FURNITURE_ICONS[ghostItem.houseItemType || ""] || "📦"}
-                         </span>
-                         <div className="absolute opacity-0 group-hover:opacity-100 bg-gold text-background text-[10px] font-bold py-1 px-2 rounded -top-8 whitespace-nowrap transition-opacity">
-                           Presentear {ghostItem.name}
-                         </div>
-                      </div>
-                    )}
                   </div>
                 );
               })}
 
-              {/* Walls Rendering */}
+              {/* Walls Rendering - Continuous Tall Loft Back Walls */}
               {wallsPaid && Array.from({ length: 10 }).map((_, x) => {
-                // Back-right wall (along y=0 edge). wall_right faces down-right.
+                // Back-right / North-East wall (along y=0 edge, x from 0 to 9)
                 const iso = getIsoCoords(x, 0, mapOriginX, mapOriginY);
+                // Windows in Kitchen (x=1) and Bedroom (x=6, above bed headboard) if doors_windows paid
+                const hasWindow = doorsWindowsPaid && (x === 1 || x === 6);
+                const wallImg = hasWindow ? "wall_ne_window.png?v=" + ASSET_VERSION : "wall_ne_plain.png?v=" + ASSET_VERSION;
+
                 return (
                   <div
-                    key={`wall-right-${x}`}
+                    key={`wall-ne-${x}`}
                     style={{
                       position: "absolute",
                       left: `${iso.x + TILE_W / 2}px`,
-                      top: `${iso.y - TILE_H}px`,
-                      width: `${TILE_W / 2}px`,
-                      height: `${TILE_W}px`,
+                      top: `${iso.y - 160}px`,
+                      width: "64px",
+                      height: "192px",
                       zIndex: iso.zIndex + 1,
                       pointerEvents: "none"
                     }}
                   >
-                    <img src="/assets/iso/wall_left_painted.png" className="w-full h-full object-contain" alt="wall" />
+                    <img src={`/assets/iso/${wallImg}`} className="w-full h-full object-contain" alt="wall" />
                   </div>
-                )
+                );
               })}
               {wallsPaid && Array.from({ length: 7 }).map((_, y) => {
-                // Back-left wall (along x=0 edge). wall_left faces down-left.
+                // Back-left / North-West wall (along x=0 edge, y from 0 to 6)
                 const iso = getIsoCoords(0, y, mapOriginX, mapOriginY);
+                // Window in Laundry (y=5) if doors_windows paid
+                const hasWindow = doorsWindowsPaid && (y === 5);
+                const wallImg = hasWindow ? "wall_nw_window.png?v=" + ASSET_VERSION : "wall_nw_plain.png?v=" + ASSET_VERSION;
+
                 return (
                   <div
-                    key={`wall-left-${y}`}
+                    key={`wall-nw-${y}`}
                     style={{
                       position: "absolute",
                       left: `${iso.x}px`,
-                      top: `${iso.y - TILE_H}px`,
-                      width: `${TILE_W / 2}px`,
-                      height: `${TILE_W}px`,
+                      top: `${iso.y - 160}px`,
+                      width: "64px",
+                      height: "192px",
                       zIndex: iso.zIndex + 1,
                       pointerEvents: "none"
                     }}
                   >
-                    <img src="/assets/iso/wall_right_painted.png" className="w-full h-full object-contain" alt="wall" />
+                    <img src={`/assets/iso/${wallImg}`} className="w-full h-full object-contain" alt="wall" />
                   </div>
-                )
+                );
               })}
 
-              {/* Placed Furniture */}
-              {placedFurniture.map((furniture) => {
-                if (furniture.housePositionX === null || furniture.housePositionY === null) return null;
-                const iso = getIsoCoords(furniture.housePositionX, furniture.housePositionY, mapOriginX, mapOriginY);
+              {/* Móveis posicionados: revelação gradual conforme o financiamento avança.
+                  A camada "fantasma" (sépia/translúcida) fica sempre embaixo; a camada
+                  sólida é recortada por clip-path para mostrar só o progresso% de baixo
+                  pra cima — em 100% o fantasma some por baixo do móvel completo. */}
+              {(() => {
+                const allPlacedItemsList = positionedFurniture
+                  .filter((f) => f.housePositionX !== null && f.housePositionY !== null && f.houseItemType)
+                  .map((f) => ({
+                    type: f.houseItemType as string,
+                    x: f.housePositionX as number,
+                    y: f.housePositionY as number,
+                  }));
+
+                return positionedFurniture.map((furniture) => {
+                  if (furniture.housePositionX === null || furniture.housePositionY === null || !furniture.houseItemType) return null;
+                  const placement = getFurniturePlacement(
+                    furniture.houseItemType,
+                    furniture.housePositionX,
+                    furniture.housePositionY,
+                    mapOriginX,
+                    mapOriginY,
+                    allPlacedItemsList
+                  );
+                  const progress = getGiftFundingProgress(furniture);
+                  const isComplete = progress >= 100;
+                  const spriteKey = getFurnitureSpriteKey(
+                    furniture.houseItemType,
+                    furniture.housePositionX,
+                    furniture.housePositionY,
+                    allPlacedItemsList
+                  );
+
+                  return (
+                    <div
+                      key={`furn-${furniture.id}`}
+                      style={{
+                        position: "absolute",
+                        left: `${placement.left}px`,
+                        top: `${placement.top}px`,
+                        width: `${placement.width}px`,
+                        height: `${placement.height}px`,
+                        zIndex: placement.zIndex,
+                        pointerEvents: "none",
+                        filter: hoveredGiftId === furniture.id ? "brightness(1.15)" : undefined,
+                      }}
+                    >
+                      {!isComplete && (
+                        <img
+                          src={`/assets/iso/furniture_${spriteKey}.png?v=${ASSET_VERSION}`}
+                          alt=""
+                          aria-hidden="true"
+                          className="absolute inset-0 w-full h-full object-contain filter sepia saturate-200 hue-rotate-[15deg] opacity-50 drop-shadow-[0_0_8px_rgba(255,215,0,0.5)] pointer-events-none"
+                          style={{ imageRendering: "pixelated" }}
+                        />
+                      )}
+                      {progress > 0 && (
+                        <img
+                          src={`/assets/iso/furniture_${spriteKey}.png?v=${ASSET_VERSION}`}
+                          alt={furniture.name}
+                          className="absolute inset-0 w-full h-full object-contain drop-shadow-lg pointer-events-none"
+                          style={{ clipPath: `inset(${100 - progress}% 0 0 0)`, imageRendering: "pixelated" }}
+                        />
+                      )}
+                  </div>
+                );
+              });
+            })()}
+
+              {/* Tooltip único: fora do stacking dos móveis, com tamanho constante na tela e preso às bordas da cena */}
+              {(() => {
+                const id = hoveredGiftId ?? activeTooltipGiftId;
+                const target = id ? getPlacedWithPlacement().find((i) => i.furniture.id === id) : null;
+                if (!target) return null;
+                const { furniture, placement } = target;
+                const progress = getGiftFundingProgress(furniture);
                 const buyerName = buyers[furniture.id];
-                
+                const half = 130 / currentScale;
+                const cx = Math.min(Math.max(placement.left + placement.width / 2, half + 8), SCENE_WIDTH - half - 8);
+                const top = Math.max(placement.top + 6, 76 / currentScale);
                 return (
                   <div
-                    key={`furn-${furniture.id}`}
-                    style={{
-                      position: "absolute",
-                      left: `${iso.x}px`,
-                      top: `${iso.y - TILE_H}px`,
-                      zIndex: iso.zIndex + 10,
-                    }}
-                    className="group"
+                    className="absolute bg-black/95 text-white text-xs py-2 px-3 rounded-xl shadow-elevated whitespace-nowrap border border-gold/40 pointer-events-none"
+                    style={{ left: `${cx}px`, top: `${top}px`, zIndex: 190000, transform: `translate(-50%, -100%) scale(${1 / currentScale})`, transformOrigin: "50% 100%" }}
                   >
-                    <img 
-                      src={`/assets/iso/furniture_${furniture.houseItemType}.png`} 
-                      alt={furniture.name}
-                      className="w-full h-full object-contain drop-shadow-lg"
-                    />
-                    <div className="absolute bottom-[105%] left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 bg-black/90 text-white text-[9px] sm:text-xs py-1.5 px-3 rounded-lg shadow-soft whitespace-nowrap z-50 pointer-events-none border border-white/10">
-                      <strong>{furniture.name}</strong> <br />
-                      <span className="text-gold/90 font-light mt-0.5 block">
-                        {buyerName ? `Presenteado por ${buyerName}` : "Presenteado com carinho!"}
-                      </span>
-                    </div>
+                    {progress >= 100 ? (
+                      <>
+                        <strong className="font-medium">{furniture.name}</strong>
+                        <span className="text-gold font-serif mt-0.5 block">❤️ {buyerName ? `Presenteado por ${buyerName}` : "Presenteado com carinho!"}</span>
+                      </>
+                    ) : (
+                      <>
+                        <strong className="font-medium">Presentear {furniture.name}</strong>
+                        {progress > 0 && <span className="text-gold font-light mt-0.5 block">{Math.round(progress)}% financiado</span>}
+                      </>
+                    )}
                   </div>
                 );
-              })}
+              })()}
 
-              {/* Ghost Unplaced Furniture Assets (Using the same PNG but filtered) */}
-              {gifts.filter(g => g.houseItemType && !STRUCTURAL_ITEMS.includes(g.houseItemType) && !isGiftPaid(g) && g.housePositionX !== null && g.housePositionY !== null).map((furniture) => {
-                const iso = getIsoCoords(furniture.housePositionX!, furniture.housePositionY!, mapOriginX, mapOriginY);
-                return (
-                  <div
-                    key={`ghost-img-${furniture.id}`}
-                    onClick={() => handleGhostClick(furniture)}
-                    style={{
-                      position: "absolute",
-                      left: `${iso.x}px`,
-                      top: `${iso.y - TILE_H}px`,
-                      zIndex: iso.zIndex + 10,
-                    }}
-                    className="group cursor-pointer hover:brightness-125 transition-all"
-                  >
-                    <img 
-                      src={`/assets/iso/furniture_${furniture.houseItemType}.png`} 
-                      alt={furniture.name}
-                      className="w-full h-full object-contain filter sepia saturate-200 hue-rotate-[15deg] opacity-60 drop-shadow-[0_0_8px_rgba(255,215,0,0.5)]"
-                    />
-                    <div className="absolute bottom-[105%] left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 bg-gold text-background text-[10px] font-bold py-1 px-2.5 rounded-md shadow-soft whitespace-nowrap z-50 transition-all pointer-events-none uppercase tracking-wide">
-                      Presentear {furniture.name}
-                    </div>
-                  </div>
-                );
-              })}
-
-              {/* Room Cabinet Buttons */}
-              {foundationPaid && (
-                <div className="absolute inset-0 pointer-events-none select-none z-[60]">
-                  {Object.entries(ROOM_DISPLAY).map(([key, room]) => {
-                    // Place the cabinet button at the room's starting iso coords visually offset
-                    const iso = getIsoCoords(room.minX, room.minY, mapOriginX, mapOriginY);
-                    
-                    const hasCabinetItems = gifts.some(
-                      (g) => g.houseRoom === key && !g.houseItemType && isGiftPaid(g)
-                    );
-
+              {/* Fachada frontal: fecha a casa por baixo do telhado */}
+              {showRoof && roofPaid && (
+                <div className="absolute inset-0 pointer-events-none" style={{ zIndex: 195000 }}>
+                  {Array.from({ length: 7 }).map((_, y) => {
+                    const iso = getIsoCoords(9, y, mapOriginX, mapOriginY);
                     return (
-                      <div 
-                        key={room.name} 
-                        style={{ left: `${iso.x + TILE_W/2}px`, top: `${iso.y - 20}px` }} 
-                        className="absolute flex flex-col gap-2 items-center pointer-events-auto transform -translate-x-1/2"
-                      >
-                        <button
-                          onClick={() => setActiveCabinet(key as any)}
-                          className={`p-1.5 sm:p-2 rounded-full border shadow-card transition-all flex items-center justify-center ${
-                            hasCabinetItems
-                              ? "bg-gold text-background hover:bg-gold-light border-gold-light animate-pulse"
-                              : "bg-white/90 text-muted-foreground hover:bg-white border-border"
-                          }`}
-                          title={`Armário de Enxoval da ${room.name}`}
-                        >
-                          <ShoppingBag className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                        </button>
+                      <div key={`facade-se-${y}`} style={{ position: "absolute", left: `${iso.x + TILE_W / 2}px`, top: `${iso.y + TILE_H - WALL_HEIGHT - 32}px`, width: "64px", height: "192px" }}>
+                        <img src={`/assets/iso/wall_nw_plain.png?v=${ASSET_VERSION}`} className="w-full h-full object-contain" alt="" />
+                      </div>
+                    );
+                  })}
+                  {Array.from({ length: 10 }).map((_, x) => {
+                    const iso = getIsoCoords(x, 6, mapOriginX, mapOriginY);
+                    const facadeImg = x === 5 ? "wall_ne_door.png" : "wall_ne_plain.png";
+                    return (
+                      <div key={`facade-sw-${x}`} style={{ position: "absolute", left: `${iso.x}px`, top: `${iso.y + TILE_H - WALL_HEIGHT - 32}px`, width: "64px", height: "192px" }}>
+                        <img src={`/assets/iso/${facadeImg}?v=${ASSET_VERSION}`} className="w-full h-full object-contain" alt="" />
                       </div>
                     );
                   })}
                 </div>
               )}
 
-              {/* Roof Overlay */}
+              {/* Telhado: acima de móveis e fachada, beiral alinhado ao topo das paredes */}
               {showRoof && roofPaid && (() => {
-                // Compute roof position from the grid's bounding diamond
-                const topLeft = getIsoCoords(0, 0, mapOriginX, mapOriginY);
-                const topRight = getIsoCoords(9, 0, mapOriginX, mapOriginY);
-                const bottomLeft = getIsoCoords(0, 6, mapOriginX, mapOriginY);
-                const bottomRight = getIsoCoords(9, 6, mapOriginX, mapOriginY);
-                // Diamond extremes
-                const topY = topLeft.y;
-                const leftX = bottomLeft.x;
-                const rightX = topRight.x + TILE_W;
-                const bbW = rightX - leftX;
-                // Use roof's native aspect ratio (700:400 = 1.75) to compute height
-                const ROOF_ASPECT = 700 / 400;
-                const roofW = bbW + 160;
-                const roofH = roofW / ROOF_ASPECT;
-                const roofLeft = leftX - 80;
-                const roofTop = topY - 180;
+                const roof = getRoofPlacement(mapOriginX, mapOriginY);
                 return (
-                  <div 
-                    className="absolute pointer-events-none"
-                    style={{
-                      left: `${roofLeft}px`,
-                      top: `${roofTop}px`,
-                      width: `${roofW}px`,
-                      height: `${roofH}px`,
-                      zIndex: 200,
-                    }}
-                  >
-                    <img src="/assets/iso/roof.png" alt="Roof" className="w-full h-full drop-shadow-2xl opacity-95" />
+                  <div className="absolute pointer-events-none" style={{ left: `${roof.left}px`, top: `${roof.top}px`, width: `${roof.width}px`, height: `${roof.height}px`, zIndex: 200000 }}>
+                    <img src={`/assets/iso/roof.png?v=${ASSET_VERSION}`} alt="Telhado" className="w-full h-full drop-shadow-2xl" style={{ imageRendering: "pixelated" }} />
                   </div>
                 );
               })()}
 
-            </motion.div>
+                          </motion.div>
           </div>
         </div>
 
@@ -506,7 +801,7 @@ export default function PublicVirtualHouse({ weddingId, onOpenCheckout }: Public
 
                 <div className="mx-auto w-24 h-24 rounded-xl bg-gold/10 flex items-center justify-center p-2 relative overflow-hidden">
                    <img 
-                      src={`/assets/iso/furniture_${selectedGhost.houseItemType}.png`} 
+                      src={`/assets/iso/furniture_${getFurnitureSpriteKey(selectedGhost.houseItemType || "", selectedGhost.housePositionX ?? 0, selectedGhost.housePositionY ?? 0)}.png?v=${ASSET_VERSION}`} 
                       alt={selectedGhost.name}
                       className="w-full h-full object-contain filter sepia saturate-200 hue-rotate-[15deg]"
                    />
@@ -524,16 +819,51 @@ export default function PublicVirtualHouse({ weddingId, onOpenCheckout }: Public
                   </p>
                 </div>
 
-                <p className="text-3xl font-serif text-gold font-bold">
-                  R$ {selectedGhost.price.toFixed(2).replace(".", ",")}
-                </p>
+                {(selectedGhost.totalQuotas || selectedGhost.isVaquinha) && (
+                  <div className="space-y-1.5 text-left">
+                    <div className="h-2 bg-muted rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-gold rounded-full transition-all"
+                        style={{ width: `${getGiftFundingProgress(selectedGhost)}%` }}
+                      />
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {selectedGhost.totalQuotas
+                        ? `${selectedGhost.totalQuotas - (selectedGhost.stock || 0)} de ${selectedGhost.totalQuotas} cotas adquiridas`
+                        : `Arrecadado: R$ ${(selectedGhost.raisedAmount || 0).toFixed(2).replace(".", ",")} de R$ ${selectedGhost.price.toFixed(2).replace(".", ",")}`}
+                    </p>
+                  </div>
+                )}
+
+                {selectedGhost.totalQuotas && selectedGhost.price > 0 ? (
+                  <p className="text-3xl font-serif text-gold font-bold">
+                    R$ {(selectedGhost.price / selectedGhost.totalQuotas).toFixed(2).replace(".", ",")}
+                    <span className="text-sm text-muted-foreground font-sans"> / cota</span>
+                  </p>
+                ) : selectedGhost.isOpenPrice ? (
+                  <div className="text-left space-y-1.5">
+                    <label className="text-xs font-medium text-muted-foreground">Com quanto deseja apoiar essa meta?</label>
+                    <Input
+                      type="number"
+                      min="1"
+                      value={contributionAmount}
+                      onChange={(e) => setContributionAmount(e.target.value)}
+                      placeholder="R$ 0,00"
+                      className="text-center text-lg"
+                    />
+                  </div>
+                ) : (
+                  <p className="text-3xl font-serif text-gold font-bold">
+                    R$ {selectedGhost.price.toFixed(2).replace(".", ",")}
+                  </p>
+                )}
 
                 <Button
                   onClick={handleBuyGhost}
                   className="w-full bg-gold hover:bg-gold-light text-background font-bold py-4 text-sm uppercase tracking-wider rounded-xl shadow-soft"
                 >
                   <ShoppingBag className="w-4 h-4 mr-2" />
-                  Presentear Agora
+                  {selectedGhost.totalQuotas ? "Adquirir Cota" : "Presentear Agora"}
                 </Button>
               </motion.div>
             </div>

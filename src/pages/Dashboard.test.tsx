@@ -95,6 +95,14 @@ vi.mock('@/integrations/supabase/client', () => ({
               sections: { gifts: true }
             },
             error: null
+          }),
+          maybeSingle: vi.fn().mockResolvedValue({
+            data: {
+              couple_name: 'Danilo & Maria',
+              layout: 'classic',
+              sections: { gifts: true }
+            },
+            error: null
           })
         })
       })
@@ -237,7 +245,7 @@ Jogo de Panelas Antiaderente,Cozinha,499.00,,
         'https://mykaowlastbbtwvhgokt.supabase.co/functions/v1/scrape-gift',
         expect.objectContaining({
           method: 'POST',
-          body: JSON.stringify({ url: 'https://loja.com/batedeira-planetaria' })
+          body: JSON.stringify({ url: 'https://loja.com/batedeira-planetaria', weddingId: '' })
         })
       );
 

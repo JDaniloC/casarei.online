@@ -1,9 +1,17 @@
-import { WeddingProvider } from "@/contexts/WeddingContext";
+import { WeddingProvider, defaultConfig } from "@/contexts/WeddingContext";
 import PublicLanding from "@/components/wedding/PublicLanding";
+
+const demoConfig = {
+  ...defaultConfig,
+  sections: {
+    ...defaultConfig.sections,
+    virtualHouse: true,
+  },
+};
 
 const Demo = () => {
   return (
-    <WeddingProvider>
+    <WeddingProvider initialConfig={demoConfig}>
       {/*
         Página de demonstração pública, sem casamento real por trás — não há
         `config.defaultMaxCompanions` vindo do banco para ler (o WeddingProvider

@@ -30,11 +30,17 @@ dist-ssr
 
 # Project-specific
 .agent
-docs/
+docs/*
+!docs/plans/
+!docs/plans/task.md
+!docs/pixel_art_isometric_asset_guide.md
 
 # Local test outputs and tool states
 test-results/
 test_checkout.ts
 supabase/.branches/
 supabase/.temp/
+scratch/
+scripts/audit_results/
+
 

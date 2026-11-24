@@ -110,7 +110,7 @@ interface WeddingContextType {
   toggleSection: (section: keyof WeddingConfig["sections"]) => void;
 }
 
-const defaultConfig: WeddingConfig = {
+export const defaultConfig: WeddingConfig = {
   isLoaded: false,
   coupleName: "Camila & Rafael",
   weddingDate: "2025-08-15",
