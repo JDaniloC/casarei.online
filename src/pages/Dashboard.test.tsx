@@ -95,14 +95,6 @@ vi.mock('@/integrations/supabase/client', () => ({
               sections: { gifts: true }
             },
             error: null
-          }),
-          maybeSingle: vi.fn().mockResolvedValue({
-            data: {
-              couple_name: 'Danilo & Maria',
-              layout: 'classic',
-              sections: { gifts: true }
-            },
-            error: null
           })
         })
       })
