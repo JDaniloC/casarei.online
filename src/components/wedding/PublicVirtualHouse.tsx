@@ -63,7 +63,7 @@ const FURNITURE_ICONS: Record<string, string> = {
 
 const SCENE_WIDTH = 1220;
 const SCENE_HEIGHT = (9 + 6) * (TILE_H / 2) + 260; // 740
-const ASSET_VERSION = "39";
+const ASSET_VERSION = "40";
 
 const STRUCTURAL_ITEMS = ["foundation", "floor_coverings", "walls", "painting", "doors_windows", "roof", "electric", "plumbing"];
 
@@ -758,9 +758,10 @@ export default function PublicVirtualHouse({ weddingId, onOpenCheckout }: Public
                   })}
                   {Array.from({ length: 10 }).map((_, x) => {
                     const iso = getIsoCoords(x, 6, mapOriginX, mapOriginY);
+                    const facadeImg = x === 5 ? "wall_ne_door.png" : "wall_ne_plain.png";
                     return (
                       <div key={`facade-sw-${x}`} style={{ position: "absolute", left: `${iso.x}px`, top: `${iso.y + TILE_H - WALL_HEIGHT - 32}px`, width: "64px", height: "192px" }}>
-                        <img src={`/assets/iso/wall_ne_plain.png?v=${ASSET_VERSION}`} className="w-full h-full object-contain" alt="" />
+                        <img src={`/assets/iso/${facadeImg}?v=${ASSET_VERSION}`} className="w-full h-full object-contain" alt="" />
                       </div>
                     );
                   })}
